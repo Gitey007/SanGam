@@ -17,12 +17,12 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/api/auth/register",
-                                "/api/auth/login",
-                                "/api/skills/**"
-                        ).permitAll()
-                        .anyRequest().authenticated()
-                );
+                                "/api/auth/**",
+                                "/api/skills/**",
+                                "/api/users/**",
+                                "/api/teams/**")
+                        .permitAll()
+                        .anyRequest().authenticated());
 
         return http.build();
     }
