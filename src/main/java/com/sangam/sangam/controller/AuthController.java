@@ -26,15 +26,15 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<User> register(
+    public ResponseEntity<LoginResponse> register(
             @Valid @RequestBody RegisterRequest request
     ) {
 
-        User user = authService.register(request);
+        LoginResponse response = authService.register(request);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(user);
+                .body(response);
     }
 
     @PostMapping("/login")

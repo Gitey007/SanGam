@@ -22,6 +22,7 @@ import com.sangam.sangam.repository.TeamJoinRequestRepository;
 import com.sangam.sangam.repository.TeamMemberRepository;
 import com.sangam.sangam.repository.TeamRepository;
 import com.sangam.sangam.repository.UserRepository;
+import com.sangam.sangam.security.SecurityUtils;
 
 @Service
 public class TeamService {
@@ -43,16 +44,31 @@ public class TeamService {
         this.teamJoinRequestRepository = teamJoinRequestRepository;
     }
 
+    @Transactional
     public Team createTeam(CreateTeamRequest request) {
 
-        User leader = userRepository.findById(request.getLeaderId())
-                .orElseThrow(() -> new RuntimeException("Leader not found"));
+        Long leaderId = request.getLeaderId();
+        if (leaderId == null) {
+            leaderId = SecurityUtils.getCurrentUserId();
+        }
+
+        if (leaderId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Leader ID is required");
+        }
+
+        User leader = userRepository.findById(leaderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Leader not found"));
+
+        if (request.getName() == null || request.getName().trim().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Team name cannot be empty");
+        }
 
         Team team = new Team();
-
-        team.setName(request.getName());
+        team.setName(request.getName().trim());
         team.setDescription(request.getDescription());
         team.setLeader(leader);
+        team.setCreatedAt(LocalDateTime.now());
+        team.setUpdatedAt(LocalDateTime.now());
 
         if (request.getMaxMembers() != null) {
             team.setMaxMembers(request.getMaxMembers());
@@ -61,10 +77,10 @@ public class TeamService {
         Team savedTeam = teamRepository.save(team);
 
         TeamMember member = new TeamMember();
-
         member.setTeamId(savedTeam.getId());
         member.setUserId(leader.getId());
         member.setRole(TeamMember.Role.LEADER);
+        member.setJoinedAt(LocalDateTime.now());
 
         teamMemberRepository.save(member);
 
@@ -93,7 +109,7 @@ public class TeamService {
     public TeamResponse getTeamById(Long teamId) {
 
         Team team = teamRepository.findById(teamId)
-                .orElseThrow(() -> new RuntimeException("Team not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
 
         return toTeamResponse(team);
     }
@@ -101,7 +117,7 @@ public class TeamService {
     public List<TeamMemberResponse> getTeamMembers(Long teamId) {
 
         if (!teamRepository.existsById(teamId)) {
-            throw new RuntimeException("Team not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found");
         }
 
         return teamMemberRepository.findByTeamId(teamId)
@@ -109,7 +125,7 @@ public class TeamService {
                 .map(member -> {
 
                     User user = userRepository.findById(member.getUserId())
-                            .orElseThrow(() -> new RuntimeException("User not found"));
+                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
                     return new TeamMemberResponse(
                             user.getId(),
@@ -123,38 +139,55 @@ public class TeamService {
                 .toList();
     }
 
+    @Transactional
     public void removeMember(
             Long teamId,
             Long memberId,
             Long leaderId) {
 
-        Team team = teamRepository.findById(teamId)
-                .orElseThrow(() -> new RuntimeException("Team not found"));
+        if (leaderId == null) {
+            leaderId = SecurityUtils.getCurrentUserId();
+        }
 
-        if (!team.getLeader().getId().equals(leaderId)) {
-            throw new RuntimeException(
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
+
+        if (leaderId == null || !team.getLeader().getId().equals(leaderId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
                     "Only the team leader can remove members");
         }
 
         if (memberId.equals(leaderId)) {
-            throw new RuntimeException(
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
                     "Leader cannot remove themselves");
         }
 
         TeamMemberId memberKey = new TeamMemberId(teamId, memberId);
 
         if (!teamMemberRepository.existsById(memberKey)) {
-            throw new RuntimeException(
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
                     "User is not a member of this team");
         }
 
         teamMemberRepository.deleteById(memberKey);
     }
 
+    @Transactional
     public void leaveTeam(Long teamId, Long userId) {
 
+        if (userId == null) {
+            userId = SecurityUtils.getCurrentUserId();
+        }
+
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User authentication required");
+        }
+
         Team team = teamRepository.findById(teamId)
-                .orElseThrow(() -> new RuntimeException("Team not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
 
         if (team.getLeader().getId().equals(userId)) {
             throw new ResponseStatusException(
@@ -165,14 +198,24 @@ public class TeamService {
         TeamMemberId memberKey = new TeamMemberId(teamId, userId);
 
         if (!teamMemberRepository.existsById(memberKey)) {
-            throw new RuntimeException(
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
                     "User is not a member of this team");
         }
 
         teamMemberRepository.deleteById(memberKey);
     }
 
+    @Transactional
     public void joinTeam(Long teamId, Long userId) {
+
+        if (userId == null) {
+            userId = SecurityUtils.getCurrentUserId();
+        }
+
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User authentication required");
+        }
 
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -228,6 +271,14 @@ public class TeamService {
     @Transactional
     public TeamJoinRequestResponse sendJoinRequest(Long teamId, Long userId) {
 
+        if (userId == null) {
+            userId = SecurityUtils.getCurrentUserId();
+        }
+
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User authentication required");
+        }
+
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -276,6 +327,10 @@ public class TeamService {
 
     public List<TeamJoinRequestResponse> getPendingJoinRequests(Long teamId, Long leaderId) {
 
+        if (leaderId == null) {
+            leaderId = SecurityUtils.getCurrentUserId();
+        }
+
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -295,6 +350,10 @@ public class TeamService {
 
     @Transactional
     public void acceptJoinRequest(Long teamId, Long requestId, Long leaderId) {
+
+        if (leaderId == null) {
+            leaderId = SecurityUtils.getCurrentUserId();
+        }
 
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -354,6 +413,10 @@ public class TeamService {
 
     @Transactional
     public void rejectJoinRequest(Long teamId, Long requestId, Long leaderId) {
+
+        if (leaderId == null) {
+            leaderId = SecurityUtils.getCurrentUserId();
+        }
 
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResponseStatusException(

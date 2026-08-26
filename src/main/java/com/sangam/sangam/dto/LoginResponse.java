@@ -8,6 +8,7 @@ public class LoginResponse {
     private String college;
     private String branch;
     private int year;
+    private String token;
 
     public LoginResponse() {
     }
@@ -26,6 +27,24 @@ public class LoginResponse {
         this.college = college;
         this.branch = branch;
         this.year = year;
+    }
+
+    public LoginResponse(
+            Long id,
+            String name,
+            String email,
+            String college,
+            String branch,
+            int year,
+            String token
+    ) {
+        this.id = id;
+        this.name = name;
+        this.email = email;
+        this.college = college;
+        this.branch = branch;
+        this.year = year;
+        this.token = token;
     }
 
     public Long getId() {
@@ -50,5 +69,13 @@ public class LoginResponse {
 
     public int getYear() {
         return year;
+    }
+
+    public String getToken() {
+        return token;
+    }
+
+    public void setToken(String token) {
+        this.token = token;
     }
 }

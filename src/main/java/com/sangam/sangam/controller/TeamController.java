@@ -65,7 +65,7 @@ public class TeamController {
     public ResponseEntity<String> removeMember(
             @PathVariable Long teamId,
             @PathVariable Long memberId,
-            @RequestParam Long leaderId) {
+            @RequestParam(required = false) Long leaderId) {
 
         teamService.removeMember(
                 teamId,
@@ -79,7 +79,7 @@ public class TeamController {
     @DeleteMapping("/{teamId}/leave")
     public ResponseEntity<String> leaveTeam(
             @PathVariable Long teamId,
-            @RequestParam Long userId) {
+            @RequestParam(required = false) Long userId) {
 
         teamService.leaveTeam(teamId, userId);
 
@@ -90,7 +90,7 @@ public class TeamController {
     @PostMapping("/{teamId}/join")
     public ResponseEntity<String> joinTeam(
             @PathVariable Long teamId,
-            @RequestParam Long userId) {
+            @RequestParam(required = false) Long userId) {
 
         teamService.joinTeam(teamId, userId);
 
@@ -101,7 +101,7 @@ public class TeamController {
     @PostMapping("/{teamId}/join-request")
     public ResponseEntity<String> sendJoinRequest(
             @PathVariable Long teamId,
-            @RequestParam Long userId) {
+            @RequestParam(required = false) Long userId) {
 
         teamService.sendJoinRequest(teamId, userId);
 
