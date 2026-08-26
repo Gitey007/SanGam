@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sangam.sangam.dto.CreateTeamRequest;
+import com.sangam.sangam.dto.TeamJoinRequestResponse;
 import com.sangam.sangam.dto.TeamMemberResponse;
 import com.sangam.sangam.dto.TeamResponse;
 import com.sangam.sangam.entity.Team;
@@ -95,5 +96,49 @@ public class TeamController {
 
         return ResponseEntity.ok(
                 "Joined team successfully");
+    }
+
+    @PostMapping("/{teamId}/join-request")
+    public ResponseEntity<String> sendJoinRequest(
+            @PathVariable Long teamId,
+            @RequestParam Long userId) {
+
+        teamService.sendJoinRequest(teamId, userId);
+
+        return ResponseEntity.ok(
+                "Join request sent successfully");
+    }
+
+    @GetMapping("/{teamId}/join-requests")
+    public ResponseEntity<List<TeamJoinRequestResponse>> getPendingJoinRequests(
+            @PathVariable Long teamId,
+            @RequestParam(required = false) Long leaderId) {
+
+        return ResponseEntity.ok(
+                teamService.getPendingJoinRequests(teamId, leaderId));
+    }
+
+    @PostMapping("/{teamId}/join-requests/{requestId}/accept")
+    public ResponseEntity<String> acceptJoinRequest(
+            @PathVariable Long teamId,
+            @PathVariable Long requestId,
+            @RequestParam(required = false) Long leaderId) {
+
+        teamService.acceptJoinRequest(teamId, requestId, leaderId);
+
+        return ResponseEntity.ok(
+                "Join request accepted successfully");
+    }
+
+    @PostMapping("/{teamId}/join-requests/{requestId}/reject")
+    public ResponseEntity<String> rejectJoinRequest(
+            @PathVariable Long teamId,
+            @PathVariable Long requestId,
+            @RequestParam(required = false) Long leaderId) {
+
+        teamService.rejectJoinRequest(teamId, requestId, leaderId);
+
+        return ResponseEntity.ok(
+                "Join request rejected successfully");
     }
 }
