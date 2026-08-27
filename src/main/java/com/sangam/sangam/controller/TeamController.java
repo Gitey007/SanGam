@@ -87,16 +87,7 @@ public class TeamController {
                 "Left team successfully");
     }
 
-    @PostMapping("/{teamId}/join")
-    public ResponseEntity<String> joinTeam(
-            @PathVariable Long teamId,
-            @RequestParam Long userId) {
-
-        teamService.joinTeam(teamId, userId);
-
-        return ResponseEntity.ok(
-                "Joined team successfully");
-    }
+  
 
     @PostMapping("/{teamId}/join-request")
     public ResponseEntity<String> sendJoinRequest(
