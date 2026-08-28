@@ -2,6 +2,7 @@ package com.sangam.sangam.dto;
 
 public class LoginResponse {
 
+    private String token;
     private Long id;
     private String name;
     private String email;
@@ -13,13 +14,15 @@ public class LoginResponse {
     }
 
     public LoginResponse(
+            String token,
             Long id,
             String name,
             String email,
             String college,
             String branch,
-            int year
-    ) {
+            int year) {
+
+        this.token = token;
         this.id = id;
         this.name = name;
         this.email = email;
@@ -28,27 +31,59 @@ public class LoginResponse {
         this.year = year;
     }
 
+    public String getToken() {
+        return token;
+    }
+
+    public void setToken(String token) {
+        this.token = token;
+    }
+
     public Long getId() {
         return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
     }
 
     public String getName() {
         return name;
     }
 
+    public void setName(String name) {
+        this.name = name;
+    }
+
     public String getEmail() {
         return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public String getCollege() {
         return college;
     }
 
+    public void setCollege(String college) {
+        this.college = college;
+    }
+
     public String getBranch() {
         return branch;
     }
 
+    public void setBranch(String branch) {
+        this.branch = branch;
+    }
+
     public int getYear() {
         return year;
+    }
+
+    public void setYear(int year) {
+        this.year = year;
     }
 }
