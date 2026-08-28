@@ -18,14 +18,14 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
 
     public AuthService(
-        UserRepository userRepository,
-        PasswordEncoder passwordEncoder,
-        JwtService jwtService) {
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            JwtService jwtService) {
 
-    this.userRepository = userRepository;
-    this.passwordEncoder = passwordEncoder;
-    this.jwtService = jwtService;
-}
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
+    }
 
     public User register(RegisterRequest request) {
 
@@ -78,4 +78,28 @@ public class AuthService {
                 user.getBranch(),
                 user.getYear());
     }
+
+    public LoginResponse loginWithEmail(String email) {
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        org.springframework.security.core.userdetails.UserDetails userDetails = org.springframework.security.core.userdetails.User
+                .withUsername(user.getEmail())
+                .password(user.getPasswordHash())
+                .authorities("USER")
+                .build();
+
+        String token = jwtService.generateToken(userDetails);
+
+        return new LoginResponse(
+                token,
+                user.getId(),
+                user.getName(),
+                user.getEmail(),
+                user.getCollege(),
+                user.getBranch(),
+                user.getYear());
+    }
+
 }
