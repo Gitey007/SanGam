@@ -2,13 +2,14 @@ package com.sangam.sangam.controller;
 
 import java.util.List;
 
+import org.springframework.security.core.Authentication;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sangam.sangam.dto.UpdateProfileRequest;
@@ -26,8 +27,17 @@ public class UserController {
     }
 
     @GetMapping
-    public List<UserProfileResponse> getAllUsers() {
-        return userService.getAllUsers();
+    public List<UserProfileResponse> getUsers(
+            @RequestParam(required = false, defaultValue = "ALL") String scope,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) String skill,
+            Authentication authentication) {
+
+        return userService.getUsers(
+                scope,
+                year,
+                skill,
+                authentication.getName());
     }
 
     @GetMapping("/{id}")

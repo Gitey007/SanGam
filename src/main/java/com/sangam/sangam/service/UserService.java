@@ -13,95 +13,153 @@ import com.sangam.sangam.repository.UserRepository;
 @Service
 public class UserService {
 
-    private final UserRepository userRepository;
+        private final UserRepository userRepository;
 
-    public UserService(UserRepository userRepository) {
-        this.userRepository = userRepository;
-    }
+        public UserService(UserRepository userRepository) {
+                this.userRepository = userRepository;
+        }
 
-    public List<UserProfileResponse> getAllUsers() {
+        public List<UserProfileResponse> getAllUsers() {
 
-        return userRepository.findAll()
-                .stream()
-                .map(user -> new UserProfileResponse(
-                        user.getId(),
-                        user.getName(),
-                        user.getEmail(),
-                        user.getCollege(),
-                        user.getBranch(),
-                        user.getYear(),
-                        user.getBio(),
-                        user.getSkills()
+                return userRepository.findAll()
                                 .stream()
-                                .map(skill -> skill.getName())
-                                .collect(Collectors.toSet())))
-                .toList();
-    }
+                                .map(user -> new UserProfileResponse(
+                                                user.getId(),
+                                                user.getName(),
+                                                user.getEmail(),
+                                                user.getCollege(),
+                                                user.getBranch(),
+                                                user.getYear(),
+                                                user.getBio(),
+                                                user.getSkills()
+                                                                .stream()
+                                                                .map(skill -> skill.getName())
+                                                                .collect(Collectors.toSet())))
+                                .toList();
+        }
 
-    public UserProfileResponse getUserProfile(Long userId) {
+        public List<UserProfileResponse> getUsers(
+                        String scope,
+                        Integer year,
+                        String skill,
+                        String email) {
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                User currentUser = userRepository.findByEmail(email)
+                                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        return new UserProfileResponse(
-                user.getId(),
-                user.getName(),
-                user.getEmail(),
-                user.getCollege(),
-                user.getBranch(),
-                user.getYear(),
-                user.getBio(),
-                user.getSkills()
-                        .stream()
-                        .map(skill -> skill.getName())
-                        .collect(Collectors.toSet()));
-    }
+                String currentCollege = currentUser.getCollege();
 
-    public UserProfileResponse updateUserProfile(
-            Long userId,
-            UpdateProfileRequest request) {
+                List<User> users;
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                if ("MY_COLLEGE".equalsIgnoreCase(scope)) {
 
-        user.setName(request.getName());
-        user.setCollege(request.getCollege());
-        user.setBranch(request.getBranch());
-        user.setYear(request.getYear());
-        user.setBio(request.getBio());
+                        if (year != null) {
+                                users = userRepository.findByCollegeAndYear(
+                                                currentCollege,
+                                                year);
+                        } else {
+                                users = userRepository.findByCollege(
+                                                currentCollege);
+                        }
 
-        userRepository.save(user);
+                } else if ("INTER_COLLEGE".equalsIgnoreCase(scope)) {
 
-        return new UserProfileResponse(
-                user.getId(),
-                user.getName(),
-                user.getEmail(),
-                user.getCollege(),
-                user.getBranch(),
-                user.getYear(),
-                user.getBio(),
-                user.getSkills()
-                        .stream()
-                        .map(skill -> skill.getName())
-                        .collect(Collectors.toSet()));
-    }
+                        users = userRepository.findByCollegeNot(
+                                        currentCollege);
 
-    public List<UserProfileResponse> getUsersBySkill(Long skillId) {
+                } else {
 
-        return userRepository.findUsersBySkillId(skillId)
-                .stream()
-                .map(user -> new UserProfileResponse(
-                        user.getId(),
-                        user.getName(),
-                        user.getEmail(),
-                        user.getCollege(),
-                        user.getBranch(),
-                        user.getYear(),
-                        user.getBio(),
-                        user.getSkills()
+                        users = userRepository.findAll();
+                }
+
+                if (skill != null && !skill.isBlank()) {
+                        users = users.stream()
+                                        .filter(user -> user.getSkills().stream()
+                                                        .anyMatch(s -> s.getName().equalsIgnoreCase(skill)))
+                                        .toList();
+                }
+
+                return users.stream()
+                                .map(user -> new UserProfileResponse(
+                                                user.getId(),
+                                                user.getName(),
+                                                user.getEmail(),
+                                                user.getCollege(),
+                                                user.getBranch(),
+                                                user.getYear(),
+                                                user.getBio(),
+                                                user.getSkills()
+                                                                .stream()
+                                                                .map(s -> s.getName())
+                                                                .collect(Collectors.toSet())))
+                                .toList();
+        }
+
+        public UserProfileResponse getUserProfile(Long userId) {
+
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new RuntimeException("User not found"));
+
+                return new UserProfileResponse(
+                                user.getId(),
+                                user.getName(),
+                                user.getEmail(),
+                                user.getCollege(),
+                                user.getBranch(),
+                                user.getYear(),
+                                user.getBio(),
+                                user.getSkills()
+                                                .stream()
+                                                .map(skill -> skill.getName())
+                                                .collect(Collectors.toSet()));
+        }
+
+        public UserProfileResponse updateUserProfile(
+                        Long userId,
+                        UpdateProfileRequest request) {
+
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new RuntimeException("User not found"));
+
+                user.setName(request.getName());
+                user.setCollege(request.getCollege());
+                user.setBranch(request.getBranch());
+                user.setYear(request.getYear());
+                user.setBio(request.getBio());
+
+                userRepository.save(user);
+
+                return new UserProfileResponse(
+                                user.getId(),
+                                user.getName(),
+                                user.getEmail(),
+                                user.getCollege(),
+                                user.getBranch(),
+                                user.getYear(),
+                                user.getBio(),
+                                user.getSkills()
+                                                .stream()
+                                                .map(skill -> skill.getName())
+                                                .collect(Collectors.toSet()));
+        }
+
+        public List<UserProfileResponse> getUsersBySkill(Long skillId) {
+
+                return userRepository.findUsersBySkillId(skillId)
                                 .stream()
-                                .map(skill -> skill.getName())
-                                .collect(Collectors.toSet())))
-                .toList();
-    }
+                                .map(user -> new UserProfileResponse(
+                                                user.getId(),
+                                                user.getName(),
+                                                user.getEmail(),
+                                                user.getCollege(),
+                                                user.getBranch(),
+                                                user.getYear(),
+                                                user.getBio(),
+                                                user.getSkills()
+                                                                .stream()
+                                                                .map(skill -> skill.getName())
+                                                                .collect(Collectors.toSet())))
+                                .toList();
+        }
+
 }
