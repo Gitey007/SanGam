@@ -1,2 +1,5 @@
 /mvnw text eol=lf
 *.cmd text eol=crlf
+Frontend/.env
+Frontend/.env.local
+Frontend/.env.example
