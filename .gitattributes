@@ -3,3 +3,4 @@
 Frontend/.env
 Frontend/.env.local
 Frontend/.env.example
+.DS_Store
