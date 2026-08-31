@@ -19,12 +19,20 @@ export const setupApiInterceptors = ({ onUnauthorized, onForbidden }) => {
   onForbiddenCallback = onForbidden;
 };
 
-// Request interceptor: Attach JWT token if present
+// Request interceptor: Attach JWT token if present for authenticated endpoints
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem(AUTH_TOKEN_KEY);
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    const isPublicAuth = config.url && (
+      config.url.startsWith('/api/auth/login') ||
+      config.url.startsWith('/api/auth/register') ||
+      config.url.startsWith('/api/auth/email/')
+    );
+
+    if (!isPublicAuth) {
+      const token = localStorage.getItem(AUTH_TOKEN_KEY);
+      if (token && token !== 'null' && token !== 'undefined' && token.trim() !== '') {
+        config.headers.Authorization = `Bearer ${token.trim()}`;
+      }
     }
     return config;
   },

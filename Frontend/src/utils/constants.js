@@ -1,4 +1,4 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
 
 export const AUTH_TOKEN_KEY = 'sangam_auth_token';
 export const AUTH_USER_KEY = 'sangam_auth_user';
