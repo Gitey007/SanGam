@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -23,23 +24,34 @@ public class EmailOtpService {
     private static final int MAX_ATTEMPTS = 5;
 
     private final RestClient restClient;
-
-    @Value("${BREVO_API_KEY}")
-    private String brevoApiKey;
-
-    @Value("${BREVO_SENDER_EMAIL}")
-    private String senderEmail;
+    private final String brevoApiKey;
+    private final String senderEmail;
 
     private final Map<String, OtpData> otpStore =
             new ConcurrentHashMap<>();
 
     private final SecureRandom random = new SecureRandom();
 
-    public EmailOtpService() {
-        this.restClient = RestClient.create("https://api.brevo.com");
+    @Autowired
+    public EmailOtpService(
+            @Value("${BREVO_API_KEY:}") String brevoApiKey,
+            @Value("${BREVO_SENDER_EMAIL:}") String senderEmail) {
+        this(brevoApiKey, senderEmail, RestClient.builder().baseUrl("https://api.brevo.com").build());
+    }
+
+    public EmailOtpService(
+            String brevoApiKey,
+            String senderEmail,
+            RestClient restClient) {
+        this.brevoApiKey = brevoApiKey;
+        this.senderEmail = senderEmail;
+        this.restClient = restClient;
     }
 
     public void sendOtp(String email) {
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Email cannot be empty");
+        }
 
         String normalizedEmail =
                 email.trim().toLowerCase();
@@ -84,24 +96,21 @@ public class EmailOtpService {
         );
 
         try {
-
-            String response = restClient.post()
+            restClient.post()
                     .uri("/v3/smtp/email")
                     .header("api-key", brevoApiKey)
                     .accept(MediaType.APPLICATION_JSON)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(requestBody)
                     .retrieve()
-                    .body(String.class);
+                    .toBodilessEntity();
 
             logger.info(
-                    "Email OTP successfully sent to: {} | Brevo Response: {}",
-                    maskEmail(normalizedEmail),
-                    response
+                    "Email OTP successfully sent to: {}",
+                    maskEmail(normalizedEmail)
             );
 
         } catch (Exception ex) {
-
             // Remove OTP because email was not successfully sent
             otpStore.remove(normalizedEmail);
 
@@ -122,6 +131,10 @@ public class EmailOtpService {
     public boolean verifyOtp(
             String email,
             String otp) {
+
+        if (email == null || otp == null) {
+            return false;
+        }
 
         String normalizedEmail =
                 email.trim().toLowerCase();
@@ -146,7 +159,6 @@ public class EmailOtpService {
         }
 
         if (Instant.now().isAfter(data.expiration())) {
-
             otpStore.remove(normalizedEmail);
 
             logger.warn(
@@ -158,7 +170,6 @@ public class EmailOtpService {
         }
 
         if (data.attempts() >= MAX_ATTEMPTS) {
-
             otpStore.remove(normalizedEmail);
 
             logger.warn(
@@ -172,8 +183,7 @@ public class EmailOtpService {
 
         data.incrementAttempts();
 
-        if (!data.otp().equals(otp)) {
-
+        if (!data.otp().equals(otp.trim())) {
             logger.warn(
                     "OTP verification failed for {}: Incorrect OTP provided (attempt {}/{})",
                     masked,
@@ -195,7 +205,6 @@ public class EmailOtpService {
     }
 
     private String maskEmail(String email) {
-
         if (email == null || !email.contains("@")) {
             return "***";
         }
@@ -228,7 +237,6 @@ public class EmailOtpService {
         public OtpData(
                 String otp,
                 Instant expiration) {
-
             this.otp = otp;
             this.expiration = expiration;
             this.attempts = 0;
