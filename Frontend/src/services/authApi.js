@@ -15,6 +15,7 @@ export const authApi = {
       branch: data.branch?.trim(),
       year: data.year ? parseInt(data.year, 10) : undefined,
       bio: data.bio?.trim() || '',
+      otp: data.otp?.trim() || undefined,
     };
     const response = await api.post('/api/auth/register', payload);
     return response.data;

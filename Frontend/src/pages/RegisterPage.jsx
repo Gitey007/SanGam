@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Building2, BookOpen, ArrowRight } from 'lucide-react';
+import { Mail, Lock, User, Building2, BookOpen, KeyRound } from 'lucide-react';
 import Input from '../components/common/Input';
 import Select from '../components/common/Select';
 import Button from '../components/common/Button';
@@ -10,6 +10,7 @@ import { useToast } from '../context/ToastContext';
 import { extractErrorMessage } from '../utils/helpers';
 
 export const RegisterPage = () => {
+  const [stage, setStage] = useState('details'); // 'details' | 'otp'
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -18,6 +19,7 @@ export const RegisterPage = () => {
     branch: '',
     year: '1',
     bio: '',
+    otp: '',
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -36,7 +38,7 @@ export const RegisterPage = () => {
     if (generalError) setGeneralError('');
   };
 
-  const validate = () => {
+  const validateDetails = () => {
     const errs = {};
     if (!formData.name.trim()) errs.name = 'Full name is required';
     if (!formData.email.trim()) {
@@ -52,9 +54,10 @@ export const RegisterPage = () => {
     return errs;
   };
 
-  const handleSubmit = async (e) => {
+  // Step 1: Submit details & send OTP
+  const handleRequestOtp = async (e) => {
     e.preventDefault();
-    const validationErrors = validate();
+    const validationErrors = validateDetails();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
@@ -64,11 +67,56 @@ export const RegisterPage = () => {
     setGeneralError('');
 
     try {
+      await authApi.sendOtp(formData.email);
+      setStage('otp');
+      toastSuccess(`Verification code sent to ${formData.email}`);
+    } catch (err) {
+      const msg = extractErrorMessage(err, 'Failed to send OTP. Please check your email and try again.');
+      setGeneralError(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Step 2: Resend OTP
+  const handleResendOtp = async () => {
+    setIsLoading(true);
+    setGeneralError('');
+    try {
+      await authApi.sendOtp(formData.email);
+      toastSuccess(`New verification code sent to ${formData.email}`);
+    } catch (err) {
+      setGeneralError(extractErrorMessage(err, 'Failed to resend OTP. Please try again.'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Step 3: Verify OTP & Create Account
+  const handleVerifyAndRegister = async (e) => {
+    e.preventDefault();
+    if (!formData.otp.trim()) {
+      setGeneralError('Please enter the 6-digit verification code.');
+      return;
+    }
+
+    setIsLoading(true);
+    setGeneralError('');
+
+    try {
+      // 1. Verify OTP with backend
+      await authApi.verifyOtp(formData.email, formData.otp);
+
+      // 2. Complete registration on backend
       await authApi.register(formData);
+
       toastSuccess('Account created successfully! Please sign in.');
       navigate('/login');
     } catch (err) {
-      const msg = extractErrorMessage(err, 'Failed to create account. Please check your details.');
+      const msg = extractErrorMessage(
+        err,
+        'Registration failed. Please ensure the OTP is correct and not expired.'
+      );
       setGeneralError(msg);
     } finally {
       setIsLoading(false);
@@ -88,7 +136,9 @@ export const RegisterPage = () => {
           Create student account
         </h1>
         <p className="mt-1 text-xs text-slate-500">
-          Join your campus network and start collaborating
+          {stage === 'details'
+            ? 'Join your campus network and start collaborating'
+            : 'Verify your email address to complete registration'}
         </p>
       </div>
 
@@ -100,105 +150,159 @@ export const RegisterPage = () => {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {stage === 'details' ? (
+            <form onSubmit={handleRequestOtp} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Full Name"
+                  name="name"
+                  placeholder="Sahul Kumar"
+                  value={formData.name}
+                  onChange={handleChange}
+                  leftIcon={User}
+                  error={errors.name}
+                  required
+                />
+
+                <Input
+                  label="Email Address"
+                  name="email"
+                  type="email"
+                  placeholder="student@college.edu"
+                  value={formData.email}
+                  onChange={handleChange}
+                  leftIcon={Mail}
+                  error={errors.email}
+                  required
+                />
+              </div>
+
               <Input
-                label="Full Name"
-                name="name"
-                placeholder="Sahul Kumar"
-                value={formData.name}
+                label="Password"
+                name="password"
+                type="password"
+                placeholder="Minimum 8 characters"
+                value={formData.password}
                 onChange={handleChange}
-                leftIcon={User}
-                error={errors.name}
+                leftIcon={Lock}
+                error={errors.password}
                 required
               />
 
-              <Input
-                label="Email Address"
-                name="email"
-                type="email"
-                placeholder="student@college.edu"
-                value={formData.email}
-                onChange={handleChange}
-                leftIcon={Mail}
-                error={errors.email}
-                required
-              />
-            </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="College / Institution"
+                  name="college"
+                  placeholder="e.g. ABES Engineering College"
+                  value={formData.college}
+                  onChange={handleChange}
+                  leftIcon={Building2}
+                  error={errors.college}
+                  required
+                />
 
-            <Input
-              label="Password"
-              name="password"
-              type="password"
-              placeholder="Minimum 8 characters"
-              value={formData.password}
-              onChange={handleChange}
-              leftIcon={Lock}
-              error={errors.password}
-              required
-            />
+                <Input
+                  label="Branch / Major"
+                  name="branch"
+                  placeholder="e.g. Computer Science"
+                  value={formData.branch}
+                  onChange={handleChange}
+                  leftIcon={BookOpen}
+                  error={errors.branch}
+                  required
+                />
+              </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                label="College / Institution"
-                name="college"
-                placeholder="e.g. ABES Engineering College"
-                value={formData.college}
+              <Select
+                label="Academic Year"
+                name="year"
+                value={formData.year}
                 onChange={handleChange}
-                leftIcon={Building2}
-                error={errors.college}
+                options={YEAR_OPTIONS.filter((o) => o.value !== '')}
                 required
               />
 
-              <Input
-                label="Branch / Major"
-                name="branch"
-                placeholder="e.g. Computer Science"
-                value={formData.branch}
-                onChange={handleChange}
-                leftIcon={BookOpen}
-                error={errors.branch}
-                required
-              />
-            </div>
+              <div>
+                <label
+                  htmlFor="register-bio"
+                  className="block text-xs font-medium text-slate-700 mb-1.5"
+                >
+                  Bio (Optional)
+                </label>
+                <textarea
+                  id="register-bio"
+                  name="bio"
+                  rows={2}
+                  value={formData.bio}
+                  onChange={handleChange}
+                  placeholder="Briefly describe what you like building or skills you're focusing on..."
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 resize-none"
+                />
+              </div>
 
-            <Select
-              label="Academic Year"
-              name="year"
-              value={formData.year}
-              onChange={handleChange}
-              options={YEAR_OPTIONS.filter((o) => o.value !== '')}
-              required
-            />
-
-            <div>
-              <label
-                htmlFor="register-bio"
-                className="block text-xs font-medium text-slate-700 mb-1.5"
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                className="w-full mt-2"
+                isLoading={isLoading}
               >
-                Bio (Optional)
-              </label>
-              <textarea
-                id="register-bio"
-                name="bio"
-                rows={2}
-                value={formData.bio}
-                onChange={handleChange}
-                placeholder="Briefly describe what you like building or skills you're focusing on..."
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 resize-none"
-              />
-            </div>
+                {isLoading ? 'Sending verification code...' : 'Continue to Email Verification'}
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyAndRegister} className="space-y-4">
+              <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 text-xs flex items-center justify-between">
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Verification code sent to:</span>
+                  <span className="font-semibold text-slate-800">{formData.email}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStage('details');
+                    setGeneralError('');
+                  }}
+                  className="text-xs text-brand-600 hover:text-brand-700 font-medium"
+                >
+                  Change details
+                </button>
+              </div>
 
-            <Button
-              type="submit"
-              variant="primary"
-              size="md"
-              className="w-full mt-2"
-              isLoading={isLoading}
-            >
-              {isLoading ? 'Creating account...' : 'Create account'}
-            </Button>
-          </form>
+              <Input
+                label="Enter 6-Digit Verification OTP"
+                name="otp"
+                type="text"
+                placeholder="e.g. 123456"
+                value={formData.otp}
+                onChange={handleChange}
+                leftIcon={KeyRound}
+                required
+                autoFocus
+              />
+
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                className="w-full mt-2"
+                isLoading={isLoading}
+              >
+                {isLoading ? 'Verifying & Creating Account...' : 'Verify OTP & Create Account'}
+              </Button>
+
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={isLoading}
+                  className="text-xs text-slate-500 hover:text-slate-800 transition-colors disabled:opacity-50"
+                >
+                  Didn't receive the code? Resend OTP
+                </button>
+              </div>
+            </form>
+          )}
 
           <div className="mt-6 pt-5 border-t border-slate-100 text-center text-xs text-slate-500">
             Already have an account?{' '}

@@ -21,6 +21,7 @@ public class EmailOtpService {
             LoggerFactory.getLogger(EmailOtpService.class);
 
     private static final long OTP_EXPIRATION_SECONDS = 300;
+    private static final long VERIFIED_EMAIL_EXPIRATION_SECONDS = 900;
     private static final int MAX_ATTEMPTS = 5;
 
     private final RestClient restClient;
@@ -28,6 +29,9 @@ public class EmailOtpService {
     private final String senderEmail;
 
     private final Map<String, OtpData> otpStore =
+            new ConcurrentHashMap<>();
+
+    private final Map<String, Instant> verifiedEmailStore =
             new ConcurrentHashMap<>();
 
     private final SecureRandom random = new SecureRandom();
@@ -195,6 +199,10 @@ public class EmailOtpService {
         }
 
         otpStore.remove(normalizedEmail);
+        verifiedEmailStore.put(
+                normalizedEmail,
+                Instant.now().plusSeconds(VERIFIED_EMAIL_EXPIRATION_SECONDS)
+        );
 
         logger.info(
                 "OTP verification successful for: {}",
@@ -202,6 +210,47 @@ public class EmailOtpService {
         );
 
         return true;
+    }
+
+    public boolean isEmailVerified(String email) {
+        if (email == null || email.isBlank()) {
+            return false;
+        }
+
+        String normalizedEmail = email.trim().toLowerCase();
+        Instant expiration = verifiedEmailStore.get(normalizedEmail);
+
+        if (expiration == null) {
+            return false;
+        }
+
+        if (Instant.now().isAfter(expiration)) {
+            verifiedEmailStore.remove(normalizedEmail);
+            return false;
+        }
+
+        return true;
+    }
+
+    public boolean consumeVerifiedEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return false;
+        }
+
+        String normalizedEmail = email.trim().toLowerCase();
+        Instant expiration = verifiedEmailStore.remove(normalizedEmail);
+
+        if (expiration == null) {
+            return false;
+        }
+
+        return !Instant.now().isAfter(expiration);
+    }
+
+    public void clearVerifiedEmail(String email) {
+        if (email != null && !email.isBlank()) {
+            verifiedEmailStore.remove(email.trim().toLowerCase());
+        }
     }
 
     private String maskEmail(String email) {

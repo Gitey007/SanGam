@@ -1,5 +1,7 @@
 package com.sangam.sangam.service;
 
+import java.util.Optional;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -16,27 +18,48 @@ public class AuthService {
     private final JwtService jwtService;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final EmailOtpService emailOtpService;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            JwtService jwtService) {
+            JwtService jwtService,
+            EmailOtpService emailOtpService) {
 
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.emailOtpService = emailOtpService;
     }
 
     public User register(RegisterRequest request) {
 
-        if (userRepository.existsByEmail(request.getEmail())) {
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
+            throw new RuntimeException("Email is required");
+        }
+
+        String normalizedEmail = request.getEmail().trim().toLowerCase();
+
+        if (userRepository.existsByEmail(normalizedEmail)) {
             throw new RuntimeException("Email already registered");
+        }
+
+        boolean isVerified = emailOtpService.consumeVerifiedEmail(normalizedEmail);
+        if (!isVerified && request.getOtp() != null && !request.getOtp().isBlank()) {
+            isVerified = emailOtpService.verifyOtp(normalizedEmail, request.getOtp().trim());
+            if (isVerified) {
+                emailOtpService.consumeVerifiedEmail(normalizedEmail);
+            }
+        }
+
+        if (!isVerified) {
+            throw new RuntimeException("Email verification required. Please verify your email with OTP first.");
         }
 
         User user = new User();
 
         user.setName(request.getName());
-        user.setEmail(request.getEmail());
+        user.setEmail(normalizedEmail);
 
         user.setPasswordHash(
                 passwordEncoder.encode(request.getPassword()));
@@ -45,14 +68,16 @@ public class AuthService {
         user.setBranch(request.getBranch());
         user.setYear(request.getYear());
         user.setBio(request.getBio());
-        user.setEmailVerified(false);
+        user.setEmailVerified(true);
 
         return userRepository.save(user);
     }
 
     public LoginResponse login(LoginRequest request) {
 
-        User user = userRepository.findByEmail(request.getEmail())
+        String normalizedEmail = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
+
+        User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new RuntimeException("Invalid email or password"));
 
         if (!passwordEncoder.matches(
@@ -76,12 +101,14 @@ public class AuthService {
                 user.getEmail(),
                 user.getCollege(),
                 user.getBranch(),
-                user.getYear());
+                user.getYear() != null ? user.getYear().intValue() : 1);
     }
 
     public LoginResponse loginWithEmail(String email) {
 
-        User user = userRepository.findByEmail(email)
+        String normalizedEmail = email != null ? email.trim().toLowerCase() : "";
+
+        User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         org.springframework.security.core.userdetails.UserDetails userDetails = org.springframework.security.core.userdetails.User
@@ -99,7 +126,36 @@ public class AuthService {
                 user.getEmail(),
                 user.getCollege(),
                 user.getBranch(),
-                user.getYear());
+                user.getYear() != null ? user.getYear().intValue() : 1);
+    }
+
+    public Optional<LoginResponse> loginWithEmailIfExists(String email) {
+
+        if (email == null || email.isBlank()) {
+            return Optional.empty();
+        }
+
+        String normalizedEmail = email.trim().toLowerCase();
+
+        return userRepository.findByEmail(normalizedEmail)
+                .map(user -> {
+                    org.springframework.security.core.userdetails.UserDetails userDetails = org.springframework.security.core.userdetails.User
+                            .withUsername(user.getEmail())
+                            .password(user.getPasswordHash())
+                            .authorities("USER")
+                            .build();
+
+                    String token = jwtService.generateToken(userDetails);
+
+                    return new LoginResponse(
+                            token,
+                            user.getId(),
+                            user.getName(),
+                            user.getEmail(),
+                            user.getCollege(),
+                            user.getBranch(),
+                            user.getYear() != null ? user.getYear().intValue() : 1);
+                });
     }
 
 }

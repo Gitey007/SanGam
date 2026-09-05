@@ -1,5 +1,8 @@
 package com.sangam.sangam.controller;
 
+import java.util.Map;
+import java.util.Optional;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -64,7 +67,7 @@ public class AuthController {
     }
 
     @PostMapping("/email/verify-otp")
-    public ResponseEntity<LoginResponse> verifyEmailOtp(
+    public ResponseEntity<?> verifyEmailOtp(
             @Valid @RequestBody VerifyOtpRequest request) {
 
         boolean valid = emailOtpService.verifyOtp(
@@ -75,9 +78,16 @@ public class AuthController {
             throw new RuntimeException("Invalid or expired OTP");
         }
 
-        LoginResponse response = authService.loginWithEmail(
+        Optional<LoginResponse> loginResponse = authService.loginWithEmailIfExists(
                 request.getEmail());
 
-        return ResponseEntity.ok(response);
+        if (loginResponse.isPresent()) {
+            return ResponseEntity.ok(loginResponse.get());
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Email verified successfully",
+                "email", request.getEmail().trim().toLowerCase(),
+                "verified", true));
     }
 }

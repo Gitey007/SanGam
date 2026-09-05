@@ -36,6 +36,8 @@ public class RegisterRequest {
     @Size(max = 500, message = "Bio cannot exceed 500 characters")
     private String bio;
 
+    private String otp;
+
     public String getName() {
         return name;
     }
@@ -90,5 +92,13 @@ public class RegisterRequest {
 
     public void setBio(String bio) {
         this.bio = bio;
+    }
+
+    public String getOtp() {
+        return otp;
+    }
+
+    public void setOtp(String otp) {
+        this.otp = otp;
     }
 }

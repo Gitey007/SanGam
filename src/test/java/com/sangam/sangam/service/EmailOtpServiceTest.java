@@ -150,4 +150,46 @@ class EmailOtpServiceTest {
         assertFalse(emailOtpService.verifyOtp("test@example.com", null));
         assertFalse(emailOtpService.verifyOtp("unknown@example.com", "123456"));
     }
+
+    @Test
+    void testConsumeVerifiedEmail_Flow() {
+        String email = "verified-flow@example.com";
+        AtomicReference<String> capturedOtp = new AtomicReference<>();
+
+        mockServer.expect(requestTo("https://api.brevo.com/v3/smtp/email"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(request -> {
+                    try {
+                        String bodyString = ((MockClientHttpRequest) request).getBodyAsString();
+                        JsonNode root = objectMapper.readTree(bodyString);
+                        String textContent = root.get("textContent").asText();
+                        String prefix = "Your SanGam OTP is: ";
+                        int startIndex = textContent.indexOf(prefix) + prefix.length();
+                        capturedOtp.set(textContent.substring(startIndex, startIndex + 6));
+                    } catch (Exception e) {
+                        throw new AssertionError("Failed to parse request body", e);
+                    }
+                })
+                .andRespond(withSuccess("{\"messageId\":\"<12345@brevo.com>\"}", MediaType.APPLICATION_JSON));
+
+        // Before OTP verification
+        assertFalse(emailOtpService.isEmailVerified(email));
+        assertFalse(emailOtpService.consumeVerifiedEmail(email));
+
+        emailOtpService.sendOtp(email);
+        mockServer.verify();
+
+        String otp = capturedOtp.get();
+        assertTrue(emailOtpService.verifyOtp(email, otp));
+
+        // After successful OTP verification
+        assertTrue(emailOtpService.isEmailVerified(email));
+
+        // First consumption should succeed
+        assertTrue(emailOtpService.consumeVerifiedEmail(email));
+
+        // Second consumption should fail (consumed)
+        assertFalse(emailOtpService.isEmailVerified(email));
+        assertFalse(emailOtpService.consumeVerifiedEmail(email));
+    }
 }
