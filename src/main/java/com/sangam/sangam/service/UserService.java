@@ -1,165 +1,134 @@
 package com.sangam.sangam.service;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.sangam.sangam.dto.UpdateProfileRequest;
 import com.sangam.sangam.dto.UserProfileResponse;
+import com.sangam.sangam.entity.Skill;
 import com.sangam.sangam.entity.User;
 import com.sangam.sangam.repository.UserRepository;
 
 @Service
+@Transactional(readOnly = true)
 public class UserService {
 
-        private final UserRepository userRepository;
+    private final UserRepository userRepository;
 
-        public UserService(UserRepository userRepository) {
-                this.userRepository = userRepository;
+    public UserService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+    public List<UserProfileResponse> getAllUsers() {
+        return userRepository.findAllWithSkills()
+                .stream()
+                .map(this::mapToUserProfileResponse)
+                .toList();
+    }
+
+    public List<UserProfileResponse> getUsers(
+            String scope,
+            Integer year,
+            String skill,
+            String email) {
+
+        String normalizedEmail = email != null ? email.trim().toLowerCase() : "";
+        User currentUser = userRepository.findByEmail(normalizedEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String currentCollege = currentUser.getCollege();
+        Byte byteYear = year != null ? year.byteValue() : null;
+
+        List<User> users;
+
+        if ("MY_COLLEGE".equalsIgnoreCase(scope)) {
+            if (byteYear != null) {
+                users = userRepository.findByCollegeAndYear(currentCollege, byteYear);
+            } else {
+                users = userRepository.findByCollege(currentCollege);
+            }
+        } else if ("INTER_COLLEGE".equalsIgnoreCase(scope)) {
+            if (byteYear != null) {
+                users = userRepository.findByCollegeNotAndYear(currentCollege, byteYear);
+            } else {
+                users = userRepository.findByCollegeNot(currentCollege);
+            }
+        } else {
+            if (byteYear != null) {
+                users = userRepository.findByYear(byteYear);
+            } else {
+                users = userRepository.findAllWithSkills();
+            }
         }
 
-        public List<UserProfileResponse> getAllUsers() {
-
-                return userRepository.findAll()
-                                .stream()
-                                .map(user -> new UserProfileResponse(
-                                                user.getId(),
-                                                user.getName(),
-                                                user.getEmail(),
-                                                user.getCollege(),
-                                                user.getBranch(),
-                                                user.getYear(),
-                                                user.getBio(),
-                                                user.getSkills()
-                                                                .stream()
-                                                                .map(skill -> skill.getName())
-                                                                .collect(Collectors.toSet())))
-                                .toList();
+        if (skill != null && !skill.isBlank()) {
+            String trimmedSkill = skill.trim();
+            users = users.stream()
+                    .filter(user -> user.getSkills() != null && user.getSkills().stream()
+                            .anyMatch(s -> s.getName() != null && s.getName().equalsIgnoreCase(trimmedSkill)))
+                    .toList();
         }
 
-        public List<UserProfileResponse> getUsers(
-                        String scope,
-                        Integer year,
-                        String skill,
-                        String email) {
+        return users.stream()
+                .map(this::mapToUserProfileResponse)
+                .toList();
+    }
 
-                User currentUser = userRepository.findByEmail(email)
-                                .orElseThrow(() -> new RuntimeException("User not found"));
+    public UserProfileResponse getUserProfile(Long userId) {
+        User user = userRepository.findWithSkillsById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-                String currentCollege = currentUser.getCollege();
+        return mapToUserProfileResponse(user);
+    }
 
-                List<User> users;
+    @Transactional
+    public UserProfileResponse updateUserProfile(
+            Long userId,
+            UpdateProfileRequest request) {
 
-                if ("MY_COLLEGE".equalsIgnoreCase(scope)) {
+        User user = userRepository.findWithSkillsById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-                        if (year != null) {
-                                users = userRepository.findByCollegeAndYear(
-                                                currentCollege,
-                                                year);
-                        } else {
-                                users = userRepository.findByCollege(
-                                                currentCollege);
-                        }
+        user.setName(request.getName());
+        user.setCollege(request.getCollege());
+        user.setBranch(request.getBranch());
+        user.setYear(request.getYear());
+        user.setBio(request.getBio());
 
-                } else if ("INTER_COLLEGE".equalsIgnoreCase(scope)) {
+        userRepository.save(user);
 
-                        users = userRepository.findByCollegeNot(
-                                        currentCollege);
+        return mapToUserProfileResponse(user);
+    }
 
-                } else {
+    public List<UserProfileResponse> getUsersBySkill(Long skillId) {
+        return userRepository.findUsersBySkillId(skillId)
+                .stream()
+                .map(this::mapToUserProfileResponse)
+                .toList();
+    }
 
-                        users = userRepository.findAll();
-                }
+    private UserProfileResponse mapToUserProfileResponse(User user) {
+        Set<String> skillNames = user.getSkills() != null
+                ? user.getSkills().stream()
+                        .map(Skill::getName)
+                        .filter(name -> name != null && !name.isBlank())
+                        .collect(Collectors.toSet())
+                : Collections.emptySet();
 
-                if (skill != null && !skill.isBlank()) {
-                        users = users.stream()
-                                        .filter(user -> user.getSkills().stream()
-                                                        .anyMatch(s -> s.getName().equalsIgnoreCase(skill)))
-                                        .toList();
-                }
-
-                return users.stream()
-                                .map(user -> new UserProfileResponse(
-                                                user.getId(),
-                                                user.getName(),
-                                                user.getEmail(),
-                                                user.getCollege(),
-                                                user.getBranch(),
-                                                user.getYear(),
-                                                user.getBio(),
-                                                user.getSkills()
-                                                                .stream()
-                                                                .map(s -> s.getName())
-                                                                .collect(Collectors.toSet())))
-                                .toList();
-        }
-
-        public UserProfileResponse getUserProfile(Long userId) {
-
-                User user = userRepository.findById(userId)
-                                .orElseThrow(() -> new RuntimeException("User not found"));
-
-                return new UserProfileResponse(
-                                user.getId(),
-                                user.getName(),
-                                user.getEmail(),
-                                user.getCollege(),
-                                user.getBranch(),
-                                user.getYear(),
-                                user.getBio(),
-                                user.getSkills()
-                                                .stream()
-                                                .map(skill -> skill.getName())
-                                                .collect(Collectors.toSet()));
-        }
-
-        public UserProfileResponse updateUserProfile(
-                        Long userId,
-                        UpdateProfileRequest request) {
-
-                User user = userRepository.findById(userId)
-                                .orElseThrow(() -> new RuntimeException("User not found"));
-
-                user.setName(request.getName());
-                user.setCollege(request.getCollege());
-                user.setBranch(request.getBranch());
-                user.setYear(request.getYear());
-                user.setBio(request.getBio());
-
-                userRepository.save(user);
-
-                return new UserProfileResponse(
-                                user.getId(),
-                                user.getName(),
-                                user.getEmail(),
-                                user.getCollege(),
-                                user.getBranch(),
-                                user.getYear(),
-                                user.getBio(),
-                                user.getSkills()
-                                                .stream()
-                                                .map(skill -> skill.getName())
-                                                .collect(Collectors.toSet()));
-        }
-
-        public List<UserProfileResponse> getUsersBySkill(Long skillId) {
-
-                return userRepository.findUsersBySkillId(skillId)
-                                .stream()
-                                .map(user -> new UserProfileResponse(
-                                                user.getId(),
-                                                user.getName(),
-                                                user.getEmail(),
-                                                user.getCollege(),
-                                                user.getBranch(),
-                                                user.getYear(),
-                                                user.getBio(),
-                                                user.getSkills()
-                                                                .stream()
-                                                                .map(skill -> skill.getName())
-                                                                .collect(Collectors.toSet())))
-                                .toList();
-        }
-
+        return new UserProfileResponse(
+                user.getId(),
+                user.getName(),
+                user.getEmail(),
+                user.getCollege(),
+                user.getBranch(),
+                user.getYear(),
+                user.getBio(),
+                skillNames
+        );
+    }
 }
