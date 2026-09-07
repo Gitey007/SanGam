@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,10 +15,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sangam.sangam.dto.CreateTeamRequest;
+import com.sangam.sangam.dto.TeamInvitationResponse;
 import com.sangam.sangam.dto.TeamJoinRequestResponse;
 import com.sangam.sangam.dto.TeamMemberResponse;
 import com.sangam.sangam.dto.TeamResponse;
 import com.sangam.sangam.entity.Team;
+import com.sangam.sangam.entity.TeamInvitation;
 import com.sangam.sangam.service.TeamService;
 
 @RestController
@@ -131,5 +134,61 @@ public class TeamController {
 
         return ResponseEntity.ok(
                 "Join request rejected successfully");
+    }
+
+    @PostMapping("/{teamId}/invite/{userId}")
+    public ResponseEntity<TeamInvitationResponse> inviteStudent(
+            @PathVariable Long teamId,
+            @PathVariable Long userId,
+            Authentication authentication) {
+
+        TeamInvitationResponse response = teamService.inviteStudent(
+                teamId,
+                userId,
+                authentication.getName());
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
+    }
+
+    @PostMapping("/invitations/{invitationId}/accept")
+    public ResponseEntity<String> acceptInvitation(
+            @PathVariable Long invitationId,
+            Authentication authentication) {
+
+        teamService.acceptInvitation(invitationId, authentication.getName());
+
+        return ResponseEntity.ok(
+                "Invitation accepted successfully");
+    }
+
+    @PostMapping("/invitations/{invitationId}/reject")
+    public ResponseEntity<String> rejectInvitation(
+            @PathVariable Long invitationId,
+            Authentication authentication) {
+
+        teamService.rejectInvitation(invitationId, authentication.getName());
+
+        return ResponseEntity.ok(
+                "Invitation rejected successfully");
+    }
+
+    @GetMapping("/invitations/my")
+    public ResponseEntity<List<TeamInvitationResponse>> getMyInvitations(
+            @RequestParam(required = false) TeamInvitation.InvitationStatus status,
+            Authentication authentication) {
+
+        return ResponseEntity.ok(
+                teamService.getMyInvitations(authentication.getName(), status));
+    }
+
+    @GetMapping("/{teamId}/invitations")
+    public ResponseEntity<List<TeamInvitationResponse>> getTeamInvitations(
+            @PathVariable Long teamId,
+            Authentication authentication) {
+
+        return ResponseEntity.ok(
+                teamService.getTeamInvitations(teamId, authentication.getName()));
     }
 }

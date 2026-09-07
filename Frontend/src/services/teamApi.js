@@ -114,6 +114,42 @@ export const teamApi = {
 
     return response.data;
   },
+
+  async inviteStudentToTeam(teamId, userId) {
+    if (!teamId) throw new Error('Team ID is required');
+    if (!userId) throw new Error('User ID is required');
+
+    const response = await api.post(`/api/teams/${teamId}/invite/${userId}`);
+    return response.data;
+  },
+
+  async getMyTeamInvitations(status) {
+    const response = await api.get('/api/teams/invitations/my', {
+      params: status ? { status } : {},
+    });
+    return response.data;
+  },
+
+  async getTeamInvitations(teamId) {
+    if (!teamId) throw new Error('Team ID is required');
+
+    const response = await api.get(`/api/teams/${teamId}/invitations`);
+    return response.data;
+  },
+
+  async acceptTeamInvitation(invitationId) {
+    if (!invitationId) throw new Error('Invitation ID is required');
+
+    const response = await api.post(`/api/teams/invitations/${invitationId}/accept`);
+    return response.data;
+  },
+
+  async rejectTeamInvitation(invitationId) {
+    if (!invitationId) throw new Error('Invitation ID is required');
+
+    const response = await api.post(`/api/teams/invitations/${invitationId}/reject`);
+    return response.data;
+  },
 };
 
 export default teamApi;

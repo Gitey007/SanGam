@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Compass,
@@ -10,34 +10,76 @@ import {
   Calendar,
   Plus,
   Code2,
+  Mail,
+  Check,
+  X,
+  Clock,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import Button from '../components/common/Button';
 import Avatar from '../components/common/Avatar';
 import Badge from '../components/common/Badge';
-import { formatCollege, formatBranchYear } from '../utils/helpers';
+import { formatCollege, formatBranchYear, extractErrorMessage } from '../utils/helpers';
 import { POPULAR_SKILLS } from '../utils/constants';
 import teamApi from '../services/teamApi';
 
 export const DashboardPage = () => {
   const { user } = useAuth();
+  const { success, error: toastError } = useToast();
   const navigate = useNavigate();
+
   const [teams, setTeams] = useState([]);
+  const [pendingInvitations, setPendingInvitations] = useState([]);
   const [isLoadingTeams, setIsLoadingTeams] = useState(true);
+  const [actionLoading, setActionLoading] = useState({});
+
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      const [teamsData, invsData] = await Promise.all([
+        teamApi.getTeams().catch(() => []),
+        teamApi.getMyTeamInvitations('PENDING').catch(() => []),
+      ]);
+      setTeams(Array.isArray(teamsData) ? teamsData.slice(0, 3) : []);
+      setPendingInvitations(Array.isArray(invsData) ? invsData : []);
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+    } finally {
+      setIsLoadingTeams(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchTeams = async () => {
-      try {
-        const data = await teamApi.getTeams();
-        setTeams(Array.isArray(data) ? data.slice(0, 3) : []);
-      } catch (err) {
-        console.error('Error fetching dashboard teams:', err);
-      } finally {
-        setIsLoadingTeams(false);
-      }
-    };
-    fetchTeams();
-  }, []);
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  const handleAcceptInvitation = async (invitationId) => {
+    setActionLoading((prev) => ({ ...prev, [invitationId]: 'accept' }));
+    try {
+      await teamApi.acceptTeamInvitation(invitationId);
+      success('Team invitation accepted! You joined the squad.');
+      await fetchDashboardData();
+    } catch (err) {
+      const msg = extractErrorMessage(err, 'Failed to accept invitation.');
+      toastError(msg);
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [invitationId]: null }));
+    }
+  };
+
+  const handleRejectInvitation = async (invitationId) => {
+    setActionLoading((prev) => ({ ...prev, [invitationId]: 'reject' }));
+    try {
+      await teamApi.rejectTeamInvitation(invitationId);
+      success('Invitation declined.');
+      setPendingInvitations((prev) => prev.filter((i) => i.invitationId !== invitationId));
+    } catch (err) {
+      const msg = extractErrorMessage(err, 'Failed to decline invitation.');
+      toastError(msg);
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [invitationId]: null }));
+    }
+  };
 
   const firstName = user?.name ? user.name.split(' ')[0] : 'there';
 
@@ -82,6 +124,102 @@ export const DashboardPage = () => {
           </Link>
         </div>
       </div>
+
+      {/* Pending Team Invitations Alert Banner */}
+      {pendingInvitations.length > 0 && (
+        <div className="bg-gradient-to-r from-brand-50 to-indigo-50/70 rounded-2xl border border-brand-200/80 p-5 md:p-6 shadow-subtle space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-brand-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Mail className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">
+                  Incoming Team Invitations ({pendingInvitations.length})
+                </h2>
+                <p className="text-xs text-slate-600">
+                  You have been invited by team leaders to join their collaboration squads.
+                </p>
+              </div>
+            </div>
+
+            <Link
+              to="/teams?tab=invitations"
+              className="text-xs font-semibold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1 self-start sm:self-auto"
+            >
+              <span>View in Teams</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            {pendingInvitations.slice(0, 2).map((inv) => (
+              <div
+                key={inv.invitationId}
+                className="bg-white rounded-xl border border-brand-100 p-4 flex flex-col justify-between shadow-subtle space-y-3"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <Link
+                      to={`/teams/${inv.teamId}`}
+                      className="text-xs font-bold text-slate-900 hover:text-brand-600 truncate block"
+                    >
+                      {inv.teamName}
+                    </Link>
+                    <Badge variant="brand" size="sm">
+                      Invited
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Leader: <span className="font-semibold text-slate-700">{inv.invitedByName}</span>
+                  </p>
+                  {inv.teamDescription && (
+                    <p className="text-[11px] text-slate-600 line-clamp-2 mt-1">
+                      {inv.teamDescription}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {inv.createdAt
+                      ? new Date(inv.createdAt).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                        })
+                      : 'Pending'}
+                  </span>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="primary"
+                      size="xs"
+                      leftIcon={Check}
+                      onClick={() => handleAcceptInvitation(inv.invitationId)}
+                      isLoading={actionLoading[inv.invitationId] === 'accept'}
+                      disabled={Boolean(actionLoading[inv.invitationId])}
+                    >
+                      Accept
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      leftIcon={X}
+                      onClick={() => handleRejectInvitation(inv.invitationId)}
+                      isLoading={actionLoading[inv.invitationId] === 'reject'}
+                      disabled={Boolean(actionLoading[inv.invitationId])}
+                      className="text-slate-600 hover:text-rose-600 hover:border-rose-200"
+                    >
+                      Decline
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Main Grid: Profile Snapshot + Discovery Shortcuts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
