@@ -7,6 +7,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -14,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.security.Principal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +34,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.sangam.sangam.config.GlobalExceptionHandler;
 import com.sangam.sangam.dto.TeamInvitationResponse;
+import com.sangam.sangam.dto.TeamResponse;
+import com.sangam.sangam.dto.UpdateTeamRequest;
 import com.sangam.sangam.entity.TeamInvitation;
 import com.sangam.sangam.service.TeamService;
 
@@ -147,5 +151,28 @@ class TeamControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].invitationId").value(50))
                 .andExpect(jsonPath("$[0].invitedUserName").value("Student"));
+    }
+
+    @Test
+    @DisplayName("PUT /api/teams/{teamId} -> 200 OK for team leader")
+    void testUpdateTeamSuccess() throws Exception {
+        TeamResponse resp = new TeamResponse();
+        resp.setId(10L);
+        resp.setName("Updated Alpha");
+        resp.setProjectName("AI System");
+        resp.setStatus("OPEN");
+        resp.setMemberCount(1);
+
+        when(teamService.updateTeam(eq(10L), any(UpdateTeamRequest.class), eq("leader@college.edu"))).thenReturn(resp);
+
+        mockMvc.perform(put("/api/teams/10")
+                        .principal(leaderAuth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Updated Alpha\",\"projectName\":\"AI System\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(10))
+                .andExpect(jsonPath("$.name").value("Updated Alpha"))
+                .andExpect(jsonPath("$.projectName").value("AI System"))
+                .andExpect(jsonPath("$.status").value("OPEN"));
     }
 }

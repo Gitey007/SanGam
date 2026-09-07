@@ -25,6 +25,27 @@ public class Team {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "project_name", length = 150)
+    private String projectName;
+
+    @Column(name = "project_description", columnDefinition = "TEXT")
+    private String projectDescription;
+
+    @Column(name = "team_vision", columnDefinition = "TEXT")
+    private String teamVision;
+
+    @Column(name = "project_type", length = 50)
+    private String projectType; // Hackathon, College Project, Open Source, Startup, Research, Competition, Personal Project, Other
+
+    @Column(name = "hackathon_name", length = 150)
+    private String hackathonName;
+
+    @Column(name = "hackathon_url", length = 255)
+    private String hackathonUrl;
+
+    @Column(name = "hackathon_deadline", length = 50)
+    private String hackathonDeadline;
+
     @ManyToOne
     @JoinColumn(name = "leader_id", nullable = false)
     private User leader;
@@ -32,11 +53,25 @@ public class Team {
     @Column(name = "max_members", nullable = false)
     private Byte maxMembers = 4;
 
+    @jakarta.persistence.ManyToMany
+    @jakarta.persistence.JoinTable(
+            name = "team_required_skills",
+            joinColumns = @JoinColumn(name = "team_id"),
+            inverseJoinColumns = @JoinColumn(name = "skill_id")
+    )
+    private java.util.Set<Skill> requiredSkills = new java.util.HashSet<>();
+
+    @jakarta.persistence.ElementCollection
+    @jakarta.persistence.CollectionTable(name = "team_required_roles", joinColumns = @JoinColumn(name = "team_id"))
+    @Column(name = "role_name", length = 50)
+    private java.util.Set<String> requiredRoles = new java.util.HashSet<>();
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
 
     public Long getId() {
         return id;
@@ -92,5 +127,77 @@ public class Team {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getProjectName() {
+        return projectName;
+    }
+
+    public void setProjectName(String projectName) {
+        this.projectName = projectName;
+    }
+
+    public String getProjectDescription() {
+        return projectDescription;
+    }
+
+    public void setProjectDescription(String projectDescription) {
+        this.projectDescription = projectDescription;
+    }
+
+    public String getTeamVision() {
+        return teamVision;
+    }
+
+    public void setTeamVision(String teamVision) {
+        this.teamVision = teamVision;
+    }
+
+    public String getProjectType() {
+        return projectType;
+    }
+
+    public void setProjectType(String projectType) {
+        this.projectType = projectType;
+    }
+
+    public String getHackathonName() {
+        return hackathonName;
+    }
+
+    public void setHackathonName(String hackathonName) {
+        this.hackathonName = hackathonName;
+    }
+
+    public String getHackathonUrl() {
+        return hackathonUrl;
+    }
+
+    public void setHackathonUrl(String hackathonUrl) {
+        this.hackathonUrl = hackathonUrl;
+    }
+
+    public String getHackathonDeadline() {
+        return hackathonDeadline;
+    }
+
+    public void setHackathonDeadline(String hackathonDeadline) {
+        this.hackathonDeadline = hackathonDeadline;
+    }
+
+    public java.util.Set<Skill> getRequiredSkills() {
+        return requiredSkills;
+    }
+
+    public void setRequiredSkills(java.util.Set<Skill> requiredSkills) {
+        this.requiredSkills = requiredSkills;
+    }
+
+    public java.util.Set<String> getRequiredRoles() {
+        return requiredRoles;
+    }
+
+    public void setRequiredRoles(java.util.Set<String> requiredRoles) {
+        this.requiredRoles = requiredRoles;
     }
 }

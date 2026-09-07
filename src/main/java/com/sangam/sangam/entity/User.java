@@ -46,6 +46,32 @@ public class User {
     @Column(columnDefinition = "TEXT")
     private String bio;
 
+    @Column(name = "github_url", length = 255)
+    private String githubUrl;
+
+    @Column(name = "linkedin_url", length = 255)
+    private String linkedinUrl;
+
+    @Column(name = "portfolio_url", length = 255)
+    private String portfolioUrl;
+
+    @Column(name = "leetcode_url", length = 255)
+    private String leetcodeUrl;
+
+    @Column(name = "other_url", length = 255)
+    private String otherUrl;
+
+    @jakarta.persistence.ElementCollection
+    @jakarta.persistence.CollectionTable(name = "user_looking_for", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "preference", length = 50)
+    private Set<String> lookingFor = new HashSet<>();
+
+    @jakarta.persistence.OneToMany(mappedBy = "user", cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<UserAchievement> achievements = new java.util.ArrayList<>();
+
+    @jakarta.persistence.OneToMany(mappedBy = "user", cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<UserProject> projects = new java.util.ArrayList<>();
+
     @Column(name = "email_verified")
     private Boolean emailVerified = false;
 
@@ -60,6 +86,7 @@ public class User {
     private Set<Skill> skills = new HashSet<>();
 
     // Getters and Setters
+
 
     public Long getId() {
         return id;
@@ -155,5 +182,69 @@ public class User {
 
     public void setSkills(Set<Skill> skills) {
         this.skills = skills;
+    }
+
+    public String getGithubUrl() {
+        return githubUrl;
+    }
+
+    public void setGithubUrl(String githubUrl) {
+        this.githubUrl = githubUrl;
+    }
+
+    public String getLinkedinUrl() {
+        return linkedinUrl;
+    }
+
+    public void setLinkedinUrl(String linkedinUrl) {
+        this.linkedinUrl = linkedinUrl;
+    }
+
+    public String getPortfolioUrl() {
+        return portfolioUrl;
+    }
+
+    public void setPortfolioUrl(String portfolioUrl) {
+        this.portfolioUrl = portfolioUrl;
+    }
+
+    public String getLeetcodeUrl() {
+        return leetcodeUrl;
+    }
+
+    public void setLeetcodeUrl(String leetcodeUrl) {
+        this.leetcodeUrl = leetcodeUrl;
+    }
+
+    public String getOtherUrl() {
+        return otherUrl;
+    }
+
+    public void setOtherUrl(String otherUrl) {
+        this.otherUrl = otherUrl;
+    }
+
+    public Set<String> getLookingFor() {
+        return lookingFor;
+    }
+
+    public void setLookingFor(Set<String> lookingFor) {
+        this.lookingFor = lookingFor;
+    }
+
+    public java.util.List<UserAchievement> getAchievements() {
+        return achievements;
+    }
+
+    public void setAchievements(java.util.List<UserAchievement> achievements) {
+        this.achievements = achievements;
+    }
+
+    public java.util.List<UserProject> getProjects() {
+        return projects;
+    }
+
+    public void setProjects(java.util.List<UserProject> projects) {
+        this.projects = projects;
     }
 }

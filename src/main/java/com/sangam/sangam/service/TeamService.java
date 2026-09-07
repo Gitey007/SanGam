@@ -34,35 +34,76 @@ public class TeamService {
         private final TeamMemberRepository teamMemberRepository;
         private final TeamJoinRequestRepository teamJoinRequestRepository;
         private final TeamInvitationRepository teamInvitationRepository;
+        private final com.sangam.sangam.repository.SkillRepository skillRepository;
 
         public TeamService(
                         TeamRepository teamRepository,
                         UserRepository userRepository,
                         TeamMemberRepository teamMemberRepository,
                         TeamJoinRequestRepository teamJoinRequestRepository,
-                        TeamInvitationRepository teamInvitationRepository) {
+                        TeamInvitationRepository teamInvitationRepository,
+                        com.sangam.sangam.repository.SkillRepository skillRepository) {
 
                 this.teamRepository = teamRepository;
                 this.userRepository = userRepository;
                 this.teamMemberRepository = teamMemberRepository;
                 this.teamJoinRequestRepository = teamJoinRequestRepository;
                 this.teamInvitationRepository = teamInvitationRepository;
+                this.skillRepository = skillRepository;
         }
 
-        public Team createTeam(CreateTeamRequest request) {
-
-                User leader = userRepository.findById(request.getLeaderId())
-                                .orElseThrow(() -> new RuntimeException("Leader not found"));
+        public Team createTeam(CreateTeamRequest request, String authenticatedEmail) {
+                User leader;
+                if (authenticatedEmail != null && !authenticatedEmail.isBlank()) {
+                        leader = userRepository.findByEmail(authenticatedEmail.trim().toLowerCase())
+                                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Leader not found"));
+                } else if (request.getLeaderId() != null) {
+                        leader = userRepository.findById(request.getLeaderId())
+                                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Leader not found"));
+                } else {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Leader ID or authentication required");
+                }
 
                 Team team = new Team();
 
                 team.setName(request.getName());
                 team.setDescription(request.getDescription());
                 team.setLeader(leader);
+                team.setProjectName(request.getProjectName());
+                team.setProjectDescription(request.getProjectDescription());
+                team.setTeamVision(request.getTeamVision());
+                team.setProjectType(request.getProjectType());
+                team.setHackathonName(request.getHackathonName());
+                team.setHackathonUrl(request.getHackathonUrl());
+                team.setHackathonDeadline(request.getHackathonDeadline());
 
                 if (request.getMaxMembers() != null) {
                         team.setMaxMembers(request.getMaxMembers());
                 }
+
+                if (request.getRequiredRoles() != null) {
+                        team.setRequiredRoles(new java.util.HashSet<>(request.getRequiredRoles()));
+                }
+
+                if (request.getRequiredSkills() != null && skillRepository != null) {
+                        java.util.Set<com.sangam.sangam.entity.Skill> skills = new java.util.HashSet<>();
+                        for (String skillName : request.getRequiredSkills()) {
+                                if (skillName != null && !skillName.isBlank()) {
+                                        String trimmed = skillName.trim();
+                                        com.sangam.sangam.entity.Skill s = skillRepository.findByNameIgnoreCase(trimmed)
+                                                        .orElseGet(() -> {
+                                                                com.sangam.sangam.entity.Skill newSkill = new com.sangam.sangam.entity.Skill();
+                                                                newSkill.setName(trimmed);
+                                                                return skillRepository.save(newSkill);
+                                                        });
+                                        skills.add(s);
+                                }
+                        }
+                        team.setRequiredSkills(skills);
+                }
+
+                team.setCreatedAt(LocalDateTime.now());
+                team.setUpdatedAt(LocalDateTime.now());
 
                 Team savedTeam = teamRepository.save(team);
 
@@ -71,13 +112,105 @@ public class TeamService {
                 member.setTeamId(savedTeam.getId());
                 member.setUserId(leader.getId());
                 member.setRole(TeamMember.Role.LEADER);
+                member.setJoinedAt(LocalDateTime.now());
 
                 teamMemberRepository.save(member);
 
                 return savedTeam;
         }
 
+        public Team createTeam(CreateTeamRequest request) {
+                return createTeam(request, null);
+        }
+
+        public TeamResponse updateTeam(Long teamId, com.sangam.sangam.dto.UpdateTeamRequest request, String authenticatedEmail) {
+                Team team = teamRepository.findById(teamId)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
+
+                if (authenticatedEmail != null && !authenticatedEmail.isBlank()) {
+                        if (!team.getLeader().getEmail().equalsIgnoreCase(authenticatedEmail.trim())) {
+                                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the team leader can update team details");
+                        }
+                }
+
+                if (request.getName() != null && !request.getName().isBlank()) {
+                        team.setName(request.getName().trim());
+                }
+                if (request.getDescription() != null) {
+                        team.setDescription(request.getDescription().trim());
+                }
+                if (request.getMaxMembers() != null) {
+                        long currentCount = teamMemberRepository.countByTeamId(teamId);
+                        if (request.getMaxMembers() < currentCount) {
+                                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Max members cannot be less than current member count (" + currentCount + ")");
+                        }
+                        team.setMaxMembers(request.getMaxMembers());
+                }
+                team.setProjectName(request.getProjectName());
+                team.setProjectDescription(request.getProjectDescription());
+                team.setTeamVision(request.getTeamVision());
+                team.setProjectType(request.getProjectType());
+                team.setHackathonName(request.getHackathonName());
+                team.setHackathonUrl(request.getHackathonUrl());
+                team.setHackathonDeadline(request.getHackathonDeadline());
+
+                if (request.getRequiredRoles() != null) {
+                        team.setRequiredRoles(new java.util.HashSet<>(request.getRequiredRoles()));
+                }
+
+                if (request.getRequiredSkills() != null && skillRepository != null) {
+                        java.util.Set<com.sangam.sangam.entity.Skill> skills = new java.util.HashSet<>();
+                        for (String skillName : request.getRequiredSkills()) {
+                                if (skillName != null && !skillName.isBlank()) {
+                                        String trimmed = skillName.trim();
+                                        com.sangam.sangam.entity.Skill s = skillRepository.findByNameIgnoreCase(trimmed)
+                                                        .orElseGet(() -> {
+                                                                com.sangam.sangam.entity.Skill newSkill = new com.sangam.sangam.entity.Skill();
+                                                                newSkill.setName(trimmed);
+                                                                return skillRepository.save(newSkill);
+                                                        });
+                                        skills.add(s);
+                                }
+                        }
+                        team.setRequiredSkills(skills);
+                }
+
+                team.setUpdatedAt(LocalDateTime.now());
+                Team saved = teamRepository.save(team);
+                return toTeamResponse(saved);
+        }
+
         public TeamResponse toTeamResponse(Team team) {
+                long memberCount = 0;
+                try {
+                        memberCount = teamMemberRepository.countByTeamId(team.getId());
+                } catch (Exception e) {
+                        memberCount = 1;
+                }
+
+                int max = team.getMaxMembers() != null ? team.getMaxMembers() : 4;
+                String status = "OPEN";
+                if (memberCount >= max) {
+                        status = "FULL";
+                } else if (memberCount >= max - 1) {
+                        status = "ALMOST_FULL";
+                }
+
+                java.util.Set<String> skillNames = java.util.Collections.emptySet();
+                try {
+                        if (team.getRequiredSkills() != null) {
+                                skillNames = team.getRequiredSkills().stream()
+                                                .map(com.sangam.sangam.entity.Skill::getName)
+                                                .filter(name -> name != null && !name.isBlank())
+                                                .collect(java.util.stream.Collectors.toSet());
+                        }
+                } catch (Exception e) {
+                        // Lazy loading fallback if not loaded
+                }
+
+                java.util.Set<String> roles = team.getRequiredRoles() != null
+                                ? new java.util.HashSet<>(team.getRequiredRoles())
+                                : java.util.Collections.emptySet();
 
                 return new TeamResponse(
                                 team.getId(),
@@ -85,7 +218,18 @@ public class TeamService {
                                 team.getDescription(),
                                 team.getLeader().getId(),
                                 team.getLeader().getName(),
-                                team.getMaxMembers());
+                                team.getMaxMembers(),
+                                team.getProjectName(),
+                                team.getProjectDescription(),
+                                team.getTeamVision(),
+                                team.getProjectType(),
+                                team.getHackathonName(),
+                                team.getHackathonUrl(),
+                                team.getHackathonDeadline(),
+                                skillNames,
+                                roles,
+                                (int) memberCount,
+                                status);
         }
 
         public List<TeamResponse> getAllTeams() {
@@ -99,10 +243,11 @@ public class TeamService {
         public TeamResponse getTeamById(Long teamId) {
 
                 Team team = teamRepository.findById(teamId)
-                                .orElseThrow(() -> new RuntimeException("Team not found"));
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
 
                 return toTeamResponse(team);
         }
+
 
         public List<TeamMemberResponse> getTeamMembers(Long teamId) {
 

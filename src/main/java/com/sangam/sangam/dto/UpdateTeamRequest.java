@@ -2,11 +2,10 @@ package com.sangam.sangam.dto;
 
 import java.util.Set;
 
-public class CreateTeamRequest {
+public class UpdateTeamRequest {
 
     private String name;
     private String description;
-    private Long leaderId;
     private Byte maxMembers;
     private String projectName;
     private String projectDescription;
@@ -18,7 +17,7 @@ public class CreateTeamRequest {
     private Set<String> requiredSkills;
     private Set<String> requiredRoles;
 
-    public CreateTeamRequest() {
+    public UpdateTeamRequest() {
     }
 
     public String getName() {
@@ -35,14 +34,6 @@ public class CreateTeamRequest {
 
     public void setDescription(String description) {
         this.description = description;
-    }
-
-    public Long getLeaderId() {
-        return leaderId;
-    }
-
-    public void setLeaderId(Long leaderId) {
-        this.leaderId = leaderId;
     }
 
     public Byte getMaxMembers() {

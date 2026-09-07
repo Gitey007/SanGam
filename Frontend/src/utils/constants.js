@@ -39,3 +39,45 @@ export const POPULAR_SKILLS = [
   'Rust',
   'Flutter',
 ];
+
+export const COLLABORATION_OPTIONS = [
+  'Hackathons',
+  'College Projects',
+  'Open Source',
+  'Research',
+  'Startup',
+  'Freelance',
+];
+
+export const PROJECT_TYPES = [
+  'Hackathon',
+  'College Project',
+  'Open Source',
+  'Startup',
+  'Research',
+  'Competition',
+  'Personal Project',
+  'Other',
+];
+
+export const ACHIEVEMENT_CATEGORIES = [
+  'Hackathon',
+  'Competition',
+  'Certification',
+  'Coding',
+  'Academic',
+  'Other',
+];
+
+export const POPULAR_ROLES = [
+  'Backend Developer',
+  'Frontend Developer',
+  'Fullstack Developer',
+  'ML / AI Engineer',
+  'UI/UX Designer',
+  'DevOps / Cloud',
+  'Mobile Developer',
+  'Researcher',
+  'Product / Project Manager',
+];
+
