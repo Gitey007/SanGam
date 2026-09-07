@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Building2, BookOpen, KeyRound } from 'lucide-react';
+import { Mail, Lock, User, Building2, BookOpen, KeyRound, Server } from 'lucide-react';
 import Input from '../components/common/Input';
 import Select from '../components/common/Select';
 import Button from '../components/common/Button';
@@ -123,6 +123,12 @@ export const RegisterPage = () => {
     }
   };
 
+  const isServerWaking =
+    typeof generalError === 'string' &&
+    (generalError.toLowerCase().includes('waking up') ||
+      generalError.toLowerCase().includes('starting up') ||
+      generalError.toLowerCase().includes('free hosting'));
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-xl text-center mb-6">
@@ -145,10 +151,21 @@ export const RegisterPage = () => {
       <div className="sm:mx-auto sm:w-full sm:max-w-xl">
         <div className="bg-white py-7 px-6 sm:px-8 rounded-xl border border-slate-200 shadow-subtle">
           {generalError && (
-            <div className="mb-5 p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 leading-relaxed">
-              {generalError}
-            </div>
+            isServerWaking ? (
+              <div className="mb-5 p-3.5 rounded-lg bg-amber-50/90 border border-amber-200 text-xs text-amber-900 leading-relaxed flex items-start gap-2.5 animate-in fade-in">
+                <Server className="w-4 h-4 text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+                <div>
+                  <span className="font-semibold block mb-0.5">SanGam server is waking up</span>
+                  <span className="text-[11px] text-amber-800">{generalError}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-5 p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 leading-relaxed animate-in fade-in">
+                {generalError}
+              </div>
+            )
           )}
+
 
           {stage === 'details' ? (
             <form onSubmit={handleRequestOtp} className="space-y-4">

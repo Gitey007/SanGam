@@ -6,6 +6,7 @@ import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import TeamCard from '../components/teams/TeamCard';
 import EmptyState from '../components/common/EmptyState';
+import ErrorState from '../components/common/ErrorState';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import teamApi from '../services/teamApi';
@@ -20,6 +21,7 @@ export const TeamsPage = () => {
   const [invitations, setInvitations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingInvitations, setIsLoadingInvitations] = useState(true);
+  const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState({});
 
   const { user } = useAuth();
@@ -27,15 +29,18 @@ export const TeamsPage = () => {
 
   const fetchTeams = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const data = await teamApi.getTeams();
       setTeams(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to load teams:', err);
+      setError(extractErrorMessage(err, 'Unable to load teams. Please try again.'));
     } finally {
       setIsLoading(false);
     }
   }, []);
+
 
   const fetchInvitations = useCallback(async () => {
     setIsLoadingInvitations(true);
@@ -292,6 +297,12 @@ export const TeamsPage = () => {
               <div key={i} className="h-48 bg-slate-100 rounded-xl animate-pulse" />
             ))}
           </div>
+        ) : error ? (
+          <ErrorState
+            title="Unable to load teams"
+            message={error}
+            onRetry={fetchTeams}
+          />
         ) : displayedTeams.length === 0 ? (
           <EmptyState
             icon={Users}
@@ -313,6 +324,7 @@ export const TeamsPage = () => {
         )
       )}
     </div>
+
   );
 };
 
