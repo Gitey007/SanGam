@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Mail, Lock, KeyRound, ArrowRight } from 'lucide-react';
+import { Mail, Lock, KeyRound, ArrowRight, Server, AlertCircle } from 'lucide-react';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
 import { useAuth } from '../context/AuthContext';
@@ -128,6 +128,12 @@ export const LoginPage = () => {
     setErrorMessage('');
   };
 
+  const isServerWaking =
+    typeof errorMessage === 'string' &&
+    (errorMessage.toLowerCase().includes('waking up') ||
+      errorMessage.toLowerCase().includes('starting up') ||
+      errorMessage.toLowerCase().includes('free hosting'));
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
@@ -173,12 +179,23 @@ export const LoginPage = () => {
             </button>
           </div>
 
-          {/* Error Notice */}
+          {/* Error / Wake-Up Notice */}
           {errorMessage && (
-            <div className="mb-5 p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 leading-relaxed animate-in fade-in">
-              {errorMessage}
-            </div>
+            isServerWaking ? (
+              <div className="mb-5 p-3.5 rounded-lg bg-amber-50/90 border border-amber-200 text-xs text-amber-900 leading-relaxed flex items-start gap-2.5 animate-in fade-in">
+                <Server className="w-4 h-4 text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+                <div>
+                  <span className="font-semibold block mb-0.5">SanGam server is waking up</span>
+                  <span className="text-[11px] text-amber-800">{errorMessage}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-5 p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 leading-relaxed animate-in fade-in">
+                {errorMessage}
+              </div>
+            )
           )}
+
 
           {/* Password Mode Form */}
           {authMode === 'password' && (

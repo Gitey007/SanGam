@@ -28,6 +28,41 @@ export function formatBranchYear(branch, year) {
 }
 
 /**
+ * Check whether an error is caused by a server cold-start, network drop, timeout,
+ * or reverse-proxy gateway delay (502, 503, 504).
+ */
+export function isServerWakingUpError(error) {
+  if (!error) return false;
+
+  // Axios network error / timeout without a response from the server
+  if (!error.response) {
+    if (
+      error.code === 'ERR_NETWORK' ||
+      error.code === 'ECONNABORTED' ||
+      error.code === 'ETIMEDOUT' ||
+      error.message === 'Network Error' ||
+      (typeof error.message === 'string' && (
+        error.message.toLowerCase().includes('timeout') ||
+        error.message.toLowerCase().includes('network') ||
+        error.message.toLowerCase().includes('failed to fetch')
+      ))
+    ) {
+      return true;
+    }
+    // Any error without response object in Axios is unreachable / network / waking
+    return true;
+  }
+
+  // Reverse proxy / hosting platform spin-up codes (Render free tier)
+  const status = error.response.status;
+  if (status === 502 || status === 503 || status === 504) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Parse human readable error message from Axios / API response
  */
 export function extractErrorMessage(error, defaultMessage = 'An unexpected error occurred.') {
@@ -35,6 +70,12 @@ export function extractErrorMessage(error, defaultMessage = 'An unexpected error
   
   if (typeof error === 'string') return error;
 
+  // 1. Check for backend waking up / cold start / network unreachable
+  if (isServerWakingUpError(error)) {
+    return 'SanGam server is waking up. The backend is starting up (this can take 1–2 minutes after a period of inactivity on free hosting). Please wait a moment and try again.';
+  }
+
+  // 2. Specific HTTP response error handling
   if (error.response) {
     const status = error.response.status;
     const data = error.response.data;
@@ -47,6 +88,9 @@ export function extractErrorMessage(error, defaultMessage = 'An unexpected error
     }
 
     // Default status code fallbacks if no specific message in data
+    if (status === 400) {
+      return 'Invalid request details. Please check your inputs and try again.';
+    }
     if (status === 401) {
       return 'Your session has expired or authentication failed. Please sign in again.';
     }
@@ -64,10 +108,7 @@ export function extractErrorMessage(error, defaultMessage = 'An unexpected error
     }
   }
 
-  if (error.message === 'Network Error' || !error.response) {
-    return 'Unable to connect to SanGam server. Please check your network connection or ensure the backend is running.';
-  }
-
   return error.message || defaultMessage;
 }
+
 
