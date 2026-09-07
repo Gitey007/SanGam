@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,12 +29,15 @@ import com.sangam.sangam.dto.TeamInvitationResponse;
 import com.sangam.sangam.dto.TeamJoinRequestResponse;
 import com.sangam.sangam.dto.TeamMemberResponse;
 import com.sangam.sangam.dto.TeamResponse;
+import com.sangam.sangam.dto.UpdateTeamRequest;
+import com.sangam.sangam.entity.Skill;
 import com.sangam.sangam.entity.Team;
 import com.sangam.sangam.entity.TeamInvitation;
 import com.sangam.sangam.entity.TeamJoinRequest;
 import com.sangam.sangam.entity.TeamMember;
 import com.sangam.sangam.entity.TeamMemberId;
 import com.sangam.sangam.entity.User;
+import com.sangam.sangam.repository.SkillRepository;
 import com.sangam.sangam.repository.TeamInvitationRepository;
 import com.sangam.sangam.repository.TeamJoinRequestRepository;
 import com.sangam.sangam.repository.TeamMemberRepository;
@@ -58,6 +62,9 @@ class TeamServiceTest {
     @Mock
     private TeamInvitationRepository teamInvitationRepository;
 
+    @Mock
+    private SkillRepository skillRepository;
+
     private TeamService teamService;
 
     private User leader;
@@ -72,7 +79,8 @@ class TeamServiceTest {
                 userRepository,
                 teamMemberRepository,
                 teamJoinRequestRepository,
-                teamInvitationRepository);
+                teamInvitationRepository,
+                skillRepository);
 
         leader = new User();
         leader.setId(1L);
@@ -505,4 +513,113 @@ class TeamServiceTest {
             assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
         }
     }
+
+    @Nested
+    @DisplayName("Team Metadata and Update Tests")
+    class TeamMetadataTests {
+
+        @Test
+        @DisplayName("Create team with project, vision, hackathon, required skills, and required roles")
+        void testCreateTeamWithMetadata() {
+            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(leader));
+            when(skillRepository.findByNameIgnoreCase("React")).thenReturn(Optional.of(new Skill("React")));
+            when(skillRepository.findByNameIgnoreCase("Spring Boot")).thenReturn(Optional.empty());
+            when(skillRepository.save(any(Skill.class))).thenAnswer(i -> i.getArgument(0));
+            when(teamRepository.save(any(Team.class))).thenAnswer(i -> {
+                Team t = i.getArgument(0);
+                t.setId(10L);
+                return t;
+            });
+
+            CreateTeamRequest req = new CreateTeamRequest();
+            req.setName("AI Squad");
+            req.setDescription("A strong AI team");
+            req.setMaxMembers((byte) 4);
+            req.setProjectName("AI Waste Sorter");
+            req.setProjectDescription("Automated waste detection");
+            req.setTeamVision("Win SIH 2026");
+            req.setProjectType("Hackathon");
+            req.setHackathonName("SIH 2026");
+            req.setHackathonUrl("https://sih.gov.in");
+            req.setHackathonDeadline("2026-10-15");
+            req.setRequiredSkills(Set.of("React", "Spring Boot"));
+            req.setRequiredRoles(Set.of("Backend Developer", "ML Engineer"));
+
+            Team res = teamService.createTeam(req, "leader@college.edu");
+
+            assertNotNull(res);
+            assertEquals("AI Squad", res.getName());
+            assertEquals("AI Waste Sorter", res.getProjectName());
+            assertEquals("Hackathon", res.getProjectType());
+            assertEquals("SIH 2026", res.getHackathonName());
+            assertEquals(2, res.getRequiredSkills().size());
+            assertEquals(2, res.getRequiredRoles().size());
+        }
+
+        @Test
+        @DisplayName("Team leader can update team details")
+        void testLeaderCanUpdateTeam() {
+            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
+            when(skillRepository.findByNameIgnoreCase("Python")).thenReturn(Optional.of(new Skill("Python")));
+            when(teamRepository.save(any(Team.class))).thenAnswer(i -> i.getArgument(0));
+            when(teamMemberRepository.countByTeamId(10L)).thenReturn(1L);
+
+            UpdateTeamRequest req = new UpdateTeamRequest();
+            req.setName("Updated Team Name");
+            req.setDescription("Updated Description");
+            req.setMaxMembers((byte) 5);
+            req.setProjectName("New Project");
+            req.setProjectDescription("New Project Desc");
+            req.setTeamVision("New Vision");
+            req.setProjectType("Open Source");
+            req.setRequiredSkills(Set.of("Python"));
+            req.setRequiredRoles(Set.of("DevOps"));
+
+            TeamResponse res = teamService.updateTeam(10L, req, "leader@college.edu");
+
+            assertNotNull(res);
+            assertEquals("Updated Team Name", res.getName());
+            assertEquals("New Project", res.getProjectName());
+            assertEquals("Open Source", res.getProjectType());
+            assertEquals("OPEN", res.getStatus());
+            verify(teamRepository).save(team);
+        }
+
+        @Test
+        @DisplayName("Non-leader cannot update team (403 Forbidden)")
+        void testNonLeaderCannotUpdateTeam() {
+            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
+
+            UpdateTeamRequest req = new UpdateTeamRequest();
+            req.setName("Hacked Name");
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.updateTeam(10L, req, "student@college.edu"));
+
+            assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+            verify(teamRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Team status computation: OPEN, ALMOST_FULL, FULL")
+        void testTeamStatusComputation() {
+            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
+
+            // Max members is 4. When count is 1 -> OPEN
+            when(teamMemberRepository.countByTeamId(10L)).thenReturn(1L);
+            TeamResponse r1 = teamService.getTeamById(10L);
+            assertEquals("OPEN", r1.getStatus());
+
+            // When count is 3 (max - 1) -> ALMOST_FULL
+            when(teamMemberRepository.countByTeamId(10L)).thenReturn(3L);
+            TeamResponse r2 = teamService.getTeamById(10L);
+            assertEquals("ALMOST_FULL", r2.getStatus());
+
+            // When count is 4 (max) -> FULL
+            when(teamMemberRepository.countByTeamId(10L)).thenReturn(4L);
+            TeamResponse r3 = teamService.getTeamById(10L);
+            assertEquals("FULL", r3.getStatus());
+        }
+    }
 }
+

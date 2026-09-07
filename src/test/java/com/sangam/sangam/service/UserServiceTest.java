@@ -3,6 +3,7 @@ package com.sangam.sangam.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -18,11 +19,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.server.ResponseStatusException;
 
+import com.sangam.sangam.dto.AchievementDto;
+import com.sangam.sangam.dto.ProjectDto;
 import com.sangam.sangam.dto.UpdateProfileRequest;
 import com.sangam.sangam.dto.UserProfileResponse;
 import com.sangam.sangam.entity.Skill;
 import com.sangam.sangam.entity.User;
+import com.sangam.sangam.entity.UserAchievement;
+import com.sangam.sangam.entity.UserProject;
+import com.sangam.sangam.repository.SkillRepository;
+import com.sangam.sangam.repository.UserAchievementRepository;
+import com.sangam.sangam.repository.UserProjectRepository;
 import com.sangam.sangam.repository.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,11 +40,20 @@ class UserServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private SkillRepository skillRepository;
+
+    @Mock
+    private UserAchievementRepository userAchievementRepository;
+
+    @Mock
+    private UserProjectRepository userProjectRepository;
+
     private UserService userService;
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository);
+        userService = new UserService(userRepository, skillRepository, userAchievementRepository, userProjectRepository);
     }
 
     private User createUser(Long id, String name, String email, String college, String branch, Byte year, String... skillNames) {
@@ -186,7 +204,6 @@ class UserServiceTest {
         assertEquals(1, responses.size());
         UserProfileResponse matched = responses.get(0);
         assertEquals("Java Dev", matched.getName());
-        // Must contain all 4 skills belonging to the user, not just "Java"
         assertEquals(4, matched.getSkills().size());
         assertTrue(matched.getSkills().containsAll(Set.of("Java", "Spring Boot", "React", "PostgreSQL")));
     }
@@ -196,7 +213,7 @@ class UserServiceTest {
     void testGetUsers_UserWithNoSkills_Works() {
         User currentUser = createUser(1L, "Current User", "me@college.edu", "IIT Delhi", "CS", (byte) 2);
         User newUser = createUser(5L, "New Student", "new@college.edu", "IIT Delhi", "CS", (byte) 1);
-        newUser.setSkills(null); // or empty
+        newUser.setSkills(null);
 
         when(userRepository.findByEmail("me@college.edu")).thenReturn(Optional.of(currentUser));
         when(userRepository.findAllWithSkills()).thenReturn(List.of(newUser));
@@ -233,18 +250,101 @@ class UserServiceTest {
         request.setBranch("Data Science");
         request.setYear((byte) 4);
         request.setBio("Updated bio");
+        request.setGithubUrl("https://github.com/newname");
+        request.setLookingFor(Set.of("Hackathons", "Open Source"));
 
-        UserProfileResponse response = userService.updateUserProfile(10L, request);
+        UserProfileResponse response = userService.updateUserProfile(10L, request, "user@college.edu");
 
         assertNotNull(response);
         assertEquals("New Name", response.getName());
         assertEquals("IIT Bombay", response.getCollege());
         assertEquals("Data Science", response.getBranch());
         assertEquals(Byte.valueOf((byte) 4), response.getYear());
+        assertEquals("https://github.com/newname", response.getGithubUrl());
+        assertEquals(Set.of("Hackathons", "Open Source"), response.getLookingFor());
         verify(userRepository).save(user);
     }
 
-    // 9. getUsersBySkill
+    @Test
+    void testUpdateUserProfile_ForbiddenForOtherUser() {
+        User user = createUser(10L, "Old Name", "user@college.edu", "IIT Madras", "AI", (byte) 3, "Python");
+        when(userRepository.findWithSkillsById(10L)).thenReturn(Optional.of(user));
+
+        UpdateProfileRequest request = new UpdateProfileRequest();
+        request.setName("Hacked Name");
+
+        assertThrows(ResponseStatusException.class, () ->
+                userService.updateUserProfile(10L, request, "hacker@college.edu")
+        );
+    }
+
+    // 9. Add and Remove Skills
+    @Test
+    void testAddSkillToUser_Success() {
+        User user = createUser(10L, "User", "user@college.edu", "IIT", "CS", (byte) 2);
+        when(userRepository.findWithSkillsById(10L)).thenReturn(Optional.of(user));
+        when(skillRepository.findByNameIgnoreCase("Rust")).thenReturn(Optional.empty());
+        when(skillRepository.save(any(Skill.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UserProfileResponse res = userService.addSkillToUser(10L, "Rust", "user@college.edu");
+
+        assertNotNull(res);
+        assertTrue(res.getSkills().contains("Rust"));
+    }
+
+    @Test
+    void testRemoveSkillFromUser_Success() {
+        User user = createUser(10L, "User", "user@college.edu", "IIT", "CS", (byte) 2, "Java", "Python");
+        when(userRepository.findWithSkillsById(10L)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UserProfileResponse res = userService.removeSkillFromUser(10L, "Java", "user@college.edu");
+
+        assertNotNull(res);
+        assertFalse(res.getSkills().contains("Java"));
+        assertTrue(res.getSkills().contains("Python"));
+    }
+
+    // 10. Achievements CRUD
+    @Test
+    void testAchievementsCRUD_Success() {
+        User user = createUser(10L, "Achiever", "achiever@college.edu", "IIT", "CS", (byte) 2);
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user));
+
+        AchievementDto dto = new AchievementDto(null, "SIH Winner", "1st Prize", "Hackathon", "2026", "https://verify.com");
+        when(userAchievementRepository.save(any(UserAchievement.class))).thenAnswer(inv -> {
+            UserAchievement a = inv.getArgument(0);
+            a.setId(100L);
+            return a;
+        });
+
+        AchievementDto created = userService.addAchievement(10L, dto, "achiever@college.edu");
+        assertNotNull(created);
+        assertEquals(100L, created.getId());
+        assertEquals("SIH Winner", created.getTitle());
+    }
+
+    // 11. Projects CRUD
+    @Test
+    void testProjectsCRUD_Success() {
+        User user = createUser(10L, "Builder", "builder@college.edu", "IIT", "CS", (byte) 2);
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user));
+
+        ProjectDto dto = new ProjectDto(null, "SanGam", "Student platform", "React, Spring Boot", "https://github.com/sangam", "https://sangam.dev");
+        when(userProjectRepository.save(any(UserProject.class))).thenAnswer(inv -> {
+            UserProject p = inv.getArgument(0);
+            p.setId(200L);
+            return p;
+        });
+
+        ProjectDto created = userService.addProject(10L, dto, "builder@college.edu");
+        assertNotNull(created);
+        assertEquals(200L, created.getId());
+        assertEquals("SanGam", created.getTitle());
+    }
+
+    // 12. getUsersBySkill
     @Test
     void testGetUsersBySkill_Success() {
         User user = createUser(20L, "Skill Specialist", "spec@college.edu", "BITS", "CS", (byte) 3, "Rust", "Go");

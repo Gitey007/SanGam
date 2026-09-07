@@ -26,6 +26,36 @@ export const teamApi = {
       description: teamData.description,
       leaderId: teamData.leaderId,
       maxMembers: teamData.maxMembers,
+      projectName: teamData.projectName,
+      projectDescription: teamData.projectDescription,
+      teamVision: teamData.teamVision,
+      projectType: teamData.projectType,
+      hackathonName: teamData.hackathonName,
+      hackathonUrl: teamData.hackathonUrl,
+      hackathonDeadline: teamData.hackathonDeadline,
+      requiredSkills: teamData.requiredSkills,
+      requiredRoles: teamData.requiredRoles,
+    });
+
+    return response.data;
+  },
+
+  async updateTeam(teamId, teamData) {
+    if (!teamId) throw new Error('Team ID is required');
+
+    const response = await api.put(`/api/teams/${teamId}`, {
+      name: teamData.name,
+      description: teamData.description,
+      maxMembers: teamData.maxMembers,
+      projectName: teamData.projectName,
+      projectDescription: teamData.projectDescription,
+      teamVision: teamData.teamVision,
+      projectType: teamData.projectType,
+      hackathonName: teamData.hackathonName,
+      hackathonUrl: teamData.hackathonUrl,
+      hackathonDeadline: teamData.hackathonDeadline,
+      requiredSkills: teamData.requiredSkills,
+      requiredRoles: teamData.requiredRoles,
     });
 
     return response.data;
