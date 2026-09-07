@@ -52,6 +52,7 @@ public class TeamService {
                 this.skillRepository = skillRepository;
         }
 
+        @Transactional
         public Team createTeam(CreateTeamRequest request, String authenticatedEmail) {
                 User leader;
                 if (authenticatedEmail != null && !authenticatedEmail.isBlank()) {
@@ -119,10 +120,12 @@ public class TeamService {
                 return savedTeam;
         }
 
+        @Transactional
         public Team createTeam(CreateTeamRequest request) {
                 return createTeam(request, null);
         }
 
+        @Transactional
         public TeamResponse updateTeam(Long teamId, com.sangam.sangam.dto.UpdateTeamRequest request, String authenticatedEmail) {
                 Team team = teamRepository.findById(teamId)
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
@@ -196,17 +199,12 @@ public class TeamService {
                         status = "ALMOST_FULL";
                 }
 
-                java.util.Set<String> skillNames = java.util.Collections.emptySet();
-                try {
-                        if (team.getRequiredSkills() != null) {
-                                skillNames = team.getRequiredSkills().stream()
+                java.util.Set<String> skillNames = team.getRequiredSkills() != null
+                                ? team.getRequiredSkills().stream()
                                                 .map(com.sangam.sangam.entity.Skill::getName)
                                                 .filter(name -> name != null && !name.isBlank())
-                                                .collect(java.util.stream.Collectors.toSet());
-                        }
-                } catch (Exception e) {
-                        // Lazy loading fallback if not loaded
-                }
+                                                .collect(java.util.stream.Collectors.toSet())
+                                : java.util.Collections.emptySet();
 
                 java.util.Set<String> roles = team.getRequiredRoles() != null
                                 ? new java.util.HashSet<>(team.getRequiredRoles())
@@ -216,8 +214,8 @@ public class TeamService {
                                 team.getId(),
                                 team.getName(),
                                 team.getDescription(),
-                                team.getLeader().getId(),
-                                team.getLeader().getName(),
+                                team.getLeader() != null ? team.getLeader().getId() : null,
+                                team.getLeader() != null ? team.getLeader().getName() : null,
                                 team.getMaxMembers(),
                                 team.getProjectName(),
                                 team.getProjectDescription(),
@@ -232,25 +230,24 @@ public class TeamService {
                                 status);
         }
 
+        @Transactional(readOnly = true)
         public List<TeamResponse> getAllTeams() {
-
                 return teamRepository.findAll()
                                 .stream()
                                 .map(this::toTeamResponse)
                                 .toList();
         }
 
+        @Transactional(readOnly = true)
         public TeamResponse getTeamById(Long teamId) {
-
                 Team team = teamRepository.findById(teamId)
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
 
                 return toTeamResponse(team);
         }
 
-
+        @Transactional(readOnly = true)
         public List<TeamMemberResponse> getTeamMembers(Long teamId) {
-
                 if (!teamRepository.existsById(teamId)) {
                         throw new RuntimeException("Team not found");
                 }
@@ -258,7 +255,6 @@ public class TeamService {
                 return teamMemberRepository.findByTeamId(teamId)
                                 .stream()
                                 .map(member -> {
-
                                         User user = userRepository.findById(member.getUserId())
                                                         .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -274,6 +270,7 @@ public class TeamService {
                                 .toList();
         }
 
+        @Transactional
         public void removeMember(
                         Long teamId,
                         Long memberId,
@@ -302,6 +299,7 @@ public class TeamService {
                 teamMemberRepository.deleteById(memberKey);
         }
 
+        @Transactional
         public void leaveTeam(Long teamId, Long userId) {
 
                 Team team = teamRepository.findById(teamId)
@@ -383,6 +381,7 @@ public class TeamService {
                 return toJoinRequestResponse(saved);
         }
 
+        @Transactional(readOnly = true)
         public List<TeamJoinRequestResponse> getPendingJoinRequests(Long teamId, Long leaderId) {
 
                 Team team = teamRepository.findById(teamId)
@@ -663,6 +662,7 @@ public class TeamService {
                 teamInvitationRepository.save(invitation);
         }
 
+        @Transactional(readOnly = true)
         public List<TeamInvitationResponse> getMyInvitations(String authenticatedEmail, TeamInvitation.InvitationStatus status) {
                 User currentUser = userRepository.findByEmail(authenticatedEmail)
                                 .orElseThrow(() -> new ResponseStatusException(
@@ -681,6 +681,7 @@ public class TeamService {
                                 .toList();
         }
 
+        @Transactional(readOnly = true)
         public List<TeamInvitationResponse> getTeamInvitations(Long teamId, String authenticatedEmail) {
                 User currentUser = userRepository.findByEmail(authenticatedEmail)
                                 .orElseThrow(() -> new ResponseStatusException(
