@@ -44,6 +44,7 @@ public class UserService {
         this.userProjectRepository = userProjectRepository;
     }
 
+    @Transactional(readOnly = true)
     public List<UserProfileResponse> getAllUsers() {
         return userRepository.findAllWithSkills()
                 .stream()
@@ -51,6 +52,7 @@ public class UserService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public List<UserProfileResponse> getUsers(
             String scope,
             Integer year,
@@ -99,6 +101,7 @@ public class UserService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public UserProfileResponse getUserProfile(Long userId) {
         User user = userRepository.findWithSkillsById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
@@ -317,6 +320,7 @@ public class UserService {
         userProjectRepository.delete(project);
     }
 
+    @Transactional(readOnly = true)
     public List<UserProfileResponse> getUsersBySkill(Long skillId) {
         return userRepository.findUsersBySkillId(skillId)
                 .stream()

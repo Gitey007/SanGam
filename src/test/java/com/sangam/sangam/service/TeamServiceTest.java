@@ -620,6 +620,50 @@ class TeamServiceTest {
             TeamResponse r3 = teamService.getTeamById(10L);
             assertEquals("FULL", r3.getStatus());
         }
+
+        @Test
+        @DisplayName("getTeamById safely loads and maps requiredRoles, requiredSkills, and leader info")
+        void testGetTeamByIdWithRolesAndSkills() {
+            team.setRequiredRoles(Set.of("Frontend Developer", "ML Engineer"));
+            team.setRequiredSkills(Set.of(new Skill("React"), new Skill("Python")));
+            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
+            when(teamMemberRepository.countByTeamId(10L)).thenReturn(2L);
+
+            TeamResponse res = teamService.getTeamById(10L);
+
+            assertNotNull(res);
+            assertEquals(10L, res.getId());
+            assertEquals("Team Alpha", res.getName());
+            assertEquals(1L, res.getLeaderId());
+            assertEquals("Leader User", res.getLeaderName());
+            assertEquals(2, res.getRequiredRoles().size());
+            assertEquals(Set.of("Frontend Developer", "ML Engineer"), res.getRequiredRoles());
+            assertEquals(2, res.getRequiredSkills().size());
+            assertEquals(Set.of("React", "Python"), res.getRequiredSkills());
+            assertEquals(2, res.getMemberCount());
+            assertEquals("OPEN", res.getStatus());
+        }
+
+        @Test
+        @DisplayName("getAllTeams safely loads and maps all teams with requiredRoles and requiredSkills")
+        void testGetAllTeamsWithRolesAndSkills() {
+            team.setRequiredRoles(Set.of("Backend Developer"));
+            team.setRequiredSkills(Set.of(new Skill("Java"), new Skill("Spring Boot")));
+            when(teamRepository.findAll()).thenReturn(List.of(team));
+            when(teamMemberRepository.countByTeamId(10L)).thenReturn(1L);
+
+            List<TeamResponse> resList = teamService.getAllTeams();
+
+            assertNotNull(resList);
+            assertEquals(1, resList.size());
+            TeamResponse res = resList.get(0);
+            assertEquals(10L, res.getId());
+            assertEquals(1L, res.getLeaderId());
+            assertEquals("Leader User", res.getLeaderName());
+            assertEquals(Set.of("Backend Developer"), res.getRequiredRoles());
+            assertEquals(Set.of("Java", "Spring Boot"), res.getRequiredSkills());
+        }
     }
 }
+
 
