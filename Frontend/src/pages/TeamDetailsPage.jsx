@@ -11,17 +11,23 @@ import {
   LogOut,
   Clock,
   UserCheck,
+  Search,
+  Send,
+  Mail,
+  AlertCircle,
 } from 'lucide-react';
 
 import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import ErrorState from '../components/common/ErrorState';
+import Modal from '../components/common/Modal';
 
 import teamApi from '../services/teamApi';
+import userApi from '../services/userApi';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { extractErrorMessage } from '../utils/helpers';
+import { extractErrorMessage, formatBranchYear, formatCollege } from '../utils/helpers';
 
 export const TeamDetailsPage = () => {
   const { id } = useParams();
@@ -33,6 +39,7 @@ export const TeamDetailsPage = () => {
   const [team, setTeam] = useState(null);
   const [members, setMembers] = useState([]);
   const [joinRequests, setJoinRequests] = useState([]);
+  const [sentInvitations, setSentInvitations] = useState([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
@@ -41,6 +48,13 @@ export const TeamDetailsPage = () => {
   const [error, setError] = useState(null);
 
   const [joinRequestSent, setJoinRequestSent] = useState(false);
+
+  // Invite modal state
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [studentsList, setStudentsList] = useState([]);
+  const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [inviteSearchTerm, setInviteSearchTerm] = useState('');
+  const [invitingUserId, setInvitingUserId] = useState(null);
 
   /**
    * Fetch pending join requests (leader only)
@@ -52,6 +66,19 @@ export const TeamDetailsPage = () => {
       setJoinRequests(Array.isArray(reqs) ? reqs : []);
     } catch (err) {
       console.error('Failed to load join requests:', err);
+    }
+  }, [id, user?.id]);
+
+  /**
+   * Fetch sent invitations (leader only)
+   */
+  const fetchSentInvitations = useCallback(async () => {
+    if (!id || !user?.id) return;
+    try {
+      const invs = await teamApi.getTeamInvitations(id);
+      setSentInvitations(Array.isArray(invs) ? invs : []);
+    } catch (err) {
+      console.error('Failed to load sent invitations:', err);
     }
   }, [id, user?.id]);
 
@@ -85,17 +112,21 @@ export const TeamDetailsPage = () => {
         setJoinRequestSent(false);
       }
 
-      // If user is leader, also fetch pending join requests
+      // If user is leader, also fetch pending join requests and sent invitations
       if (
         teamData?.leaderId &&
         user?.id &&
         String(teamData.leaderId) === String(user.id)
       ) {
         try {
-          const reqs = await teamApi.getJoinRequests(id, user.id);
+          const [reqs, invs] = await Promise.all([
+            teamApi.getJoinRequests(id, user.id).catch(() => []),
+            teamApi.getTeamInvitations(id).catch(() => []),
+          ]);
           setJoinRequests(Array.isArray(reqs) ? reqs : []);
-        } catch (reqErr) {
-          console.error('Failed to load join requests for leader:', reqErr);
+          setSentInvitations(Array.isArray(invs) ? invs : []);
+        } catch (leaderErr) {
+          console.error('Failed to load leader management data:', leaderErr);
         }
       }
     } catch (err) {
@@ -211,6 +242,42 @@ export const TeamDetailsPage = () => {
       toastError(msg);
     } finally {
       setActionLoading((prev) => ({ ...prev, [requestId]: null }));
+    }
+  };
+
+  /**
+   * Open invite student modal and load students list
+   */
+  const handleOpenInviteModal = async () => {
+    setIsInviteModalOpen(true);
+    if (studentsList.length === 0) {
+      setIsLoadingStudents(true);
+      try {
+        const data = await userApi.getUsers();
+        setStudentsList(Array.isArray(data) ? data : (data?.content || []));
+      } catch (err) {
+        console.error('Failed to load students for invitation:', err);
+      } finally {
+        setIsLoadingStudents(false);
+      }
+    }
+  };
+
+  /**
+   * Send team invitation to target student
+   */
+  const handleSendInvitation = async (targetUserId) => {
+    if (!id || !targetUserId) return;
+    setInvitingUserId(targetUserId);
+    try {
+      await teamApi.inviteStudentToTeam(id, targetUserId);
+      success('Invitation sent successfully!');
+      await fetchSentInvitations();
+    } catch (err) {
+      const msg = extractErrorMessage(err, 'Failed to send invitation.');
+      toastError(msg);
+    } finally {
+      setInvitingUserId(null);
     }
   };
 
@@ -343,9 +410,20 @@ export const TeamDetailsPage = () => {
             {/* Join / Member / Leader status & actions */}
             <div className="shrink-0">
               {isLeader ? (
-                <Badge variant="brand" size="md">
-                  You are the leader
-                </Badge>
+                <div className="flex items-center gap-2.5">
+                  <Badge variant="brand" size="md">
+                    You are the leader
+                  </Badge>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={UserPlus}
+                    onClick={handleOpenInviteModal}
+                    disabled={isTeamFull}
+                  >
+                    Invite Student
+                  </Button>
+                </div>
               ) : isMember ? (
                 <div className="flex items-center gap-2.5">
                   <Badge variant="brand" size="md">
@@ -498,96 +576,198 @@ export const TeamDetailsPage = () => {
             )}
           </section>
 
-          {/* Pending Join Requests (Visible to Leader Only) */}
+          {/* Sent Invitations & Pending Join Requests (Visible to Leader Only) */}
           {isLeader && (
-            <section className="pt-6 border-t border-slate-100">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <UserCheck className="w-4 h-4 text-slate-500" />
-                  <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    Pending Join Requests
-                  </h2>
-                </div>
+            <>
+              {/* Sent Invitations Section */}
+              <section className="pt-6 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-slate-500" />
+                    <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      Sent Invitations
+                    </h2>
+                  </div>
 
-                <Badge
-                  variant={joinRequests.length > 0 ? 'brand' : 'neutral'}
-                  size="sm"
-                >
-                  {joinRequests.length}{' '}
-                  {joinRequests.length === 1 ? 'request' : 'requests'}
-                </Badge>
-              </div>
-
-              {joinRequests.length === 0 ? (
-                <div className="p-4 rounded-lg border border-slate-200 bg-slate-50 text-center">
-                  <p className="text-xs text-slate-500">
-                    No pending join requests at this time.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {joinRequests.map((req) => (
-                    <div
-                      key={req.requestId}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-50/80 transition-colors"
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant={sentInvitations.filter((i) => i.status === 'PENDING').length > 0 ? 'brand' : 'neutral'}
+                      size="sm"
                     >
-                      <div className="flex items-center gap-3">
-                        <Avatar name={req.userName} size="sm" />
-                        <div>
-                          <span className="text-xs font-semibold text-slate-900 block">
-                            {req.userName}
-                          </span>
-                          <span className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                            <Clock className="w-3 h-3 text-slate-400" />
-                            {req.createdAt
-                              ? new Date(req.createdAt).toLocaleDateString(
-                                  undefined,
-                                  {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric',
-                                  }
-                                )
-                              : 'Pending review'}
-                          </span>
+                      {sentInvitations.filter((i) => i.status === 'PENDING').length} pending
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      leftIcon={UserPlus}
+                      onClick={handleOpenInviteModal}
+                      disabled={isTeamFull}
+                    >
+                      + Invite More
+                    </Button>
+                  </div>
+                </div>
+
+                {sentInvitations.length === 0 ? (
+                  <div className="p-4 rounded-lg border border-slate-200 bg-slate-50 text-center">
+                    <p className="text-xs text-slate-500">
+                      No invitations sent yet. Click "Invite Student" to invite teammates.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {sentInvitations.map((inv) => (
+                      <div
+                        key={inv.invitationId}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-slate-200 bg-slate-50"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar name={inv.invitedUserName} size="sm" />
+                          <div>
+                            <span className="text-xs font-semibold text-slate-900 block">
+                              {inv.invitedUserName}
+                            </span>
+                            <span className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              Sent {inv.createdAt
+                                ? new Date(inv.createdAt).toLocaleDateString(
+                                    undefined,
+                                    {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                    }
+                                  )
+                                : 'recently'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <Badge
+                            variant={
+                              inv.status === 'ACCEPTED'
+                                ? 'success'
+                                : inv.status === 'REJECTED'
+                                ? 'neutral'
+                                : 'brand'
+                            }
+                            size="sm"
+                          >
+                            {inv.status === 'PENDING'
+                              ? 'Pending Student Response'
+                              : inv.status === 'ACCEPTED'
+                              ? 'Accepted'
+                              : 'Declined'}
+                          </Badge>
+                          {inv.status === 'REJECTED' && (
+                            <Button
+                              variant="outline"
+                              size="xs"
+                              onClick={() => handleSendInvitation(inv.invitedUserId)}
+                              isLoading={invitingUserId === inv.invitedUserId}
+                              disabled={isTeamFull}
+                            >
+                              Re-invite
+                            </Button>
+                          )}
                         </div>
                       </div>
+                    ))}
+                  </div>
+                )}
+              </section>
 
-                      <div className="flex items-center gap-2 self-end sm:self-auto">
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => handleAcceptRequest(req.requestId)}
-                          isLoading={
-                            actionLoading[req.requestId] === 'accept'
-                          }
-                          disabled={
-                            Boolean(actionLoading[req.requestId]) ||
-                            isTeamFull
-                          }
-                          leftIcon={Check}
-                        >
-                          Accept
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleRejectRequest(req.requestId)}
-                          isLoading={
-                            actionLoading[req.requestId] === 'reject'
-                          }
-                          disabled={Boolean(actionLoading[req.requestId])}
-                          leftIcon={X}
-                          className="text-slate-600 hover:text-rose-600 hover:border-rose-200"
-                        >
-                          Reject
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+              {/* Pending Join Requests Section */}
+              <section className="pt-6 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <UserCheck className="w-4 h-4 text-slate-500" />
+                    <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      Pending Join Requests
+                    </h2>
+                  </div>
+
+                  <Badge
+                    variant={joinRequests.length > 0 ? 'brand' : 'neutral'}
+                    size="sm"
+                  >
+                    {joinRequests.length}{' '}
+                    {joinRequests.length === 1 ? 'request' : 'requests'}
+                  </Badge>
                 </div>
-              )}
-            </section>
+
+                {joinRequests.length === 0 ? (
+                  <div className="p-4 rounded-lg border border-slate-200 bg-slate-50 text-center">
+                    <p className="text-xs text-slate-500">
+                      No pending join requests at this time.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {joinRequests.map((req) => (
+                      <div
+                        key={req.requestId}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-50/80 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar name={req.userName} size="sm" />
+                          <div>
+                            <span className="text-xs font-semibold text-slate-900 block">
+                              {req.userName}
+                            </span>
+                            <span className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              {req.createdAt
+                                ? new Date(req.createdAt).toLocaleDateString(
+                                    undefined,
+                                    {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                    }
+                                  )
+                                : 'Pending review'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleAcceptRequest(req.requestId)}
+                            isLoading={
+                              actionLoading[req.requestId] === 'accept'
+                            }
+                            disabled={
+                              Boolean(actionLoading[req.requestId]) ||
+                              isTeamFull
+                            }
+                            leftIcon={Check}
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleRejectRequest(req.requestId)}
+                            isLoading={
+                              actionLoading[req.requestId] === 'reject'
+                            }
+                            disabled={Boolean(actionLoading[req.requestId])}
+                            leftIcon={X}
+                            className="text-slate-600 hover:text-rose-600 hover:border-rose-200"
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
           )}
         </div>
       </div>
@@ -604,6 +784,138 @@ export const TeamDetailsPage = () => {
           </p>
         </div>
       )}
+
+      {/* Invite Student Modal */}
+      <Modal
+        isOpen={isInviteModalOpen}
+        onClose={() => setIsInviteModalOpen(false)}
+        title={`Invite Student to ${team.name}`}
+        description="Search for student collaborators and invite them to join your squad."
+        maxWidth="max-w-xl"
+      >
+        <div className="space-y-4">
+          {/* Search bar */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search by name, skill, college, or branch..."
+              value={inviteSearchTerm}
+              onChange={(e) => setInviteSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-slate-200 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            />
+          </div>
+
+          {/* Warning if full */}
+          {isTeamFull && (
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 flex items-center gap-2 text-amber-800 text-xs">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>This team is currently full ({members.length}/{team.maxMembers}). You cannot invite more members.</span>
+            </div>
+          )}
+
+          {/* Student list */}
+          <div className="max-h-80 overflow-y-auto space-y-2 divide-y divide-slate-100 pr-1">
+            {isLoadingStudents ? (
+              <div className="py-8 text-center text-xs text-slate-500 animate-pulse">
+                Loading students...
+              </div>
+            ) : (() => {
+              const eligibleStudents = studentsList.filter((s) => {
+                // Exclude self/leader
+                if (String(s.id) === String(user?.id)) return false;
+                // Exclude current members
+                if (members.some((m) => String(m.userId) === String(s.id))) return false;
+
+                if (!inviteSearchTerm.trim()) return true;
+                const term = inviteSearchTerm.toLowerCase();
+                const nameMatch = s.name?.toLowerCase().includes(term);
+                const branchMatch = s.branch?.toLowerCase().includes(term);
+                const collegeMatch = s.college?.toLowerCase().includes(term);
+                const skillMatch = Array.isArray(s.skills)
+                  ? s.skills.some((sk) => sk.toLowerCase().includes(term))
+                  : false;
+                return nameMatch || branchMatch || collegeMatch || skillMatch;
+              });
+
+              if (eligibleStudents.length === 0) {
+                return (
+                  <div className="py-8 text-center text-xs text-slate-500">
+                    {inviteSearchTerm ? 'No students matching your search query.' : 'No other students available to invite.'}
+                  </div>
+                );
+              }
+
+              return eligibleStudents.map((student) => {
+                const pendingInvitation = sentInvitations.find(
+                  (i) => String(i.invitedUserId) === String(student.id) && i.status === 'PENDING'
+                );
+
+                const skillsList = Array.isArray(student.skills)
+                  ? student.skills
+                  : typeof student.skills === 'string'
+                  ? student.skills.split(',').map((s) => s.trim()).filter(Boolean)
+                  : [];
+
+                return (
+                  <div
+                    key={student.id}
+                    className="pt-2 pb-2 flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <Avatar name={student.name} size="sm" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-slate-900 truncate">
+                            {student.name}
+                          </span>
+                          <span className="text-[10px] text-slate-400 truncate">
+                            {formatBranchYear(student.branch, student.year)}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                          {formatCollege(student.college)}
+                        </p>
+                        {skillsList.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {skillsList.slice(0, 3).map((sk) => (
+                              <span
+                                key={sk}
+                                className="px-1.5 py-0.2 rounded text-[10px] bg-slate-100 text-slate-600 font-medium"
+                              >
+                                {sk}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="shrink-0">
+                      {pendingInvitation ? (
+                        <Badge variant="neutral" size="sm">
+                          Invited
+                        </Badge>
+                      ) : (
+                        <Button
+                          variant="primary"
+                          size="xs"
+                          leftIcon={Send}
+                          onClick={() => handleSendInvitation(student.id)}
+                          isLoading={invitingUserId === student.id}
+                          disabled={isTeamFull || Boolean(invitingUserId)}
+                        >
+                          Invite
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

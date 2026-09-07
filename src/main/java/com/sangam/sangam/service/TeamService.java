@@ -10,14 +10,17 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.sangam.sangam.dto.CreateTeamRequest;
+import com.sangam.sangam.dto.TeamInvitationResponse;
 import com.sangam.sangam.dto.TeamJoinRequestResponse;
 import com.sangam.sangam.dto.TeamMemberResponse;
 import com.sangam.sangam.dto.TeamResponse;
 import com.sangam.sangam.entity.Team;
+import com.sangam.sangam.entity.TeamInvitation;
 import com.sangam.sangam.entity.TeamJoinRequest;
 import com.sangam.sangam.entity.TeamMember;
 import com.sangam.sangam.entity.TeamMemberId;
 import com.sangam.sangam.entity.User;
+import com.sangam.sangam.repository.TeamInvitationRepository;
 import com.sangam.sangam.repository.TeamJoinRequestRepository;
 import com.sangam.sangam.repository.TeamMemberRepository;
 import com.sangam.sangam.repository.TeamRepository;
@@ -30,17 +33,20 @@ public class TeamService {
         private final UserRepository userRepository;
         private final TeamMemberRepository teamMemberRepository;
         private final TeamJoinRequestRepository teamJoinRequestRepository;
+        private final TeamInvitationRepository teamInvitationRepository;
 
         public TeamService(
                         TeamRepository teamRepository,
                         UserRepository userRepository,
                         TeamMemberRepository teamMemberRepository,
-                        TeamJoinRequestRepository teamJoinRequestRepository) {
+                        TeamJoinRequestRepository teamJoinRequestRepository,
+                        TeamInvitationRepository teamInvitationRepository) {
 
                 this.teamRepository = teamRepository;
                 this.userRepository = userRepository;
                 this.teamMemberRepository = teamMemberRepository;
                 this.teamJoinRequestRepository = teamJoinRequestRepository;
+                this.teamInvitationRepository = teamInvitationRepository;
         }
 
         public Team createTeam(CreateTeamRequest request) {
@@ -344,5 +350,212 @@ public class TeamService {
                 request.setStatus(TeamJoinRequest.RequestStatus.REJECTED);
                 request.setUpdatedAt(LocalDateTime.now());
                 teamJoinRequestRepository.save(request);
+        }
+
+        public TeamInvitationResponse toInvitationResponse(TeamInvitation invitation) {
+                return new TeamInvitationResponse(
+                                invitation.getId(),
+                                invitation.getTeam().getId(),
+                                invitation.getTeam().getName(),
+                                invitation.getTeam().getDescription(),
+                                invitation.getInvitedBy().getId(),
+                                invitation.getInvitedBy().getName(),
+                                invitation.getInvitedUser().getId(),
+                                invitation.getInvitedUser().getName(),
+                                invitation.getStatus().name(),
+                                invitation.getCreatedAt(),
+                                invitation.getUpdatedAt(),
+                                invitation.getTeam().getMaxMembers());
+        }
+
+        @Transactional
+        public TeamInvitationResponse inviteStudent(Long teamId, Long targetUserId, String authenticatedEmail) {
+                User inviter = userRepository.findByEmail(authenticatedEmail)
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.UNAUTHORIZED,
+                                                "User not authenticated"));
+
+                Team team = teamRepository.findById(teamId)
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "Team not found"));
+
+                if (!team.getLeader().getId().equals(inviter.getId())) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
+                                        "Only the team leader can invite members");
+                }
+
+                User targetUser = userRepository.findById(targetUserId)
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "Student not found"));
+
+                if (targetUser.getId().equals(team.getLeader().getId())) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "Cannot invite the team leader to their own team");
+                }
+
+                TeamMemberId memberKey = new TeamMemberId(teamId, targetUserId);
+                if (teamMemberRepository.existsById(memberKey)) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.CONFLICT,
+                                        "Student is already a member of this team");
+                }
+
+                long currentMemberCount = teamMemberRepository.countByTeamId(teamId);
+                if (team.getMaxMembers() != null && currentMemberCount >= team.getMaxMembers()) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.CONFLICT,
+                                        "Team is full");
+                }
+
+                Optional<TeamInvitation> existingOpt = teamInvitationRepository.findByTeamIdAndInvitedUserId(teamId, targetUserId);
+                if (existingOpt.isPresent()) {
+                        TeamInvitation existing = existingOpt.get();
+                        if (existing.getStatus() == TeamInvitation.InvitationStatus.PENDING) {
+                                throw new ResponseStatusException(
+                                                HttpStatus.CONFLICT,
+                                                "A pending invitation already exists for this student");
+                        }
+                        existing.setStatus(TeamInvitation.InvitationStatus.PENDING);
+                        existing.setInvitedBy(inviter);
+                        existing.setCreatedAt(LocalDateTime.now());
+                        existing.setUpdatedAt(LocalDateTime.now());
+                        TeamInvitation saved = teamInvitationRepository.save(existing);
+                        return toInvitationResponse(saved);
+                }
+
+                TeamInvitation invitation = new TeamInvitation(team, targetUser, inviter, TeamInvitation.InvitationStatus.PENDING);
+                TeamInvitation saved = teamInvitationRepository.save(invitation);
+                return toInvitationResponse(saved);
+        }
+
+        @Transactional
+        public void acceptInvitation(Long invitationId, String authenticatedEmail) {
+                User currentUser = userRepository.findByEmail(authenticatedEmail)
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.UNAUTHORIZED,
+                                                "User not authenticated"));
+
+                TeamInvitation invitation = teamInvitationRepository.findById(invitationId)
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "Invitation not found"));
+
+                if (!invitation.getInvitedUser().getId().equals(currentUser.getId())) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
+                                        "You are not authorized to accept this invitation");
+                }
+
+                if (invitation.getStatus() != TeamInvitation.InvitationStatus.PENDING) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "Invitation is not pending");
+                }
+
+                Team team = invitation.getTeam();
+                if (team == null || !teamRepository.existsById(team.getId())) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.NOT_FOUND,
+                                        "Team no longer exists");
+                }
+
+                TeamMemberId memberKey = new TeamMemberId(team.getId(), currentUser.getId());
+                if (teamMemberRepository.existsById(memberKey)) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.CONFLICT,
+                                        "User is already a member of this team");
+                }
+
+                long currentMemberCount = teamMemberRepository.countByTeamId(team.getId());
+                if (team.getMaxMembers() != null && currentMemberCount >= team.getMaxMembers()) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.CONFLICT,
+                                        "Team is full");
+                }
+
+                TeamMember member = new TeamMember();
+                member.setTeamId(team.getId());
+                member.setUserId(currentUser.getId());
+                member.setRole(TeamMember.Role.MEMBER);
+                member.setJoinedAt(LocalDateTime.now());
+                teamMemberRepository.save(member);
+
+                invitation.setStatus(TeamInvitation.InvitationStatus.ACCEPTED);
+                invitation.setUpdatedAt(LocalDateTime.now());
+                teamInvitationRepository.save(invitation);
+        }
+
+        @Transactional
+        public void rejectInvitation(Long invitationId, String authenticatedEmail) {
+                User currentUser = userRepository.findByEmail(authenticatedEmail)
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.UNAUTHORIZED,
+                                                "User not authenticated"));
+
+                TeamInvitation invitation = teamInvitationRepository.findById(invitationId)
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "Invitation not found"));
+
+                if (!invitation.getInvitedUser().getId().equals(currentUser.getId())) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
+                                        "You are not authorized to reject this invitation");
+                }
+
+                if (invitation.getStatus() != TeamInvitation.InvitationStatus.PENDING) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "Invitation is not pending");
+                }
+
+                invitation.setStatus(TeamInvitation.InvitationStatus.REJECTED);
+                invitation.setUpdatedAt(LocalDateTime.now());
+                teamInvitationRepository.save(invitation);
+        }
+
+        public List<TeamInvitationResponse> getMyInvitations(String authenticatedEmail, TeamInvitation.InvitationStatus status) {
+                User currentUser = userRepository.findByEmail(authenticatedEmail)
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.UNAUTHORIZED,
+                                                "User not authenticated"));
+
+                List<TeamInvitation> invitations;
+                if (status != null) {
+                        invitations = teamInvitationRepository.findByInvitedUserIdAndStatus(currentUser.getId(), status);
+                } else {
+                        invitations = teamInvitationRepository.findByInvitedUserId(currentUser.getId());
+                }
+
+                return invitations.stream()
+                                .map(this::toInvitationResponse)
+                                .toList();
+        }
+
+        public List<TeamInvitationResponse> getTeamInvitations(Long teamId, String authenticatedEmail) {
+                User currentUser = userRepository.findByEmail(authenticatedEmail)
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.UNAUTHORIZED,
+                                                "User not authenticated"));
+
+                Team team = teamRepository.findById(teamId)
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "Team not found"));
+
+                if (!team.getLeader().getId().equals(currentUser.getId())) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
+                                        "Only the team leader can view team invitations");
+                }
+
+                return teamInvitationRepository.findByTeamId(teamId)
+                                .stream()
+                                .map(this::toInvitationResponse)
+                                .toList();
         }
 }
