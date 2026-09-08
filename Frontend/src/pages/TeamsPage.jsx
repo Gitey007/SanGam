@@ -68,7 +68,8 @@ export const TeamsPage = () => {
     }
   };
 
-  const handleAcceptInvitation = async (invitationId) => {
+  const handleAcceptInvitation = async (invitation) => {
+    const invitationId = invitation.invitationId;
     setActionLoading((prev) => ({ ...prev, [invitationId]: 'accept' }));
     try {
       await teamApi.acceptTeamInvitation(invitationId);
@@ -77,6 +78,9 @@ export const TeamsPage = () => {
     } catch (err) {
       const msg = extractErrorMessage(err, 'Failed to accept invitation.');
       toastError(msg);
+      if (err.response?.status === 409) {
+        navigate(`/teams/${invitation.teamId}`);
+      }
     } finally {
       setActionLoading((prev) => ({ ...prev, [invitationId]: null }));
     }
@@ -229,7 +233,10 @@ export const TeamsPage = () => {
                   </div>
 
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Invited by <span className="font-semibold text-slate-700 dark:text-slate-200">{inv.invitedByName}</span> (Team Leader)
+                    Invited by <span className="font-semibold text-slate-700 dark:text-slate-200">{inv.invitedByName}</span> (Team Leader) • <span className="font-semibold text-slate-800 dark:text-slate-200">Role: {inv.invitedRole || 'Not specified'}</span>
+                    {inv.customRole && (
+                      <span className="ml-1 text-brand-600 dark:text-brand-400 font-medium">({inv.customRole})</span>
+                    )}
                   </p>
 
                   {inv.teamDescription && (
@@ -259,7 +266,7 @@ export const TeamsPage = () => {
                         variant="primary"
                         size="sm"
                         leftIcon={Check}
-                        onClick={() => handleAcceptInvitation(inv.invitationId)}
+                        onClick={() => handleAcceptInvitation(inv)}
                         isLoading={actionLoading[inv.invitationId] === 'accept'}
                         disabled={Boolean(actionLoading[inv.invitationId])}
                       >

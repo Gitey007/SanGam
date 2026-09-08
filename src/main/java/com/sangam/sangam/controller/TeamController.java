@@ -207,6 +207,7 @@ public class TeamController {
             @RequestParam(required = false) Long leaderId,
             @RequestParam(required = false) String selectedRole,
             @RequestParam(required = false) String customRole,
+            @RequestParam(required = false) Long memberIdToRemove,
             @RequestBody(required = false) RoleActionRequest body,
             Authentication authentication) {
 
@@ -229,7 +230,12 @@ public class TeamController {
                 ? customRole
                 : (body != null ? body.getCustomRole() : null);
 
-        teamService.acceptJoinRequest(teamId, requestId, effectiveLeaderId, effectiveRole, effectiveCustomRole);
+        Long effectiveMemberIdToRemove = memberIdToRemove;
+        if (effectiveMemberIdToRemove == null && body != null && body.getMemberIdToRemove() != null) {
+            effectiveMemberIdToRemove = body.getMemberIdToRemove();
+        }
+
+        teamService.acceptJoinRequest(teamId, requestId, effectiveLeaderId, effectiveRole, effectiveCustomRole, effectiveMemberIdToRemove);
 
         return ResponseEntity.ok(
                 "Join request accepted successfully");

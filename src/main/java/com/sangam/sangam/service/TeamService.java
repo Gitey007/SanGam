@@ -459,6 +459,12 @@ public class TeamService {
                     "User is already a member of this team");
         }
 
+        if (teamInvitationRepository.existsByTeamIdAndInvitedUserIdAndStatus(teamId, userId, TeamInvitation.InvitationStatus.PENDING)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "You have a pending invitation for this team. Please accept the invitation instead.");
+        }
+
         long currentMemberCount = teamMemberRepository.countByTeamId(teamId);
         if (team.getMaxMembers() != null && currentMemberCount >= team.getMaxMembers()) {
             throw new ResponseStatusException(
@@ -518,7 +524,7 @@ public class TeamService {
     }
 
     @Transactional
-    public void acceptJoinRequest(Long teamId, Long requestId, Long leaderId, String selectedRole, String customRole) {
+    public void acceptJoinRequest(Long teamId, Long requestId, Long leaderId, String selectedRole, String customRole, Long memberIdToRemove) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -556,6 +562,20 @@ public class TeamService {
                     "User is already a member of this team");
         }
 
+        // Handle transactional member replacement if specified by leader
+        if (memberIdToRemove != null) {
+            if (memberIdToRemove.equals(leaderId) || memberIdToRemove.equals(team.getLeader().getId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Leader cannot remove themselves");
+            }
+
+            TeamMemberId removeKey = new TeamMemberId(teamId, memberIdToRemove);
+            if (!teamMemberRepository.existsById(removeKey)) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Member to replace not found in this team");
+            }
+
+            teamMemberRepository.deleteById(removeKey);
+        }
+
         List<TeamMember> currentMembers = teamMemberRepository.findByTeamId(teamId);
         if (team.getMaxMembers() != null && currentMembers.size() >= team.getMaxMembers()) {
             throw new ResponseStatusException(
@@ -580,6 +600,8 @@ public class TeamService {
                 if (filled >= matchingSlot.getSlotCount()) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "This role is no longer available.");
                 }
+            } else if (selectedRole != null && !selectedRole.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected role is not a defined team role.");
             }
         }
 
@@ -598,8 +620,13 @@ public class TeamService {
     }
 
     @Transactional
+    public void acceptJoinRequest(Long teamId, Long requestId, Long leaderId, String selectedRole, String customRole) {
+        acceptJoinRequest(teamId, requestId, leaderId, selectedRole, customRole, null);
+    }
+
+    @Transactional
     public void acceptJoinRequest(Long teamId, Long requestId, Long leaderId) {
-        acceptJoinRequest(teamId, requestId, leaderId, null, null);
+        acceptJoinRequest(teamId, requestId, leaderId, null, null, null);
     }
 
     @Transactional
@@ -791,6 +818,8 @@ public class TeamService {
                 if (filled >= matchingSlot.getSlotCount()) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "This role is no longer available.");
                 }
+            } else if (selectedRole != null && !selectedRole.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected role is not a defined team role.");
             }
         }
 
