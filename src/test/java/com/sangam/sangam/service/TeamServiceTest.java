@@ -555,4 +555,140 @@ class TeamServiceTest {
             assertEquals("DevOps Engineer", members.get(0).getCustomRole());
         }
     }
+
+    @Nested
+    @DisplayName("Team Deletion Tests (Parts 1-4, 17)")
+    class TeamDeletionTests {
+
+        @Test
+        @DisplayName("1. Team leader can delete team successfully")
+        void testLeaderCanDeleteTeam() {
+            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
+
+            teamService.deleteTeam(10L, "leader@college.edu");
+
+            verify(teamMemberRepository).deleteByTeamId(10L);
+            verify(teamJoinRequestRepository).deleteByTeamId(10L);
+            verify(teamInvitationRepository).deleteByTeamId(10L);
+            verify(teamRepository).delete(team);
+        }
+
+        @Test
+        @DisplayName("2. Non-leader cannot delete team (403 Forbidden)")
+        void testNonLeaderCannotDeleteTeam() {
+            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.deleteTeam(10L, "student@college.edu"));
+
+            assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+            verify(teamRepository, never()).delete(any());
+            verify(teamMemberRepository, never()).deleteByTeamId(any());
+        }
+
+        @Test
+        @DisplayName("3. Non-authenticated user cannot delete team (401 Unauthorized)")
+        void testNonAuthenticatedUserCannotDeleteTeam() {
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.deleteTeam(10L, null));
+            assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatusCode());
+
+            ResponseStatusException ex2 = assertThrows(ResponseStatusException.class, () ->
+                    teamService.deleteTeam(10L, "   "));
+            assertEquals(HttpStatus.UNAUTHORIZED, ex2.getStatusCode());
+        }
+
+        @Test
+        @DisplayName("4. Non-existent team returns 404 Not Found")
+        void testNonExistentTeamReturnsNotFound() {
+            when(teamRepository.findById(999L)).thenReturn(Optional.empty());
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.deleteTeam(999L, "leader@college.edu"));
+
+            assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        }
+
+        @Test
+        @DisplayName("5-10. Cascade cleanup of members, requests, invitations, and role slots without touching users/skills")
+        void testCascadeCleanupSafe() {
+            Skill skill = new Skill();
+            skill.setId(1L);
+            skill.setName("React");
+            team.getRequiredSkills().add(skill);
+
+            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
+
+            teamService.deleteTeam(10L, "leader@college.edu");
+
+            verify(teamMemberRepository).deleteByTeamId(10L);
+            verify(teamJoinRequestRepository).deleteByTeamId(10L);
+            verify(teamInvitationRepository).deleteByTeamId(10L);
+            assertTrue(team.getRequiredSkills().isEmpty(), "Required skills join association cleared");
+            verify(teamRepository).delete(team);
+
+            // Verify userRepository and skillRepository are NOT asked to delete user/skill records
+            verify(userRepository, never()).delete(any());
+            verify(userRepository, never()).deleteById(any());
+            verify(skillRepository, never()).delete(any());
+            verify(skillRepository, never()).deleteById(any());
+        }
+
+        @Test
+        @DisplayName("13-17. Comprehensive role availability calculations (0/1, 0/2, 1/2, 2/2 FULL, requests/invites do not consume)")
+        void testComprehensiveRoleSlotAvailability() {
+            Team testTeam = new Team();
+            testTeam.setId(20L);
+            testTeam.setName("Slot Test Team");
+            testTeam.setLeader(leader);
+            testTeam.setMaxMembers((byte) 5);
+            testTeam.setRoleSlots(List.of(
+                    new TeamRoleSlot("Frontend Developer", 1),
+                    new TeamRoleSlot("Backend Developer", 2),
+                    new TeamRoleSlot("UI/UX Designer", 2)
+            ));
+
+            // Only 1 backend dev and 2 UI/UX designers joined
+            TeamMember backendMember = new TeamMember();
+            backendMember.setTeamId(20L);
+            backendMember.setUserId(2L);
+            backendMember.setAssignedRole("Backend Developer");
+
+            TeamMember designer1 = new TeamMember();
+            designer1.setTeamId(20L);
+            designer1.setUserId(3L);
+            designer1.setAssignedRole("UI/UX Designer");
+
+            TeamMember designer2 = new TeamMember();
+            designer2.setTeamId(20L);
+            designer2.setUserId(4L);
+            designer2.setAssignedRole("UI/UX Designer");
+
+            when(teamRepository.findById(20L)).thenReturn(Optional.of(testTeam));
+            when(teamMemberRepository.findByTeamId(20L)).thenReturn(List.of(backendMember, designer1, designer2));
+
+            TeamResponse response = teamService.getTeamById(20L);
+            assertNotNull(response);
+
+            List<TeamRoleSlotDto> slotDtos = response.getRoleSlots();
+
+            // 1. Frontend: 1 slot, 0 filled -> 0/1, 1 available
+            TeamRoleSlotDto fe = slotDtos.stream().filter(s -> s.getRoleName().equals("Frontend Developer")).findFirst().orElseThrow();
+            assertEquals(1, fe.getSlotCount());
+            assertEquals(0, fe.getFilledSlots());
+            assertEquals(1, fe.getAvailableSlots());
+
+            // 2. Backend: 2 slots, 1 filled -> 1/2, 1 available
+            TeamRoleSlotDto be = slotDtos.stream().filter(s -> s.getRoleName().equals("Backend Developer")).findFirst().orElseThrow();
+            assertEquals(2, be.getSlotCount());
+            assertEquals(1, be.getFilledSlots());
+            assertEquals(1, be.getAvailableSlots());
+
+            // 3. UI/UX: 2 slots, 2 filled -> 2/2, 0 available (FULL)
+            TeamRoleSlotDto ui = slotDtos.stream().filter(s -> s.getRoleName().equals("UI/UX Designer")).findFirst().orElseThrow();
+            assertEquals(2, ui.getSlotCount());
+            assertEquals(2, ui.getFilledSlots());
+            assertEquals(0, ui.getAvailableSlots());
+        }
+    }
 }

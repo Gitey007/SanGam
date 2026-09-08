@@ -106,6 +106,32 @@ export const EditProfileModal = ({ isOpen, onClose, userProfile, onProfileUpdate
     }
   };
 
+  const modalFooter = (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={onClose}
+        disabled={isLoading}
+        className="shrink-0"
+      >
+        Cancel
+      </Button>
+      <Button
+        type="submit"
+        form="edit-profile-form"
+        variant="primary"
+        size="sm"
+        isLoading={isLoading}
+        disabled={isLoading}
+        className="shrink-0"
+      >
+        Save Changes
+      </Button>
+    </>
+  );
+
   return (
     <Modal
       isOpen={isOpen}
@@ -113,8 +139,9 @@ export const EditProfileModal = ({ isOpen, onClose, userProfile, onProfileUpdate
       title="Edit Profile"
       description="Update your academic, links, and collaboration preferences."
       maxWidth="max-w-xl"
+      footer={modalFooter}
     >
-      <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+      <form id="edit-profile-form" onSubmit={handleSubmit} className="space-y-4">
         {/* Basic Info */}
         <div className="space-y-3">
           <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
@@ -250,26 +277,6 @@ export const EditProfileModal = ({ isOpen, onClose, userProfile, onProfileUpdate
             onChange={handleChange}
             placeholder="https://twitter.com/username or blog"
           />
-        </div>
-
-        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onClose}
-            disabled={isLoading}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            size="sm"
-            isLoading={isLoading}
-          >
-            Save Changes
-          </Button>
         </div>
       </form>
     </Modal>

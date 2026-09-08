@@ -63,6 +63,19 @@ public class TeamController {
         return ResponseEntity.ok(response);
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<String> deleteTeam(
+            @PathVariable Long id,
+            Authentication authentication) {
+
+        if (authentication == null || authentication.getName() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
+
+        teamService.deleteTeam(id, authentication.getName());
+        return ResponseEntity.ok("Team deleted successfully");
+    }
+
     @GetMapping
     public ResponseEntity<List<TeamResponse>> getAllTeams() {
         return ResponseEntity.ok(

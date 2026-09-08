@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -172,5 +173,34 @@ class TeamControllerTest {
                 .andExpect(jsonPath("$.name").value("Updated Alpha"))
                 .andExpect(jsonPath("$.projectName").value("AI System"))
                 .andExpect(jsonPath("$.status").value("OPEN"));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/teams/{id} -> 200 OK for team leader")
+    void testDeleteTeamSuccess() throws Exception {
+        doNothing().when(teamService).deleteTeam(10L, "leader@college.edu");
+
+        mockMvc.perform(delete("/api/teams/10")
+                        .principal(leaderAuth))
+                .andExpect(status().isOk())
+                .andExpect(content().string("Team deleted successfully"));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/teams/{id} -> 403 Forbidden for non-leader")
+    void testDeleteTeamForbidden() throws Exception {
+        org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the team leader can delete the team"))
+                .when(teamService).deleteTeam(10L, "student@college.edu");
+
+        mockMvc.perform(delete("/api/teams/10")
+                        .principal(studentAuth))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/teams/{id} -> 401 Unauthorized when unauthenticated")
+    void testDeleteTeamUnauthorized() throws Exception {
+        mockMvc.perform(delete("/api/teams/10"))
+                .andExpect(status().isUnauthorized());
     }
 }

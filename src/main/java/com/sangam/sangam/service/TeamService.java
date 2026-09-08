@@ -884,4 +884,28 @@ public class TeamService {
                 .map(this::toInvitationResponse)
                 .toList();
     }
+
+    @Transactional
+    public void deleteTeam(Long teamId, String authenticatedEmail) {
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
+
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
+
+        if (!team.getLeader().getEmail().equalsIgnoreCase(authenticatedEmail.trim())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the team leader can delete the team");
+        }
+
+        teamMemberRepository.deleteByTeamId(teamId);
+        teamJoinRequestRepository.deleteByTeamId(teamId);
+        teamInvitationRepository.deleteByTeamId(teamId);
+
+        if (team.getRequiredSkills() != null) {
+            team.getRequiredSkills().clear();
+        }
+
+        teamRepository.delete(team);
+    }
 }

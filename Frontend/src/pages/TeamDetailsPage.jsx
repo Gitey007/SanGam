@@ -26,6 +26,7 @@ import {
   FileText,
   Layers,
   ChevronRight,
+  Trash2,
 } from 'lucide-react';
 
 import Button from '../components/common/Button';
@@ -33,6 +34,7 @@ import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import ErrorState from '../components/common/ErrorState';
 import Modal from '../components/common/Modal';
+import ConfirmModal from '../components/common/ConfirmModal';
 import EditTeamModal from '../components/teams/EditTeamModal';
 
 import teamApi from '../services/teamApi';
@@ -65,6 +67,10 @@ export const TeamDetailsPage = () => {
 
   const [joinRequestSent, setJoinRequestSent] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState(null);
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
 
   // Candidate Join Modal state
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
@@ -386,22 +392,43 @@ export const TeamDetailsPage = () => {
   };
 
   /**
-   * Leader removes a team member
+   * Leader deletes team
    */
-  const handleRemoveMember = async (memberUserId, memberName) => {
-    if (!user?.id) return;
-    const confirmed = window.confirm(
-      `Are you sure you want to remove ${
-        memberName || 'this member'
-      } from the team?`
-    );
-    if (!confirmed) return;
+  const handleDeleteTeam = async () => {
+    if (!id || !user?.id) return;
+    setIsDeleting(true);
+    try {
+      await teamApi.deleteTeam(id);
+      success('Team deleted successfully');
+      navigate('/teams');
+    } catch (err) {
+      console.error('Failed to delete team:', err);
+      const msg = extractErrorMessage(err, 'Failed to delete team. Please try again.');
+      toastError(msg);
+      setIsDeleting(false);
+      setIsDeleteModalOpen(false);
+    }
+  };
 
+  /**
+   * Open remove member confirm modal
+   */
+  const handleOpenRemoveMemberModal = (memberUserId, memberName) => {
+    setMemberToRemove({ userId: memberUserId, name: memberName });
+  };
+
+  /**
+   * Confirm remove member
+   */
+  const handleConfirmRemoveMember = async () => {
+    if (!memberToRemove || !user?.id) return;
+    const memberUserId = memberToRemove.userId;
     setActionLoading((prev) => ({ ...prev, [`member-${memberUserId}`]: true }));
 
     try {
       await teamApi.removeMember(id, memberUserId, user.id);
       success('Member removed successfully.');
+      setMemberToRemove(null);
       await fetchTeamDetails();
     } catch (err) {
       const msg = extractErrorMessage(err, 'Failed to remove member.');
@@ -415,13 +442,10 @@ export const TeamDetailsPage = () => {
   };
 
   /**
-   * Member leaves team
+   * Confirm leave team
    */
-  const handleLeaveTeam = async () => {
+  const handleConfirmLeaveTeam = async () => {
     if (!user?.id) return;
-    const confirmed = window.confirm('Are you sure you want to leave this team?');
-    if (!confirmed) return;
-
     setIsLeaving(true);
 
     try {
@@ -432,6 +456,7 @@ export const TeamDetailsPage = () => {
       const msg = extractErrorMessage(err, 'Failed to leave team.');
       toastError(msg);
       setIsLeaving(false);
+      setIsLeaveModalOpen(false);
     }
   };
 
@@ -552,6 +577,15 @@ export const TeamDetailsPage = () => {
                     Edit Team
                   </Button>
                   <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={Trash2}
+                    onClick={() => setIsDeleteModalOpen(true)}
+                    className="text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 border-rose-200 dark:border-rose-800"
+                  >
+                    Delete Team
+                  </Button>
+                  <Button
                     variant="primary"
                     size="sm"
                     leftIcon={UserPlus}
@@ -569,7 +603,7 @@ export const TeamDetailsPage = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleLeaveTeam}
+                    onClick={() => setIsLeaveModalOpen(true)}
                     isLoading={isLeaving}
                     className="text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 border-rose-200 dark:border-rose-800"
                     leftIcon={LogOut}
@@ -761,18 +795,23 @@ export const TeamDetailsPage = () => {
                           </span>
 
                           <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 inline-flex items-center gap-1.5 ${
                               isFull
                                 ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
                                 : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                             }`}
                           >
-                            {slot.filledSlots} / {slot.slotCount}{' '}
-                            {isFull
-                              ? 'FULL'
-                              : `${slot.availableSlots} opening${
-                                  slot.availableSlots > 1 ? 's' : ''
-                                }`}
+                            <span>
+                              {slot.filledSlots} / {slot.slotCount}
+                            </span>
+                            <span>•</span>
+                            <span>
+                              {isFull
+                                ? 'FULL'
+                                : `${slot.availableSlots} opening${
+                                    slot.availableSlots > 1 ? 's' : ''
+                                  }`}
+                            </span>
                           </span>
                         </div>
 
@@ -898,7 +937,7 @@ export const TeamDetailsPage = () => {
                           <button
                             type="button"
                             onClick={() =>
-                              handleRemoveMember(member.userId, member.name)
+                              handleOpenRemoveMemberModal(member.userId, member.name)
                             }
                             disabled={actionLoading[`member-${member.userId}`]}
                             title="Remove member"
@@ -1515,6 +1554,50 @@ export const TeamDetailsPage = () => {
           }}
         />
       )}
+
+      {/* Delete Team Confirmation Modal (Leader only) */}
+      {isLeader && (
+        <ConfirmModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          onConfirm={handleDeleteTeam}
+          title="Delete Team?"
+          message="Are you sure you want to permanently delete this team? All team data, invitations, and join requests will be removed. This action cannot be undone."
+          confirmLabel="Delete Team"
+          confirmVariant="danger"
+          isLoading={isDeleting}
+        />
+      )}
+
+      {/* Remove Member Confirmation Modal (Leader only) */}
+      {isLeader && (
+        <ConfirmModal
+          isOpen={Boolean(memberToRemove)}
+          onClose={() => setMemberToRemove(null)}
+          onConfirm={handleConfirmRemoveMember}
+          title="Remove Member?"
+          message={`Are you sure you want to remove ${
+            memberToRemove?.name || 'this member'
+          } from the team?`}
+          confirmLabel="Remove"
+          confirmVariant="danger"
+          isLoading={Boolean(
+            memberToRemove && actionLoading[`member-${memberToRemove.userId}`]
+          )}
+        />
+      )}
+
+      {/* Leave Team Confirmation Modal (Members only) */}
+      <ConfirmModal
+        isOpen={isLeaveModalOpen}
+        onClose={() => setIsLeaveModalOpen(false)}
+        onConfirm={handleConfirmLeaveTeam}
+        title="Leave Team?"
+        message="Are you sure you want to leave this team? You will no longer be a member of this squad."
+        confirmLabel="Leave Team"
+        confirmVariant="danger"
+        isLoading={isLeaving}
+      />
     </div>
   );
 };

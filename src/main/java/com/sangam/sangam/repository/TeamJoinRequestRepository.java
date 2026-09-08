@@ -14,4 +14,6 @@ public interface TeamJoinRequestRepository extends JpaRepository<TeamJoinRequest
     Optional<TeamJoinRequest> findByTeamIdAndUserId(Long teamId, Long userId);
 
     boolean existsByTeamIdAndUserIdAndStatus(Long teamId, Long userId, TeamJoinRequest.RequestStatus status);
+
+    void deleteByTeamId(Long teamId);
 }
