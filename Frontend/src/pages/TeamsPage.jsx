@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Users, Plus, Sparkles, Filter, Mail, Check, X, Clock, ShieldCheck, ArrowRight } from 'lucide-react';
 import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
@@ -13,6 +13,7 @@ import teamApi from '../services/teamApi';
 import { extractErrorMessage } from '../utils/helpers';
 
 export const TeamsPage = () => {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') || 'all';
 

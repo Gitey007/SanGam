@@ -525,11 +525,6 @@ public class TeamService {
 
     @Transactional
     public void acceptJoinRequest(Long teamId, Long requestId, Long leaderId, String selectedRole, String customRole, Long memberIdToRemove) {
-        Team team = teamRepository.findById(teamId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Team not found"));
-
         TeamJoinRequest request = teamJoinRequestRepository.findById(requestId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -541,16 +536,23 @@ public class TeamService {
                     "Join request does not belong to this team");
         }
 
-        if (leaderId != null && !team.getLeader().getId().equals(leaderId)) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Only the team leader can accept join requests");
-        }
-
         if (request.getStatus() != TeamJoinRequest.RequestStatus.PENDING) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Join request is not pending");
+        }
+
+        // 3. Obtain Team using pessimistic write lock
+        Team team = teamRepository.findByIdForUpdate(teamId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Team not found"));
+
+        // 1. Authenticate / validate leader
+        if (leaderId != null && !team.getLeader().getId().equals(leaderId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Only the team leader can accept join requests");
         }
 
         Long applicantUserId = request.getUser().getId();
@@ -562,7 +564,7 @@ public class TeamService {
                     "User is already a member of this team");
         }
 
-        // Handle transactional member replacement if specified by leader
+        // 4 & 5. Under the acquired Team lock: handle replacement if requested, then check capacity and role availability
         if (memberIdToRemove != null) {
             if (memberIdToRemove.equals(leaderId) || memberIdToRemove.equals(team.getLeader().getId())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Leader cannot remove themselves");
@@ -605,6 +607,7 @@ public class TeamService {
             }
         }
 
+        // 6. Create new TeamMember
         TeamMember member = new TeamMember();
         member.setTeamId(team.getId());
         member.setUserId(applicantUserId);
@@ -614,6 +617,7 @@ public class TeamService {
         member.setJoinedAt(LocalDateTime.now());
         teamMemberRepository.save(member);
 
+        // 7. Mark request ACCEPTED
         request.setStatus(TeamJoinRequest.RequestStatus.ACCEPTED);
         request.setUpdatedAt(LocalDateTime.now());
         teamJoinRequestRepository.save(request);
@@ -758,11 +762,13 @@ public class TeamService {
 
     @Transactional
     public void acceptInvitation(Long invitationId, String authenticatedEmail, String selectedRole, String customRole) {
+        // 1. Authenticate student
         User currentUser = userRepository.findByEmail(authenticatedEmail)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.UNAUTHORIZED,
                         "User not authenticated"));
 
+        // 2. Validate invitation ownership / status
         TeamInvitation invitation = teamInvitationRepository.findById(invitationId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -780,12 +786,18 @@ public class TeamService {
                     "Invitation is not pending");
         }
 
-        Team team = invitation.getTeam();
-        if (team == null || !teamRepository.existsById(team.getId())) {
+        Long teamId = invitation.getTeam() != null ? invitation.getTeam().getId() : null;
+        if (teamId == null) {
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
                     "Team no longer exists");
         }
+
+        // 3. Obtain Team using pessimistic write lock
+        Team team = teamRepository.findByIdForUpdate(teamId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Team no longer exists"));
 
         TeamMemberId memberKey = new TeamMemberId(team.getId(), currentUser.getId());
         if (teamMemberRepository.existsById(memberKey)) {
@@ -794,6 +806,7 @@ public class TeamService {
                     "User is already a member of this team");
         }
 
+        // 4. Under the acquired Team lock: check maxMembers and role availability
         List<TeamMember> currentMembers = teamMemberRepository.findByTeamId(team.getId());
         if (team.getMaxMembers() != null && currentMembers.size() >= team.getMaxMembers()) {
             throw new ResponseStatusException(
@@ -823,6 +836,7 @@ public class TeamService {
             }
         }
 
+        // 5. Create TeamMember
         TeamMember member = new TeamMember();
         member.setTeamId(team.getId());
         member.setUserId(currentUser.getId());
@@ -832,6 +846,7 @@ public class TeamService {
         member.setJoinedAt(LocalDateTime.now());
         teamMemberRepository.save(member);
 
+        // 6. Mark invitation ACCEPTED
         invitation.setStatus(TeamInvitation.InvitationStatus.ACCEPTED);
         invitation.setUpdatedAt(LocalDateTime.now());
         teamInvitationRepository.save(invitation);
