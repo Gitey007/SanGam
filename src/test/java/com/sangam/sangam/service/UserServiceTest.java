@@ -266,6 +266,48 @@ class UserServiceTest {
     }
 
     @Test
+    void testUpdateUserProfile_WithLongBioAndAllSocialUrls() {
+        User user = createUser(10L, "Student Builder", "builder@college.edu", "IIT Delhi", "CSE", (byte) 3, "Java", "Spring Boot");
+        when(userRepository.findWithSkillsById(10L)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        String longBio = "I am a passionate 3rd-year Computer Science student specializing in distributed systems and cloud native architectures. "
+                + "Over the past two years, I have built microservice-based platforms using Spring Boot, Kafka, and Kubernetes, and contributed to multiple open-source repositories. "
+                + "Currently looking for enthusiastic hackathon teammates and project collaborators to build cutting-edge developer tools and Web3 solutions. "
+                + "Feel free to reach out to me for hackathons, research collaborations, or open-source initiatives!";
+
+        assertTrue(longBio.length() > 255, "Bio should exceed standard VARCHAR(255) length");
+
+        UpdateProfileRequest request = new UpdateProfileRequest();
+        request.setName("Student Builder Updated");
+        request.setCollege("IIT Delhi");
+        request.setBranch("Computer Science & Engineering");
+        request.setYear((byte) 4);
+        request.setBio(longBio);
+        request.setGithubUrl("https://github.com/studentbuilder");
+        request.setLinkedinUrl("https://linkedin.com/in/studentbuilder");
+        request.setPortfolioUrl("https://studentbuilder.dev");
+        request.setLeetcodeUrl("https://leetcode.com/u/studentbuilder");
+        request.setOtherUrl("https://x.com/studentbuilder");
+        request.setLookingFor(Set.of("Hackathon Teammates", "Project Collaboration", "Mentorship"));
+
+        UserProfileResponse response = userService.updateUserProfile(10L, request, "builder@college.edu");
+
+        assertNotNull(response);
+        assertEquals("Student Builder Updated", response.getName());
+        assertEquals(longBio, response.getBio());
+        assertEquals("https://github.com/studentbuilder", response.getGithubUrl());
+        assertEquals("https://linkedin.com/in/studentbuilder", response.getLinkedinUrl());
+        assertEquals("https://studentbuilder.dev", response.getPortfolioUrl());
+        assertEquals("https://leetcode.com/u/studentbuilder", response.getLeetcodeUrl());
+        assertEquals("https://x.com/studentbuilder", response.getOtherUrl());
+        assertEquals(3, response.getLookingFor().size());
+        assertTrue(response.getLookingFor().contains("Hackathon Teammates"));
+        verify(userRepository).save(user);
+    }
+
+
+    @Test
     void testUpdateUserProfile_ForbiddenForOtherUser() {
         User user = createUser(10L, "Old Name", "user@college.edu", "IIT Madras", "AI", (byte) 3, "Python");
         when(userRepository.findWithSkillsById(10L)).thenReturn(Optional.of(user));

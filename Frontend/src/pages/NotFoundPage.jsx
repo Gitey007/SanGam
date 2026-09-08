@@ -5,12 +5,12 @@ import Button from '../components/common/Button';
 
 export const NotFoundPage = () => {
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 text-center">
-      <div className="w-12 h-12 rounded-xl bg-slate-900 flex items-center justify-center text-white font-bold text-base mb-4 shadow-subtle">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-4 text-center">
+      <div className="w-12 h-12 rounded-xl bg-slate-900 dark:bg-brand-600 flex items-center justify-center text-white font-bold text-base mb-4 shadow-subtle">
         404
       </div>
-      <h1 className="text-xl font-bold text-slate-900 mb-1">Page not found</h1>
-      <p className="text-xs text-slate-500 max-w-sm mb-6 leading-relaxed">
+      <h1 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Page not found</h1>
+      <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mb-6 leading-relaxed">
         The page you are looking for doesn't exist or has been moved.
       </p>
       <div className="flex items-center gap-3">

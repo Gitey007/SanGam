@@ -155,7 +155,7 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
       <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
         {/* Team Basic Info */}
         <div className="space-y-3">
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+          <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
             Team Details
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -185,7 +185,7 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
           </div>
 
           <div>
-            <label htmlFor="team-desc" className="block text-xs font-medium text-slate-700 mb-1.5">
+            <label htmlFor="team-desc" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
               Team Summary / Description <span className="text-red-500">*</span>
             </label>
             <textarea
@@ -195,18 +195,18 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
               value={formData.description}
               onChange={handleChange}
               placeholder="A brief overview of your team and its culture..."
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 resize-none"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 dark:hover:border-slate-600 resize-none"
               required
             />
             {errors.description && (
-              <p className="text-xs text-red-600 mt-1">{errors.description}</p>
+              <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.description}</p>
             )}
           </div>
         </div>
 
         {/* Project & Vision */}
-        <div className="space-y-3 pt-2 border-t border-slate-100">
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+        <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
             Project & Vision
           </h3>
 
@@ -229,7 +229,7 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
           </div>
 
           <div>
-            <label htmlFor="project-desc" className="block text-xs font-medium text-slate-700 mb-1.5">
+            <label htmlFor="project-desc" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
               Project Description
             </label>
             <textarea
@@ -239,12 +239,12 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
               value={formData.projectDescription}
               onChange={handleChange}
               placeholder="What problem does your project solve and what are you building?"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 resize-none"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 dark:hover:border-slate-600 resize-none"
             />
           </div>
 
           <div>
-            <label htmlFor="team-vision" className="block text-xs font-medium text-slate-700 mb-1.5">
+            <label htmlFor="team-vision" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
               Team Vision & Goals
             </label>
             <textarea
@@ -254,17 +254,17 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
               value={formData.teamVision}
               onChange={handleChange}
               placeholder="What does the team want to accomplish together (e.g. Win Hackathon, publish paper, launch startup)?"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 resize-none"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 dark:hover:border-slate-600 resize-none"
             />
           </div>
         </div>
 
         {/* Hackathon Details (Conditional) */}
         {formData.projectType === 'Hackathon' && (
-          <div className="space-y-3 pt-2 border-t border-slate-100 bg-amber-50/50 p-3 rounded-lg border border-amber-200/60">
+          <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800 bg-amber-50/50 dark:bg-amber-950/30 p-3 rounded-lg border border-amber-200/60 dark:border-amber-800/60">
             <div className="flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-amber-600" />
-              <h3 className="text-xs font-bold text-amber-900 uppercase tracking-wider">
+              <Trophy className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <h3 className="text-xs font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wider">
                 Hackathon Information
               </h3>
             </div>
@@ -295,21 +295,21 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
         )}
 
         {/* Required Roles / Positions */}
-        <div className="space-y-2 pt-2 border-t border-slate-100">
-          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
+        <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
             Required Roles / Open Positions
           </label>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {formData.requiredRoles.map((role) => (
               <span
                 key={role}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-brand-50 text-brand-700 border border-brand-200"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-brand-50 dark:bg-brand-950/50 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800"
               >
                 <span>{role}</span>
                 <button
                   type="button"
                   onClick={() => handleRemoveRole(role)}
-                  className="p-0.5 hover:bg-brand-200/60 rounded-full"
+                  className="p-0.5 hover:bg-brand-200/60 dark:hover:bg-brand-800/60 rounded-full"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -323,7 +323,7 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
               value={customRole}
               onChange={(e) => setCustomRole(e.target.value)}
               placeholder="Add position (e.g. ML Engineer, DevOps)..."
-              className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
+              className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
             />
             <Button
               type="button"
@@ -338,7 +338,7 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
 
           {/* Quick pick roles */}
           <div className="flex flex-wrap gap-1 mt-1.5">
-            <span className="text-[11px] text-slate-400 mr-1">Popular:</span>
+            <span className="text-[11px] text-slate-400 dark:text-slate-500 mr-1">Popular:</span>
             {POPULAR_ROLES.filter((pr) => !formData.requiredRoles.includes(pr))
               .slice(0, 5)
               .map((role) => (
@@ -346,7 +346,7 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
                   key={role}
                   type="button"
                   onClick={() => handleAddRole(role)}
-                  className="px-2 py-0.5 rounded text-[11px] bg-slate-50 border border-slate-200 hover:bg-brand-50 hover:text-brand-700 text-slate-600"
+                  className="px-2 py-0.5 rounded text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-brand-50 dark:hover:bg-slate-700 hover:text-brand-700 dark:hover:text-white text-slate-600 dark:text-slate-300"
                 >
                   + {role}
                 </button>
@@ -355,21 +355,21 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
         </div>
 
         {/* Required Skills */}
-        <div className="space-y-2 pt-2 border-t border-slate-100">
-          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
+        <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
             Required Technical Skills
           </label>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {formData.requiredSkills.map((skill) => (
               <span
                 key={skill}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
               >
                 <span>{skill}</span>
                 <button
                   type="button"
                   onClick={() => handleRemoveSkill(skill)}
-                  className="p-0.5 hover:bg-slate-300 rounded-full"
+                  className="p-0.5 hover:bg-slate-300 dark:hover:bg-slate-700 rounded-full"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -383,7 +383,7 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
               value={customSkill}
               onChange={(e) => setCustomSkill(e.target.value)}
               placeholder="Add skill (e.g. React, Spring Boot, PyTorch)..."
-              className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
+              className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
             />
             <Button
               type="button"
@@ -398,7 +398,7 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
 
           {/* Quick pick skills */}
           <div className="flex flex-wrap gap-1 mt-1.5">
-            <span className="text-[11px] text-slate-400 mr-1">Popular:</span>
+            <span className="text-[11px] text-slate-400 dark:text-slate-500 mr-1">Popular:</span>
             {POPULAR_SKILLS.filter((ps) => !formData.requiredSkills.includes(ps))
               .slice(0, 6)
               .map((skill) => (
@@ -406,7 +406,7 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
                   key={skill}
                   type="button"
                   onClick={() => handleAddSkill(skill)}
-                  className="px-2 py-0.5 rounded text-[11px] bg-slate-50 border border-slate-200 hover:bg-brand-50 hover:text-brand-700 text-slate-600"
+                  className="px-2 py-0.5 rounded text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-brand-50 dark:hover:bg-slate-700 hover:text-brand-700 dark:hover:text-white text-slate-600 dark:text-slate-300"
                 >
                   + {skill}
                 </button>
@@ -414,7 +414,7 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
           </div>
         </div>
 
-        <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
           <Button
             type="button"
             variant="outline"

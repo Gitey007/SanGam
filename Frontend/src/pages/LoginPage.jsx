@@ -1,21 +1,18 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Mail, Lock, KeyRound, ArrowRight, Server, AlertCircle } from 'lucide-react';
+import { Mail, Lock, Server } from 'lucide-react';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
+import ThemeToggle from '../components/common/ThemeToggle';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import authApi from '../services/authApi';
 import { extractErrorMessage } from '../utils/helpers';
 
 export const LoginPage = () => {
-  const [authMode, setAuthMode] = useState('password'); // 'password' | 'otp'
-  const [otpStage, setOtpStage] = useState('request'); // 'request' | 'verify'
-
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    otp: '',
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -35,7 +32,7 @@ export const LoginPage = () => {
   };
 
   // Password Login Handler
-  const handlePasswordLogin = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (!formData.email.trim() || !formData.password) {
       setErrorMessage('Please enter both your email and password.');
@@ -69,65 +66,6 @@ export const LoginPage = () => {
     }
   };
 
-  // OTP Request Handler
-  const handleSendOtp = async (e) => {
-    e.preventDefault();
-    if (!formData.email.trim()) {
-      setErrorMessage('Please enter your email address to receive an OTP.');
-      return;
-    }
-
-    setIsLoading(true);
-    setErrorMessage('');
-
-    try {
-      await authApi.sendOtp(formData.email);
-      setOtpStage('verify');
-      toastSuccess(`Verification code sent to ${formData.email}`);
-    } catch (err) {
-      setErrorMessage(extractErrorMessage(err, 'Unable to send OTP. Please check the email or try again.'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // OTP Verification Handler
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    if (!formData.otp.trim()) {
-      setErrorMessage('Please enter the 6-digit OTP sent to your email.');
-      return;
-    }
-
-    setIsLoading(true);
-    setErrorMessage('');
-
-    try {
-      const response = await authApi.verifyOtp(formData.email, formData.otp);
-      if (response && response.token) {
-        login(response.token, response);
-        toastSuccess('Signed in successfully via email OTP');
-        navigate(from, { replace: true });
-      } else {
-        throw new Error('Invalid OTP response.');
-      }
-    } catch (err) {
-      if (err.response?.status === 400 || err.response?.status === 401) {
-        setErrorMessage('Invalid or expired OTP. Please try again or request a new code.');
-      } else {
-        setErrorMessage(extractErrorMessage(err, 'Unable to verify OTP. Please try again.'));
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSwitchMode = (mode) => {
-    setAuthMode(mode);
-    setOtpStage('request');
-    setErrorMessage('');
-  };
-
   const isServerWaking =
     typeof errorMessage === 'string' &&
     (errorMessage.toLowerCase().includes('waking up') ||
@@ -135,85 +73,78 @@ export const LoginPage = () => {
       errorMessage.toLowerCase().includes('free hosting'));
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-150 relative">
+      {/* Top Bar with Theme Toggle */}
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+        <ThemeToggle />
+      </div>
+
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <Link to="/" className="inline-flex items-center gap-2 mb-4">
-          <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white font-bold text-sm">
+          <div className="w-8 h-8 rounded-lg bg-slate-900 dark:bg-brand-600 flex items-center justify-center text-white font-bold text-sm shadow-subtle">
             SG
           </div>
-          <span className="font-semibold text-lg text-slate-900 tracking-tight">SanGam</span>
+          <span className="font-semibold text-lg text-slate-900 dark:text-slate-100 tracking-tight">SanGam</span>
         </Link>
-        <h1 className="text-xl font-bold tracking-tight text-slate-900">
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
           Sign in to your account
         </h1>
-        <p className="mt-1.5 text-xs text-slate-500">
+        <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
           Connect with peers and student collaborators
         </p>
       </div>
 
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-7 px-6 sm:px-8 rounded-xl border border-slate-200 shadow-subtle">
-          {/* Mode Switcher */}
-          <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100/80 rounded-lg mb-6 text-xs font-medium">
-            <button
-              type="button"
-              onClick={() => handleSwitchMode('password')}
-              className={`py-1.5 rounded-md transition-all ${
-                authMode === 'password'
-                  ? 'bg-white text-slate-900 font-semibold shadow-subtle'
-                  : 'text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              Password
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSwitchMode('otp')}
-              className={`py-1.5 rounded-md transition-all ${
-                authMode === 'otp'
-                  ? 'bg-white text-slate-900 font-semibold shadow-subtle'
-                  : 'text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              Email OTP
-            </button>
-          </div>
-
-          {/* Error / Wake-Up Notice */}
+        <div className="bg-white dark:bg-slate-900 py-7 px-6 sm:px-8 rounded-xl border border-slate-200 dark:border-slate-800 shadow-subtle">
+          {/* Error / Server Wake-Up Notice */}
           {errorMessage && (
             isServerWaking ? (
-              <div className="mb-5 p-3.5 rounded-lg bg-amber-50/90 border border-amber-200 text-xs text-amber-900 leading-relaxed flex items-start gap-2.5 animate-in fade-in">
-                <Server className="w-4 h-4 text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+              <div className="mb-5 p-3.5 rounded-lg bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 leading-relaxed flex items-start gap-2.5 animate-in fade-in">
+                <Server className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 animate-pulse" />
                 <div>
                   <span className="font-semibold block mb-0.5">SanGam server is waking up</span>
-                  <span className="text-[11px] text-amber-800">{errorMessage}</span>
+                  <span className="text-[11px] text-amber-800 dark:text-amber-300">{errorMessage}</span>
                 </div>
               </div>
             ) : (
-              <div className="mb-5 p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 leading-relaxed animate-in fade-in">
+              <div className="mb-5 p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-200 leading-relaxed animate-in fade-in">
                 {errorMessage}
               </div>
             )
           )}
 
+          {/* Clean Login Form */}
+          <form onSubmit={handleLogin} className="space-y-4">
+            <Input
+              label="College Email"
+              name="email"
+              type="email"
+              placeholder="name@college.edu or name@example.com"
+              value={formData.email}
+              onChange={handleChange}
+              leftIcon={Mail}
+              required
+              autoFocus
+              autoComplete="email"
+            />
 
-          {/* Password Mode Form */}
-          {authMode === 'password' && (
-            <form onSubmit={handlePasswordLogin} className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label
+                  htmlFor="password"
+                  className="block text-xs font-medium text-slate-700 dark:text-slate-300"
+                >
+                  Password <span className="text-rose-500">*</span>
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <Input
-                label="College Email"
-                name="email"
-                type="email"
-                placeholder="name@college.edu or name@example.com"
-                value={formData.email}
-                onChange={handleChange}
-                leftIcon={Mail}
-                required
-                autoComplete="email"
-              />
-
-              <Input
-                label="Password"
+                id="password"
                 name="password"
                 type="password"
                 placeholder="••••••••"
@@ -223,108 +154,27 @@ export const LoginPage = () => {
                 required
                 autoComplete="current-password"
               />
-
-              <Button
-                type="submit"
-                variant="primary"
-                size="md"
-                className="w-full mt-2"
-                isLoading={isLoading}
-              >
-                {isLoading ? 'Signing in...' : 'Sign in'}
-              </Button>
-            </form>
-          )}
-
-          {/* Email OTP Mode Form */}
-          {authMode === 'otp' && (
-            <div>
-              {otpStage === 'request' ? (
-                <form onSubmit={handleSendOtp} className="space-y-4">
-                  <Input
-                    label="Email Address"
-                    name="email"
-                    type="email"
-                    placeholder="Enter registered email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    leftIcon={Mail}
-                    hint="We will send a one-time passcode to your email."
-                    required
-                    autoComplete="email"
-                  />
-
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="md"
-                    className="w-full mt-2"
-                    isLoading={isLoading}
-                  >
-                    {isLoading ? 'Sending OTP...' : 'Send OTP'}
-                  </Button>
-                </form>
-              ) : (
-                <form onSubmit={handleVerifyOtp} className="space-y-4">
-                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80 text-xs flex items-center justify-between">
-                    <div>
-                      <span className="text-slate-500 block text-[11px]">Code sent to:</span>
-                      <span className="font-medium text-slate-800">{formData.email}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setOtpStage('request')}
-                      className="text-xs text-brand-600 hover:text-brand-700 font-medium"
-                    >
-                      Change
-                    </button>
-                  </div>
-
-                  <Input
-                    label="Enter 6-Digit OTP"
-                    name="otp"
-                    type="text"
-                    placeholder="e.g. 123456"
-                    value={formData.otp}
-                    onChange={handleChange}
-                    leftIcon={KeyRound}
-                    required
-                    autoFocus
-                  />
-
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="md"
-                    className="w-full mt-2"
-                    isLoading={isLoading}
-                  >
-                    {isLoading ? 'Verifying...' : 'Verify OTP & Sign In'}
-                  </Button>
-
-                  <div className="text-center pt-2">
-                    <button
-                      type="button"
-                      onClick={handleSendOtp}
-                      disabled={isLoading}
-                      className="text-xs text-slate-500 hover:text-slate-800 transition-colors disabled:opacity-50"
-                    >
-                      Didn't receive the code? Resend OTP
-                    </button>
-                  </div>
-                </form>
-              )}
             </div>
-          )}
+
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              className="w-full mt-2"
+              isLoading={isLoading}
+            >
+              {isLoading ? 'Signing in...' : 'Sign in'}
+            </Button>
+          </form>
 
           {/* Footer Registration Link */}
-          <div className="mt-6 pt-5 border-t border-slate-100 text-center text-xs text-slate-500">
+          <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
             Don't have an account yet?{' '}
             <Link
               to="/register"
-              className="font-medium text-slate-900 hover:text-brand-600 transition-colors underline-offset-4 hover:underline"
+              className="font-medium text-slate-900 dark:text-slate-200 hover:text-brand-600 dark:hover:text-brand-400 transition-colors underline-offset-4 hover:underline"
             >
-              Create account
+              Sign Up
             </Link>
           </div>
         </div>

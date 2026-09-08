@@ -13,11 +13,13 @@ import org.springframework.web.bind.annotation.RestController;
 import com.sangam.sangam.dto.LoginRequest;
 import com.sangam.sangam.dto.LoginResponse;
 import com.sangam.sangam.dto.RegisterRequest;
+import com.sangam.sangam.dto.ResetPasswordRequest;
 import com.sangam.sangam.dto.SendOtpRequest;
 import com.sangam.sangam.dto.VerifyOtpRequest;
 import com.sangam.sangam.entity.User;
 import com.sangam.sangam.service.AuthService;
 import com.sangam.sangam.service.EmailOtpService;
+import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.validation.Valid;
 
@@ -89,5 +91,40 @@ public class AuthController {
                 "message", "Email verified successfully",
                 "email", request.getEmail().trim().toLowerCase(),
                 "verified", true));
+    }
+
+    @PostMapping("/forgot-password/send-otp")
+    public ResponseEntity<Map<String, String>> forgotPasswordSendOtp(
+            @Valid @RequestBody SendOtpRequest request) {
+
+        String message = authService.forgotPasswordSendOtp(request.getEmail());
+        return ResponseEntity.ok(Map.of("message", message));
+    }
+
+    @PostMapping("/forgot-password/verify-otp")
+    public ResponseEntity<?> forgotPasswordVerifyOtp(
+            @Valid @RequestBody VerifyOtpRequest request) {
+
+        boolean valid = authService.forgotPasswordVerifyOtp(
+                request.getEmail(),
+                request.getOtp());
+
+        if (!valid) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired OTP");
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "message", "OTP verified successfully",
+                "email", request.getEmail().trim().toLowerCase(),
+                "verified", true));
+    }
+
+    @PostMapping("/forgot-password/reset")
+    public ResponseEntity<Map<String, String>> forgotPasswordReset(
+            @Valid @RequestBody ResetPasswordRequest request) {
+
+        authService.forgotPasswordReset(request);
+        return ResponseEntity.ok(Map.of(
+                "message", "Password reset successfully. You can now log in with your new password."));
     }
 }

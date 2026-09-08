@@ -4,6 +4,7 @@ import { Mail, Lock, User, Building2, BookOpen, KeyRound, Server } from 'lucide-
 import Input from '../components/common/Input';
 import Select from '../components/common/Select';
 import Button from '../components/common/Button';
+import ThemeToggle from '../components/common/ThemeToggle';
 import { YEAR_OPTIONS } from '../utils/constants';
 import authApi from '../services/authApi';
 import { useToast } from '../context/ToastContext';
@@ -130,18 +131,23 @@ export const RegisterPage = () => {
       generalError.toLowerCase().includes('free hosting'));
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8 transition-colors duration-150 relative">
+      {/* Top Bar with Theme Toggle */}
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+        <ThemeToggle />
+      </div>
+
       <div className="sm:mx-auto sm:w-full sm:max-w-xl text-center mb-6">
         <Link to="/" className="inline-flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white font-bold text-sm">
+          <div className="w-8 h-8 rounded-lg bg-slate-900 dark:bg-brand-600 flex items-center justify-center text-white font-bold text-sm shadow-subtle">
             SG
           </div>
-          <span className="font-semibold text-lg text-slate-900 tracking-tight">SanGam</span>
+          <span className="font-semibold text-lg text-slate-900 dark:text-slate-100 tracking-tight">SanGam</span>
         </Link>
-        <h1 className="text-xl font-bold tracking-tight text-slate-900">
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
           Create student account
         </h1>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           {stage === 'details'
             ? 'Join your campus network and start collaborating'
             : 'Verify your email address to complete registration'}
@@ -149,23 +155,22 @@ export const RegisterPage = () => {
       </div>
 
       <div className="sm:mx-auto sm:w-full sm:max-w-xl">
-        <div className="bg-white py-7 px-6 sm:px-8 rounded-xl border border-slate-200 shadow-subtle">
+        <div className="bg-white dark:bg-slate-900 py-7 px-6 sm:px-8 rounded-xl border border-slate-200 dark:border-slate-800 shadow-subtle">
           {generalError && (
             isServerWaking ? (
-              <div className="mb-5 p-3.5 rounded-lg bg-amber-50/90 border border-amber-200 text-xs text-amber-900 leading-relaxed flex items-start gap-2.5 animate-in fade-in">
-                <Server className="w-4 h-4 text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+              <div className="mb-5 p-3.5 rounded-lg bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 leading-relaxed flex items-start gap-2.5 animate-in fade-in">
+                <Server className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 animate-pulse" />
                 <div>
                   <span className="font-semibold block mb-0.5">SanGam server is waking up</span>
-                  <span className="text-[11px] text-amber-800">{generalError}</span>
+                  <span className="text-[11px] text-amber-800 dark:text-amber-300">{generalError}</span>
                 </div>
               </div>
             ) : (
-              <div className="mb-5 p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 leading-relaxed animate-in fade-in">
+              <div className="mb-5 p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-200 leading-relaxed animate-in fade-in">
                 {generalError}
               </div>
             )
           )}
-
 
           {stage === 'details' ? (
             <form onSubmit={handleRequestOtp} className="space-y-4">
@@ -242,7 +247,7 @@ export const RegisterPage = () => {
               <div>
                 <label
                   htmlFor="register-bio"
-                  className="block text-xs font-medium text-slate-700 mb-1.5"
+                  className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5"
                 >
                   Bio (Optional)
                 </label>
@@ -253,7 +258,7 @@ export const RegisterPage = () => {
                   value={formData.bio}
                   onChange={handleChange}
                   placeholder="Briefly describe what you like building or skills you're focusing on..."
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 resize-none"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 dark:hover:border-slate-700 resize-none"
                 />
               </div>
 
@@ -269,10 +274,10 @@ export const RegisterPage = () => {
             </form>
           ) : (
             <form onSubmit={handleVerifyAndRegister} className="space-y-4">
-              <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 text-xs flex items-center justify-between">
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-700 text-xs flex items-center justify-between">
                 <div>
-                  <span className="text-slate-500 block text-[11px]">Verification code sent to:</span>
-                  <span className="font-semibold text-slate-800">{formData.email}</span>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[11px]">Verification code sent to:</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">{formData.email}</span>
                 </div>
                 <button
                   type="button"
@@ -280,7 +285,7 @@ export const RegisterPage = () => {
                     setStage('details');
                     setGeneralError('');
                   }}
-                  className="text-xs text-brand-600 hover:text-brand-700 font-medium"
+                  className="text-xs text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 font-medium"
                 >
                   Change details
                 </button>
@@ -313,7 +318,7 @@ export const RegisterPage = () => {
                   type="button"
                   onClick={handleResendOtp}
                   disabled={isLoading}
-                  className="text-xs text-slate-500 hover:text-slate-800 transition-colors disabled:opacity-50"
+                  className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors disabled:opacity-50"
                 >
                   Didn't receive the code? Resend OTP
                 </button>
@@ -321,11 +326,11 @@ export const RegisterPage = () => {
             </form>
           )}
 
-          <div className="mt-6 pt-5 border-t border-slate-100 text-center text-xs text-slate-500">
+          <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
             Already have an account?{' '}
             <Link
               to="/login"
-              className="font-medium text-slate-900 hover:text-brand-600 transition-colors underline-offset-4 hover:underline"
+              className="font-medium text-slate-900 dark:text-slate-200 hover:text-brand-600 dark:hover:text-brand-400 transition-colors underline-offset-4 hover:underline"
             >
               Sign in
             </Link>

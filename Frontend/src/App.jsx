@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastProvider } from './context/ToastContext';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 
 // Guards & Layouts
 import ProtectedRoute from './routes/ProtectedRoute';
@@ -12,6 +13,7 @@ import AppLayout from './components/layout/AppLayout';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import DiscoverPage from './pages/DiscoverPage';
 import ProfilePage from './pages/ProfilePage';
@@ -23,39 +25,42 @@ import NotFoundPage from './pages/NotFoundPage';
 
 export const App = () => {
   return (
-    <ToastProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            {/* Public Landing Page */}
-            <Route path="/" element={<LandingPage />} />
+    <ThemeProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              {/* Public Landing Page */}
+              <Route path="/" element={<LandingPage />} />
 
-            {/* Auth Routes (restricted to unauthenticated users) */}
-            <Route element={<PublicRoute />}>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
-            </Route>
-
-            {/* Protected Workspace Routes (requires JWT authentication) */}
-            <Route element={<ProtectedRoute />}>
-              <Route element={<AppLayout />}>
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/discover" element={<DiscoverPage />} />
-                <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/profile/:id" element={<ProfilePage />} />
-                <Route path="/teams" element={<TeamsPage />} />
-                <Route path="/teams/create" element={<CreateTeamPage />} />
-                <Route path="/teams/:id" element={<TeamDetailsPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
+              {/* Auth Routes (restricted to unauthenticated users) */}
+              <Route element={<PublicRoute />}>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               </Route>
-            </Route>
 
-            {/* 404 Fallback */}
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
-    </ToastProvider>
+              {/* Protected Workspace Routes (requires JWT authentication) */}
+              <Route element={<ProtectedRoute />}>
+                <Route element={<AppLayout />}>
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/discover" element={<DiscoverPage />} />
+                  <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/profile/:id" element={<ProfilePage />} />
+                  <Route path="/teams" element={<TeamsPage />} />
+                  <Route path="/teams/create" element={<CreateTeamPage />} />
+                  <Route path="/teams/:id" element={<TeamDetailsPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                </Route>
+              </Route>
+
+              {/* 404 Fallback */}
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </ToastProvider>
+    </ThemeProvider>
   );
 };
 

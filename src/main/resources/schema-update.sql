@@ -70,3 +70,9 @@ ALTER TABLE teams ADD COLUMN IF NOT EXISTS project_type VARCHAR(50);
 ALTER TABLE teams ADD COLUMN IF NOT EXISTS hackathon_name VARCHAR(150);
 ALTER TABLE teams ADD COLUMN IF NOT EXISTS hackathon_url VARCHAR(255);
 ALTER TABLE teams ADD COLUMN IF NOT EXISTS hackathon_deadline VARCHAR(50);
+
+-- 8. Align existing columns with JPA @Column(columnDefinition = "TEXT")
+-- Expands VARCHAR(255) to TEXT to support long bios and team descriptions without data truncation.
+ALTER TABLE users MODIFY COLUMN bio TEXT;
+ALTER TABLE teams MODIFY COLUMN description TEXT;
+
