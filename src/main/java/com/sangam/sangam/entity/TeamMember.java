@@ -27,6 +27,12 @@ public class TeamMember {
     @Column(nullable = false)
     private Role role = Role.MEMBER;
 
+    @Column(name = "assigned_role", length = 100)
+    private String assignedRole;
+
+    @Column(name = "custom_role", length = 150)
+    private String customRole;
+
     @Column(name = "joined_at")
     private LocalDateTime joinedAt;
 
@@ -57,6 +63,22 @@ public class TeamMember {
 
     public void setRole(Role role) {
         this.role = role;
+    }
+
+    public String getAssignedRole() {
+        return assignedRole;
+    }
+
+    public void setAssignedRole(String assignedRole) {
+        this.assignedRole = assignedRole;
+    }
+
+    public String getCustomRole() {
+        return customRole;
+    }
+
+    public void setCustomRole(String customRole) {
+        this.customRole = customRole;
     }
 
     public LocalDateTime getJoinedAt() {

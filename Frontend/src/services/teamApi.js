@@ -33,8 +33,13 @@ export const teamApi = {
       hackathonName: teamData.hackathonName,
       hackathonUrl: teamData.hackathonUrl,
       hackathonDeadline: teamData.hackathonDeadline,
+      githubRepositoryUrl: teamData.githubRepositoryUrl,
+      documentationUrl: teamData.documentationUrl,
+      leaderRole: teamData.leaderRole,
+      leaderCustomRole: teamData.leaderCustomRole,
       requiredSkills: teamData.requiredSkills,
       requiredRoles: teamData.requiredRoles,
+      roleSlots: teamData.roleSlots,
     });
 
     return response.data;
@@ -54,23 +59,31 @@ export const teamApi = {
       hackathonName: teamData.hackathonName,
       hackathonUrl: teamData.hackathonUrl,
       hackathonDeadline: teamData.hackathonDeadline,
+      githubRepositoryUrl: teamData.githubRepositoryUrl,
+      documentationUrl: teamData.documentationUrl,
       requiredSkills: teamData.requiredSkills,
       requiredRoles: teamData.requiredRoles,
+      roleSlots: teamData.roleSlots,
     });
 
     return response.data;
   },
 
-  async sendJoinRequest(teamId, userId) {
+  async sendJoinRequest(teamId, userId, requestedRole = null, customRole = null) {
     if (!teamId) throw new Error('Team ID is required');
-    if (!userId) throw new Error('User ID is required');
 
     const response = await api.post(
       `/api/teams/${teamId}/join-request`,
-      null,
+      {
+        userId,
+        requestedRole,
+        customRole,
+      },
       {
         params: {
-          userId,
+          ...(userId ? { userId } : {}),
+          ...(requestedRole ? { requestedRole } : {}),
+          ...(customRole ? { customRole } : {}),
         },
       }
     );
@@ -91,13 +104,19 @@ export const teamApi = {
     return response.data;
   },
 
-  async acceptJoinRequest(teamId, requestId, leaderId) {
+  async acceptJoinRequest(teamId, requestId, leaderId, selectedRole = null, customRole = null) {
     const response = await api.post(
       `/api/teams/${teamId}/join-requests/${requestId}/accept`,
-      null,
+      {
+        leaderId,
+        selectedRole,
+        customRole,
+      },
       {
         params: {
-          leaderId,
+          ...(leaderId ? { leaderId } : {}),
+          ...(selectedRole ? { selectedRole } : {}),
+          ...(customRole ? { customRole } : {}),
         },
       }
     );
@@ -145,11 +164,23 @@ export const teamApi = {
     return response.data;
   },
 
-  async inviteStudentToTeam(teamId, userId) {
+  async inviteStudentToTeam(teamId, userId, invitedRole = null, customRole = null) {
     if (!teamId) throw new Error('Team ID is required');
     if (!userId) throw new Error('User ID is required');
 
-    const response = await api.post(`/api/teams/${teamId}/invite/${userId}`);
+    const response = await api.post(
+      `/api/teams/${teamId}/invite/${userId}`,
+      {
+        invitedRole,
+        customRole,
+      },
+      {
+        params: {
+          ...(invitedRole ? { invitedRole } : {}),
+          ...(customRole ? { customRole } : {}),
+        },
+      }
+    );
     return response.data;
   },
 
@@ -167,10 +198,22 @@ export const teamApi = {
     return response.data;
   },
 
-  async acceptTeamInvitation(invitationId) {
+  async acceptTeamInvitation(invitationId, selectedRole = null, customRole = null) {
     if (!invitationId) throw new Error('Invitation ID is required');
 
-    const response = await api.post(`/api/teams/invitations/${invitationId}/accept`);
+    const response = await api.post(
+      `/api/teams/invitations/${invitationId}/accept`,
+      {
+        selectedRole,
+        customRole,
+      },
+      {
+        params: {
+          ...(selectedRole ? { selectedRole } : {}),
+          ...(customRole ? { customRole } : {}),
+        },
+      }
+    );
     return response.data;
   },
 

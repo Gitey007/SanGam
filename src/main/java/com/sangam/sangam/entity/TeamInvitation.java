@@ -37,6 +37,12 @@ public class TeamInvitation {
     @Column(nullable = false)
     private InvitationStatus status = InvitationStatus.PENDING;
 
+    @Column(name = "invited_role", length = 100)
+    private String invitedRole;
+
+    @Column(name = "custom_role", length = 150)
+    private String customRole;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -58,6 +64,17 @@ public class TeamInvitation {
         this.invitedUser = invitedUser;
         this.invitedBy = invitedBy;
         this.status = status;
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public TeamInvitation(Team team, User invitedUser, User invitedBy, InvitationStatus status, String invitedRole, String customRole) {
+        this.team = team;
+        this.invitedUser = invitedUser;
+        this.invitedBy = invitedBy;
+        this.status = status;
+        this.invitedRole = invitedRole;
+        this.customRole = customRole;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
@@ -100,6 +117,22 @@ public class TeamInvitation {
 
     public void setStatus(InvitationStatus status) {
         this.status = status;
+    }
+
+    public String getInvitedRole() {
+        return invitedRole;
+    }
+
+    public void setInvitedRole(String invitedRole) {
+        this.invitedRole = invitedRole;
+    }
+
+    public String getCustomRole() {
+        return customRole;
+    }
+
+    public void setCustomRole(String customRole) {
+        this.customRole = customRole;
     }
 
     public LocalDateTime getCreatedAt() {

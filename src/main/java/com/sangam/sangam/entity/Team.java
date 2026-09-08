@@ -46,6 +46,12 @@ public class Team {
     @Column(name = "hackathon_deadline", length = 50)
     private String hackathonDeadline;
 
+    @Column(name = "github_repository_url", length = 255)
+    private String githubRepositoryUrl;
+
+    @Column(name = "documentation_url", length = 255)
+    private String documentationUrl;
+
     @ManyToOne
     @JoinColumn(name = "leader_id", nullable = false)
     private User leader;
@@ -63,8 +69,7 @@ public class Team {
 
     @jakarta.persistence.ElementCollection
     @jakarta.persistence.CollectionTable(name = "team_required_roles", joinColumns = @JoinColumn(name = "team_id"))
-    @Column(name = "role_name", length = 50)
-    private java.util.Set<String> requiredRoles = new java.util.HashSet<>();
+    private java.util.List<TeamRoleSlot> roleSlots = new java.util.ArrayList<>();
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -185,6 +190,22 @@ public class Team {
         this.hackathonDeadline = hackathonDeadline;
     }
 
+    public String getGithubRepositoryUrl() {
+        return githubRepositoryUrl;
+    }
+
+    public void setGithubRepositoryUrl(String githubRepositoryUrl) {
+        this.githubRepositoryUrl = githubRepositoryUrl;
+    }
+
+    public String getDocumentationUrl() {
+        return documentationUrl;
+    }
+
+    public void setDocumentationUrl(String documentationUrl) {
+        this.documentationUrl = documentationUrl;
+    }
+
     public java.util.Set<Skill> getRequiredSkills() {
         return requiredSkills;
     }
@@ -193,11 +214,32 @@ public class Team {
         this.requiredSkills = requiredSkills;
     }
 
+    public java.util.List<TeamRoleSlot> getRoleSlots() {
+        return roleSlots;
+    }
+
+    public void setRoleSlots(java.util.List<TeamRoleSlot> roleSlots) {
+        this.roleSlots = roleSlots != null ? roleSlots : new java.util.ArrayList<>();
+    }
+
     public java.util.Set<String> getRequiredRoles() {
-        return requiredRoles;
+        if (roleSlots == null) {
+            return java.util.Collections.emptySet();
+        }
+        return roleSlots.stream()
+                .map(TeamRoleSlot::getRoleName)
+                .filter(r -> r != null && !r.isBlank())
+                .collect(java.util.stream.Collectors.toSet());
     }
 
     public void setRequiredRoles(java.util.Set<String> requiredRoles) {
-        this.requiredRoles = requiredRoles;
+        if (requiredRoles == null) {
+            this.roleSlots = new java.util.ArrayList<>();
+        } else {
+            this.roleSlots = requiredRoles.stream()
+                    .filter(r -> r != null && !r.isBlank())
+                    .map(r -> new TeamRoleSlot(r, 1))
+                    .collect(java.util.stream.Collectors.toList());
+        }
     }
 }

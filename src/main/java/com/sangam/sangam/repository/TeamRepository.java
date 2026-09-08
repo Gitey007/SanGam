@@ -12,20 +12,20 @@ import com.sangam.sangam.entity.Team;
 
 public interface TeamRepository extends JpaRepository<Team, Long> {
 
-    @EntityGraph(attributePaths = {"leader", "requiredSkills", "requiredRoles"})
+    @EntityGraph(attributePaths = {"leader", "requiredSkills", "roleSlots"})
     @Query("SELECT DISTINCT t FROM Team t")
     List<Team> findAllWithDetails();
 
-    @EntityGraph(attributePaths = {"leader", "requiredSkills", "requiredRoles"})
+    @EntityGraph(attributePaths = {"leader", "requiredSkills", "roleSlots"})
     @Query("SELECT t FROM Team t WHERE t.id = :id")
     Optional<Team> findWithDetailsById(@Param("id") Long id);
 
     @Override
-    @EntityGraph(attributePaths = {"leader", "requiredSkills", "requiredRoles"})
+    @EntityGraph(attributePaths = {"leader", "requiredSkills", "roleSlots"})
     Optional<Team> findById(Long id);
 
     @Override
-    @EntityGraph(attributePaths = {"leader", "requiredSkills", "requiredRoles"})
+    @EntityGraph(attributePaths = {"leader", "requiredSkills", "roleSlots"})
     List<Team> findAll();
 }
 

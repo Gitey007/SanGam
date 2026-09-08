@@ -1,5 +1,6 @@
 package com.sangam.sangam.dto;
 
+import java.util.List;
 import java.util.Set;
 
 public class UpdateTeamRequest {
@@ -14,8 +15,11 @@ public class UpdateTeamRequest {
     private String hackathonName;
     private String hackathonUrl;
     private String hackathonDeadline;
+    private String githubRepositoryUrl;
+    private String documentationUrl;
     private Set<String> requiredSkills;
     private Set<String> requiredRoles;
+    private List<TeamRoleSlotDto> roleSlots;
 
     public UpdateTeamRequest() {
     }
@@ -100,6 +104,22 @@ public class UpdateTeamRequest {
         this.hackathonDeadline = hackathonDeadline;
     }
 
+    public String getGithubRepositoryUrl() {
+        return githubRepositoryUrl;
+    }
+
+    public void setGithubRepositoryUrl(String githubRepositoryUrl) {
+        this.githubRepositoryUrl = githubRepositoryUrl;
+    }
+
+    public String getDocumentationUrl() {
+        return documentationUrl;
+    }
+
+    public void setDocumentationUrl(String documentationUrl) {
+        this.documentationUrl = documentationUrl;
+    }
+
     public Set<String> getRequiredSkills() {
         return requiredSkills;
     }
@@ -114,5 +134,13 @@ public class UpdateTeamRequest {
 
     public void setRequiredRoles(Set<String> requiredRoles) {
         this.requiredRoles = requiredRoles;
+    }
+
+    public List<TeamRoleSlotDto> getRoleSlots() {
+        return roleSlots;
+    }
+
+    public void setRoleSlots(List<TeamRoleSlotDto> roleSlots) {
+        this.roleSlots = roleSlots;
     }
 }

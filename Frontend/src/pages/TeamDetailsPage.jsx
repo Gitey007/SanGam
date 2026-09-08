@@ -22,6 +22,10 @@ import {
   ExternalLink,
   Code2,
   Sparkles,
+  Github,
+  FileText,
+  Layers,
+  ChevronRight,
 } from 'lucide-react';
 
 import Button from '../components/common/Button';
@@ -35,7 +39,11 @@ import teamApi from '../services/teamApi';
 import userApi from '../services/userApi';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { extractErrorMessage, formatBranchYear, formatCollege } from '../utils/helpers';
+import {
+  extractErrorMessage,
+  formatBranchYear,
+  formatCollege,
+} from '../utils/helpers';
 
 export const TeamDetailsPage = () => {
   const { id } = useParams();
@@ -58,11 +66,23 @@ export const TeamDetailsPage = () => {
   const [joinRequestSent, setJoinRequestSent] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
+  // Candidate Join Modal state
+  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const [selectedJoinRole, setSelectedJoinRole] = useState('');
+  const [joinCustomRole, setJoinCustomRole] = useState('');
+
+  // Leader "Accept as Another Role" Modal state
+  const [reassignModalRequest, setReassignModalRequest] = useState(null);
+  const [selectedReassignRole, setSelectedReassignRole] = useState('');
+  const [reassignCustomRole, setReassignCustomRole] = useState('');
+
   // Invite modal state
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [studentsList, setStudentsList] = useState([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [inviteSearchTerm, setInviteSearchTerm] = useState('');
+  const [selectedInviteRole, setSelectedInviteRole] = useState('');
+  const [inviteCustomRole, setInviteCustomRole] = useState('');
   const [invitingUserId, setInvitingUserId] = useState(null);
 
   /**
@@ -156,51 +176,69 @@ export const TeamDetailsPage = () => {
   }, [fetchTeamDetails]);
 
   /**
-   * Check whether logged-in user is already a team member
+   * Check membership and leadership
    */
   const isMember = members.some(
     (member) => String(member.userId) === String(user?.id)
   );
 
-  /**
-   * Check whether logged-in user is the team leader
-   */
-  const isLeader =
-    Boolean(team?.leaderId &&
-    user?.id &&
-    String(team.leaderId) === String(user.id));
+  const isLeader = Boolean(
+    team?.leaderId && user?.id && String(team.leaderId) === String(user.id)
+  );
 
-  /**
-   * Check whether team is full
-   */
   const maxMembers = team?.maxMembers || 0;
   const isTeamFull = maxMembers > 0 && members.length >= maxMembers;
   const isAlmostFull = maxMembers > 0 && members.length === maxMembers - 1;
 
+  // Available roles with openings
+  const roleSlotsList = team?.roleSlots || [];
+  const openRoles = roleSlotsList.filter((r) => r.availableSlots > 0);
+
   /**
-   * Send join request
+   * Candidate clicks "Join Team" -> opens role selection modal
    */
-  const handleJoinTeam = async () => {
+  const handleOpenJoinModal = () => {
     if (!user?.id) {
       toastError('Unable to identify your account. Please log in again.');
       return;
     }
-
     if (isMember) {
       toastError('You are already a member of this team.');
       return;
     }
-
     if (isTeamFull) {
       toastError('This team is already full.');
       return;
     }
 
-    setIsJoining(true);
+    if (openRoles.length > 0) {
+      setSelectedJoinRole(openRoles[0].roleName);
+    } else if (roleSlotsList.length > 0) {
+      setSelectedJoinRole(roleSlotsList[0].roleName);
+    } else {
+      setSelectedJoinRole('Member');
+    }
+    setJoinCustomRole('');
+    setIsJoinModalOpen(true);
+  };
 
+  /**
+   * Submit Join Request with role
+   */
+  const handleConfirmJoinRequest = async (e) => {
+    e?.preventDefault();
+    if (!user?.id) return;
+
+    setIsJoining(true);
     try {
-      await teamApi.sendJoinRequest(id, user.id);
+      await teamApi.sendJoinRequest(
+        id,
+        user.id,
+        selectedJoinRole,
+        joinCustomRole.trim() || null
+      );
       setJoinRequestSent(true);
+      setIsJoinModalOpen(false);
       success('Join request sent successfully!');
     } catch (err) {
       console.error('Failed to send join request:', err);
@@ -218,7 +256,7 @@ export const TeamDetailsPage = () => {
   };
 
   /**
-   * Leader accepts join request
+   * Leader directly accepts join request
    */
   const handleAcceptRequest = async (requestId) => {
     if (!user?.id) return;
@@ -233,6 +271,48 @@ export const TeamDetailsPage = () => {
       toastError(msg);
     } finally {
       setActionLoading((prev) => ({ ...prev, [requestId]: null }));
+    }
+  };
+
+  /**
+   * Open "Accept as Another Role" Modal
+   */
+  const handleOpenReassignModal = (request) => {
+    setReassignModalRequest(request);
+    if (openRoles.length > 0) {
+      setSelectedReassignRole(openRoles[0].roleName);
+    } else {
+      setSelectedReassignRole('');
+    }
+    setReassignCustomRole('');
+  };
+
+  /**
+   * Confirm "Accept as Another Role"
+   */
+  const handleConfirmReassignAccept = async (e) => {
+    e?.preventDefault();
+    if (!reassignModalRequest || !user?.id) return;
+
+    const reqId = reassignModalRequest.requestId;
+    setActionLoading((prev) => ({ ...prev, [reqId]: 'accept-reassign' }));
+
+    try {
+      await teamApi.acceptJoinRequest(
+        id,
+        reqId,
+        user.id,
+        selectedReassignRole,
+        reassignCustomRole.trim() || null
+      );
+      success('Join request accepted with assigned role!');
+      setReassignModalRequest(null);
+      await Promise.all([fetchTeamDetails(), fetchJoinRequests()]);
+    } catch (err) {
+      const msg = extractErrorMessage(err, 'Failed to accept join request.');
+      toastError(msg);
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [reqId]: null }));
     }
   };
 
@@ -256,15 +336,24 @@ export const TeamDetailsPage = () => {
   };
 
   /**
-   * Open invite student modal and load students list
+   * Open invite student modal
    */
   const handleOpenInviteModal = async () => {
     setIsInviteModalOpen(true);
+    if (openRoles.length > 0) {
+      setSelectedInviteRole(openRoles[0].roleName);
+    } else if (roleSlotsList.length > 0) {
+      setSelectedInviteRole(roleSlotsList[0].roleName);
+    } else {
+      setSelectedInviteRole('Member');
+    }
+    setInviteCustomRole('');
+
     if (studentsList.length === 0) {
       setIsLoadingStudents(true);
       try {
         const data = await userApi.getUsers();
-        setStudentsList(Array.isArray(data) ? data : (data?.content || []));
+        setStudentsList(Array.isArray(data) ? data : data?.content || []);
       } catch (err) {
         console.error('Failed to load students for invitation:', err);
       } finally {
@@ -274,13 +363,18 @@ export const TeamDetailsPage = () => {
   };
 
   /**
-   * Send team invitation to target student
+   * Send team invitation to student
    */
   const handleSendInvitation = async (targetUserId) => {
     if (!id || !targetUserId) return;
     setInvitingUserId(targetUserId);
     try {
-      await teamApi.inviteStudentToTeam(id, targetUserId);
+      await teamApi.inviteStudentToTeam(
+        id,
+        targetUserId,
+        selectedInviteRole,
+        inviteCustomRole.trim() || null
+      );
       success('Invitation sent successfully!');
       await fetchSentInvitations();
     } catch (err) {
@@ -297,7 +391,9 @@ export const TeamDetailsPage = () => {
   const handleRemoveMember = async (memberUserId, memberName) => {
     if (!user?.id) return;
     const confirmed = window.confirm(
-      `Are you sure you want to remove ${memberName || 'this member'} from the team?`
+      `Are you sure you want to remove ${
+        memberName || 'this member'
+      } from the team?`
     );
     if (!confirmed) return;
 
@@ -311,12 +407,15 @@ export const TeamDetailsPage = () => {
       const msg = extractErrorMessage(err, 'Failed to remove member.');
       toastError(msg);
     } finally {
-      setActionLoading((prev) => ({ ...prev, [`member-${memberUserId}`]: false }));
+      setActionLoading((prev) => ({
+        ...prev,
+        [`member-${memberUserId}`]: false,
+      }));
     }
   };
 
   /**
-   * Member leaves team (only for non-leaders)
+   * Member leaves team
    */
   const handleLeaveTeam = async () => {
     if (!user?.id) return;
@@ -337,7 +436,21 @@ export const TeamDetailsPage = () => {
   };
 
   /**
-   * Loading state
+   * Helper to check if role is Other/Custom
+   */
+  const isOther = (roleStr) => {
+    if (!roleStr) return false;
+    const r = roleStr.toLowerCase();
+    return (
+      r === 'other' ||
+      r === 'other / custom' ||
+      r === 'other/custom' ||
+      r.includes('other')
+    );
+  };
+
+  /**
+   * Loading skeleton
    */
   if (isLoading) {
     return (
@@ -376,7 +489,7 @@ export const TeamDetailsPage = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 pb-12">
       {/* Back button */}
       <button
         type="button"
@@ -426,7 +539,7 @@ export const TeamDetailsPage = () => {
               </p>
             </div>
 
-            {/* Actions for Leader, Member, or Candidate */}
+            {/* Header Actions */}
             <div className="shrink-0 flex flex-wrap items-center gap-2">
               {isLeader ? (
                 <>
@@ -477,7 +590,7 @@ export const TeamDetailsPage = () => {
                   variant="primary"
                   size="md"
                   leftIcon={UserPlus}
-                  onClick={handleJoinTeam}
+                  onClick={handleOpenJoinModal}
                   isLoading={isJoining}
                 >
                   Join Team
@@ -489,6 +602,54 @@ export const TeamDetailsPage = () => {
 
         {/* Details Body */}
         <div className="p-6 md:p-8 space-y-7">
+          {/* Section: Project Resources (GitHub & Documentation URLs) */}
+          {(team.githubRepositoryUrl || team.documentationUrl) && (
+            <section className="p-4 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-2 mb-3">
+                <Github className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+                <h2 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Project Resources
+                </h2>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                {team.githubRepositoryUrl && (
+                  <a
+                    href={
+                      team.githubRepositoryUrl.startsWith('http')
+                        ? team.githubRepositoryUrl
+                        : `https://${team.githubRepositoryUrl}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-white hover:border-brand-500 hover:text-brand-600 dark:hover:text-brand-400 shadow-xs transition-all"
+                  >
+                    <Github className="w-4 h-4" />
+                    <span>View Repository</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-slate-400 ml-0.5" />
+                  </a>
+                )}
+
+                {team.documentationUrl && (
+                  <a
+                    href={
+                      team.documentationUrl.startsWith('http')
+                        ? team.documentationUrl
+                        : `https://${team.documentationUrl}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-white hover:border-brand-500 hover:text-brand-600 dark:hover:text-brand-400 shadow-xs transition-all"
+                  >
+                    <FileText className="w-4 h-4 text-brand-500" />
+                    <span>View Documentation</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-slate-400 ml-0.5" />
+                  </a>
+                )}
+              </div>
+            </section>
+          )}
+
           {/* Section: Project Overview */}
           {(team.projectName || team.description) && (
             <section className="p-5 rounded-xl bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700">
@@ -528,82 +689,147 @@ export const TeamDetailsPage = () => {
           )}
 
           {/* Section: Hackathon Details */}
-          {(team.hackathonName || team.projectType === 'Hackathon') && team.hackathonName && (
-            <section className="bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/60 rounded-xl p-4">
-              <div className="flex items-center justify-between gap-3 mb-2">
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                  <h3 className="text-xs font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider">
-                    Target Hackathon: {team.hackathonName}
-                  </h3>
+          {(team.hackathonName || team.projectType === 'Hackathon') &&
+            team.hackathonName && (
+              <section className="bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/60 rounded-xl p-4">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    <h3 className="text-xs font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider">
+                      Target Hackathon: {team.hackathonName}
+                    </h3>
+                  </div>
+                  {team.hackathonUrl && (
+                    <a
+                      href={
+                        team.hackathonUrl.startsWith('http')
+                          ? team.hackathonUrl
+                          : `https://${team.hackathonUrl}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-amber-900 dark:text-amber-300 hover:text-amber-700 dark:hover:text-amber-200 underline"
+                    >
+                      <span>Event Website</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
                 </div>
-                {team.hackathonUrl && (
-                  <a
-                    href={team.hackathonUrl.startsWith('http') ? team.hackathonUrl : `https://${team.hackathonUrl}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs font-medium text-amber-900 dark:text-amber-300 hover:text-amber-700 dark:hover:text-amber-200 underline"
-                  >
-                    <span>Event Website</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
+                {team.hackathonDeadline && (
+                  <p className="text-xs text-amber-800 dark:text-amber-400">
+                    <span className="font-semibold">
+                      Submission Deadline / Date:
+                    </span>{' '}
+                    {team.hackathonDeadline}
+                  </p>
                 )}
+              </section>
+            )}
+
+          {/* Section: Role Distribution Breakdown */}
+          {roleSlotsList.length > 0 && (
+            <section className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-brand-500" />
+                <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Role Distribution ({members.length}/{team.maxMembers || 4} Filled)
+                </h2>
               </div>
-              {team.hackathonDeadline && (
-                <p className="text-xs text-amber-800 dark:text-amber-400">
-                  <span className="font-semibold">Submission Deadline / Date:</span> {team.hackathonDeadline}
-                </p>
-              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {roleSlotsList.map((slot, index) => {
+                  const isFull = slot.filledSlots >= slot.slotCount;
+                  const matchingMembers = members.filter((m) => {
+                    if (isOther(slot.roleName)) {
+                      return isOther(m.assignedRole);
+                    }
+                    return (
+                      m.assignedRole?.toLowerCase() ===
+                      slot.roleName?.toLowerCase()
+                    );
+                  });
+
+                  return (
+                    <div
+                      key={`${slot.roleName}-${index}`}
+                      className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">
+                            {slot.roleName}
+                          </span>
+
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                              isFull
+                                ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                            }`}
+                          >
+                            {slot.filledSlots} / {slot.slotCount}{' '}
+                            {isFull
+                              ? 'FULL'
+                              : `${slot.availableSlots} opening${
+                                  slot.availableSlots > 1 ? 's' : ''
+                                }`}
+                          </span>
+                        </div>
+
+                        {/* Members assigned to this role */}
+                        <div className="space-y-1 mt-2">
+                          {matchingMembers.length === 0 ? (
+                            <span className="text-[11px] text-slate-400 dark:text-slate-500 italic block">
+                              No members assigned yet
+                            </span>
+                          ) : (
+                            matchingMembers.map((m) => (
+                              <div
+                                key={m.userId}
+                                className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 font-medium"
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-brand-500 shrink-0" />
+                                <span className="truncate">{m.name}</span>
+                                {m.customRole && (
+                                  <span className="text-[10px] text-brand-600 dark:text-brand-400 font-normal truncate">
+                                    — {m.customRole}
+                                  </span>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </section>
           )}
 
-          {/* Section: Open Positions & Required Roles */}
-          {((team.requiredRoles && team.requiredRoles.length > 0) || (team.requiredSkills && team.requiredSkills.length > 0)) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Open Positions */}
-              {team.requiredRoles && team.requiredRoles.length > 0 && (
-                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60">
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <UserPlus className="w-3.5 h-3.5 text-brand-500" />
-                    <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Open Positions / Looking For
-                    </h3>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(Array.isArray(team.requiredRoles) ? team.requiredRoles : Array.from(team.requiredRoles)).map((role, idx) => (
-                      <span
-                        key={`${role}-${idx}`}
-                        className="px-2.5 py-1 rounded-md text-xs font-medium bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800"
-                      >
-                        {role}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Required Skills */}
-              {team.requiredSkills && team.requiredSkills.length > 0 && (
-                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60">
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <Code2 className="w-3.5 h-3.5 text-brand-500" />
-                    <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Required Technical Skills
-                    </h3>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(Array.isArray(team.requiredSkills) ? team.requiredSkills : Array.from(team.requiredSkills)).map((skill, idx) => (
-                      <span
-                        key={`${skill}-${idx}`}
-                        className="px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-600"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+          {/* Section: Required Skills */}
+          {team.requiredSkills && team.requiredSkills.length > 0 && (
+            <section>
+              <div className="flex items-center gap-2 mb-2.5">
+                <Code2 className="w-4 h-4 text-brand-500" />
+                <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Required Technical Skills
+                </h2>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {(Array.isArray(team.requiredSkills)
+                  ? team.requiredSkills
+                  : Array.from(team.requiredSkills)
+                ).map((skill, idx) => (
+                  <span
+                    key={`${skill}-${idx}`}
+                    className="px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-600"
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            </section>
           )}
 
           {/* Team Members List */}
@@ -612,7 +838,7 @@ export const TeamDetailsPage = () => {
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                 <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  Team Members ({members.length} / {team.maxMembers || 4})
+                  All Team Members ({members.length} / {team.maxMembers || 4})
                 </h2>
               </div>
             </div>
@@ -646,7 +872,12 @@ export const TeamDetailsPage = () => {
                           </span>
 
                           <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
-                            {isMemberLeader ? 'Team Leader' : 'Member'}
+                            {isMemberLeader
+                              ? 'Team Leader'
+                              : member.assignedRole || 'Member'}
+                            {member.customRole
+                              ? ` (${member.customRole})`
+                              : ''}
                           </span>
 
                           {member.branch && (
@@ -699,10 +930,19 @@ export const TeamDetailsPage = () => {
 
                   <div className="flex items-center gap-2">
                     <Badge
-                      variant={sentInvitations.filter((i) => i.status === 'PENDING').length > 0 ? 'brand' : 'neutral'}
+                      variant={
+                        sentInvitations.filter((i) => i.status === 'PENDING')
+                          .length > 0
+                          ? 'brand'
+                          : 'neutral'
+                      }
                       size="sm"
                     >
-                      {sentInvitations.filter((i) => i.status === 'PENDING').length} pending
+                      {
+                        sentInvitations.filter((i) => i.status === 'PENDING')
+                          .length
+                      }{' '}
+                      pending
                     </Badge>
                     <Button
                       variant="outline"
@@ -719,7 +959,8 @@ export const TeamDetailsPage = () => {
                 {sentInvitations.length === 0 ? (
                   <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-center">
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      No invitations sent yet. Click "Invite Student" to invite teammates.
+                      No invitations sent yet. Click "Invite Student" to invite
+                      teammates.
                     </p>
                   </div>
                 ) : (
@@ -736,17 +977,22 @@ export const TeamDetailsPage = () => {
                               {inv.invitedUserName}
                             </span>
                             <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
+                              <span>Role: {inv.invitedRole || 'General'}</span>
+                              {inv.customRole && (
+                                <span>({inv.customRole})</span>
+                              )}
+                              <span>•</span>
                               <Clock className="w-3 h-3 text-slate-400 dark:text-slate-500" />
-                              Sent {inv.createdAt
-                                ? new Date(inv.createdAt).toLocaleDateString(
-                                    undefined,
-                                    {
+                              <span>
+                                {inv.createdAt
+                                  ? new Date(
+                                      inv.createdAt
+                                    ).toLocaleDateString(undefined, {
                                       month: 'short',
                                       day: 'numeric',
-                                      year: 'numeric',
-                                    }
-                                  )
-                                : 'recently'}
+                                    })
+                                  : 'recently'}
+                              </span>
                             </span>
                           </div>
                         </div>
@@ -763,7 +1009,7 @@ export const TeamDetailsPage = () => {
                             size="sm"
                           >
                             {inv.status === 'PENDING'
-                              ? 'Pending Student Response'
+                              ? 'Pending Response'
                               : inv.status === 'ACCEPTED'
                               ? 'Accepted'
                               : 'Declined'}
@@ -772,7 +1018,9 @@ export const TeamDetailsPage = () => {
                             <Button
                               variant="outline"
                               size="xs"
-                              onClick={() => handleSendInvitation(inv.invitedUserId)}
+                              onClick={() =>
+                                handleSendInvitation(inv.invitedUserId)
+                              }
                               isLoading={invitingUserId === inv.invitedUserId}
                               disabled={isTeamFull}
                             >
@@ -813,65 +1061,118 @@ export const TeamDetailsPage = () => {
                   </div>
                 ) : (
                   <div className="space-y-2.5">
-                    {joinRequests.map((req) => (
-                      <div
-                        key={req.requestId}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-50/80 dark:hover:bg-slate-700/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Avatar name={req.userName} size="sm" />
-                          <div>
-                            <span className="text-xs font-semibold text-slate-900 dark:text-white block">
-                              {req.userName}
-                            </span>
-                            <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
-                              <Clock className="w-3 h-3 text-slate-400 dark:text-slate-500" />
-                              {req.createdAt
-                                ? new Date(req.createdAt).toLocaleDateString(
-                                    undefined,
-                                    {
+                    {joinRequests.map((req) => {
+                      // Check if requested role has open slots
+                      const reqRoleSlot = roleSlotsList.find((s) => {
+                        if (isOther(req.requestedRole)) {
+                          return isOther(s.roleName);
+                        }
+                        return (
+                          s.roleName?.toLowerCase() ===
+                          req.requestedRole?.toLowerCase()
+                        );
+                      });
+
+                      const isRoleFull =
+                        reqRoleSlot && reqRoleSlot.availableSlots <= 0;
+
+                      return (
+                        <div
+                          key={req.requestId}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-50/80 dark:hover:bg-slate-700/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <Avatar name={req.userName} size="sm" />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-slate-900 dark:text-white block">
+                                  {req.userName}
+                                </span>
+                                {req.requestedRole && (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-brand-50 dark:bg-brand-950/50 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800">
+                                    Requesting: {req.requestedRole}
+                                    {req.customRole
+                                      ? ` (${req.customRole})`
+                                      : ''}
+                                  </span>
+                                )}
+                              </div>
+
+                              <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
+                                <Clock className="w-3 h-3 text-slate-400 dark:text-slate-500" />
+                                {req.createdAt
+                                  ? new Date(
+                                      req.createdAt
+                                    ).toLocaleDateString(undefined, {
                                       month: 'short',
                                       day: 'numeric',
-                                      year: 'numeric',
-                                    }
-                                  )
-                                : 'Pending review'}
-                            </span>
+                                    })
+                                  : 'Pending review'}
+                                {isRoleFull && (
+                                  <span className="text-rose-500 font-semibold ml-1">
+                                    • Requested role is FULL
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-end sm:self-auto">
+                            {!isRoleFull ? (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() =>
+                                  handleAcceptRequest(req.requestId)
+                                }
+                                isLoading={
+                                  actionLoading[req.requestId] === 'accept'
+                                }
+                                disabled={
+                                  Boolean(actionLoading[req.requestId]) ||
+                                  isTeamFull
+                                }
+                                leftIcon={Check}
+                              >
+                                Accept
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  handleOpenReassignModal(req)
+                                }
+                                disabled={
+                                  Boolean(actionLoading[req.requestId]) ||
+                                  isTeamFull ||
+                                  openRoles.length === 0
+                                }
+                                className="text-brand-600 dark:text-brand-400 border-brand-300 dark:border-brand-700 hover:bg-brand-50 dark:hover:bg-brand-950/50"
+                              >
+                                Accept as Another Role
+                              </Button>
+                            )}
+
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                handleRejectRequest(req.requestId)
+                              }
+                              isLoading={
+                                actionLoading[req.requestId] === 'reject'
+                              }
+                              disabled={Boolean(actionLoading[req.requestId])}
+                              leftIcon={X}
+                              className="text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-200 dark:hover:border-rose-800"
+                            >
+                              Reject
+                            </Button>
                           </div>
                         </div>
-
-                        <div className="flex items-center gap-2 self-end sm:self-auto">
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => handleAcceptRequest(req.requestId)}
-                            isLoading={
-                              actionLoading[req.requestId] === 'accept'
-                            }
-                            disabled={
-                              Boolean(actionLoading[req.requestId]) ||
-                              isTeamFull
-                            }
-                            leftIcon={Check}
-                          >
-                            Accept
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleRejectRequest(req.requestId)}
-                            isLoading={
-                              actionLoading[req.requestId] === 'reject'
-                            }
-                            disabled={Boolean(actionLoading[req.requestId])}
-                            leftIcon={X}
-                            className="text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-200 dark:hover:border-rose-800"
-                          >
-                            Reject
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </section>
@@ -880,28 +1181,194 @@ export const TeamDetailsPage = () => {
         </div>
       </div>
 
-      {/* Pending request notice for applicant */}
-      {joinRequestSent && !isMember && !isLeader && (
-        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-          <p className="text-xs font-medium text-slate-800 dark:text-slate-200">
-            Your join request has been sent.
-          </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            The team leader must accept your request before you become a
-            member of this team.
-          </p>
-        </div>
-      )}
+      {/* Candidate Join Request Modal */}
+      <Modal
+        isOpen={isJoinModalOpen}
+        onClose={() => setIsJoinModalOpen(false)}
+        title={`Join ${team?.name}`}
+        description="Select the role you would like to contribute in this squad."
+        maxWidth="max-w-md"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsJoinModalOpen(false)}
+              disabled={isJoining}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleConfirmJoinRequest}
+              isLoading={isJoining}
+              disabled={!selectedJoinRole}
+            >
+              Send Request
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleConfirmJoinRequest} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+              Select Your Role / Position
+            </label>
+            <select
+              value={selectedJoinRole}
+              onChange={(e) => setSelectedJoinRole(e.target.value)}
+              className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
+            >
+              {roleSlotsList.map((slot, i) => (
+                <option key={`${slot.roleName}-${i}`} value={slot.roleName}>
+                  {slot.roleName} (
+                  {slot.availableSlots > 0
+                    ? `${slot.availableSlots} opening${
+                        slot.availableSlots > 1 ? 's' : ''
+                      }`
+                    : 'FULL'}
+                  )
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {isOther(selectedJoinRole) && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                What role would you like to contribute as?
+              </label>
+              <Input
+                name="customRole"
+                placeholder="e.g. Prompt Engineer, ML Engineer"
+                value={joinCustomRole}
+                onChange={(e) => setJoinCustomRole(e.target.value)}
+                required
+              />
+            </div>
+          )}
+        </form>
+      </Modal>
+
+      {/* Leader "Accept as Another Role" Modal */}
+      <Modal
+        isOpen={Boolean(reassignModalRequest)}
+        onClose={() => setReassignModalRequest(null)}
+        title="Accept as Another Role"
+        description={`The role requested by ${
+          reassignModalRequest?.userName || 'this student'
+        } is full. Select an available open role for them.`}
+        maxWidth="max-w-md"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setReassignModalRequest(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleConfirmReassignAccept}
+              disabled={!selectedReassignRole}
+            >
+              Confirm Acceptance
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleConfirmReassignAccept} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+              Available Open Roles
+            </label>
+            <select
+              value={selectedReassignRole}
+              onChange={(e) => setSelectedReassignRole(e.target.value)}
+              className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
+            >
+              {openRoles.map((slot, i) => (
+                <option key={`${slot.roleName}-${i}`} value={slot.roleName}>
+                  {slot.roleName} ({slot.availableSlots} opening
+                  {slot.availableSlots > 1 ? 's' : ''})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {isOther(selectedReassignRole) && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                Assign Custom Role Name
+              </label>
+              <Input
+                name="reassignCustomRole"
+                placeholder="e.g. Prompt Engineer, Cloud Engineer"
+                value={reassignCustomRole}
+                onChange={(e) => setReassignCustomRole(e.target.value)}
+              />
+            </div>
+          )}
+        </form>
+      </Modal>
 
       {/* Invite Student Modal */}
       <Modal
         isOpen={isInviteModalOpen}
         onClose={() => setIsInviteModalOpen(false)}
         title={`Invite Student to ${team.name}`}
-        description="Search for student collaborators and invite them to join your squad."
+        description="Search for student collaborators and specify their target role."
         maxWidth="max-w-xl"
       >
         <div className="space-y-4">
+          {/* Role selector for invitation */}
+          {roleSlotsList.length > 0 && (
+            <div className="p-3.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 space-y-2">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Assign Invitation Role
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <select
+                  value={selectedInviteRole}
+                  onChange={(e) => setSelectedInviteRole(e.target.value)}
+                  className="w-full h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
+                >
+                  {roleSlotsList.map((slot, i) => (
+                    <option
+                      key={`${slot.roleName}-${i}`}
+                      value={slot.roleName}
+                    >
+                      {slot.roleName} (
+                      {slot.availableSlots > 0
+                        ? `${slot.availableSlots} opening${
+                            slot.availableSlots > 1 ? 's' : ''
+                          }`
+                        : 'FULL'}
+                      )
+                    </option>
+                  ))}
+                </select>
+
+                {isOther(selectedInviteRole) && (
+                  <input
+                    type="text"
+                    placeholder="Custom role (e.g. ML Engineer)"
+                    value={inviteCustomRole}
+                    onChange={(e) => setInviteCustomRole(e.target.value)}
+                    className="w-full h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Search bar */}
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -918,22 +1385,24 @@ export const TeamDetailsPage = () => {
           {isTeamFull && (
             <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-center gap-2 text-amber-800 dark:text-amber-300 text-xs">
               <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>This team is currently full ({members.length}/{team.maxMembers}). You cannot invite more members.</span>
+              <span>
+                This team is currently full ({members.length}/
+                {team.maxMembers}). You cannot invite more members.
+              </span>
             </div>
           )}
 
           {/* Student list */}
-          <div className="max-h-80 overflow-y-auto space-y-2 divide-y divide-slate-100 dark:divide-slate-700 pr-1">
+          <div className="max-h-72 overflow-y-auto space-y-2 divide-y divide-slate-100 dark:divide-slate-700 pr-1">
             {isLoadingStudents ? (
               <div className="py-8 text-center text-xs text-slate-500 dark:text-slate-400 animate-pulse">
                 Loading students...
               </div>
             ) : (() => {
               const eligibleStudents = studentsList.filter((s) => {
-                // Exclude self/leader
                 if (String(s.id) === String(user?.id)) return false;
-                // Exclude current members
-                if (members.some((m) => String(m.userId) === String(s.id))) return false;
+                if (members.some((m) => String(m.userId) === String(s.id)))
+                  return false;
 
                 if (!inviteSearchTerm.trim()) return true;
                 const term = inviteSearchTerm.toLowerCase();
@@ -949,26 +1418,33 @@ export const TeamDetailsPage = () => {
               if (eligibleStudents.length === 0) {
                 return (
                   <div className="py-8 text-center text-xs text-slate-500 dark:text-slate-400">
-                    {inviteSearchTerm ? 'No students matching your search query.' : 'No other students available to invite.'}
+                    {inviteSearchTerm
+                      ? 'No students matching your search query.'
+                      : 'No other students available to invite.'}
                   </div>
                 );
               }
 
               return eligibleStudents.map((student) => {
                 const pendingInvitation = sentInvitations.find(
-                  (i) => String(i.invitedUserId) === String(student.id) && i.status === 'PENDING'
+                  (i) =>
+                    String(i.invitedUserId) === String(student.id) &&
+                    i.status === 'PENDING'
                 );
 
                 const skillsList = Array.isArray(student.skills)
                   ? student.skills
                   : typeof student.skills === 'string'
-                  ? student.skills.split(',').map((s) => s.trim()).filter(Boolean)
+                  ? student.skills
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean)
                   : [];
 
                 return (
                   <div
                     key={student.id}
-                    className="pt-2 pb-2 flex items-center justify-between gap-3"
+                    className="pt-2.5 pb-2.5 flex items-center justify-between gap-3"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <Avatar name={student.name} size="sm" />
@@ -999,11 +1475,12 @@ export const TeamDetailsPage = () => {
                       </div>
                     </div>
 
-                    <div className="shrink-0">
+                    {/* Part 27: Fixed sizing for Invite button / Invited badge */}
+                    <div className="shrink-0 flex items-center justify-end min-w-[76px]">
                       {pendingInvitation ? (
-                        <Badge variant="neutral" size="sm">
+                        <span className="inline-flex items-center justify-center px-2.5 py-1 rounded text-[11px] font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 whitespace-nowrap min-w-[68px] text-center">
                           Invited
-                        </Badge>
+                        </span>
                       ) : (
                         <Button
                           variant="primary"
@@ -1012,6 +1489,7 @@ export const TeamDetailsPage = () => {
                           onClick={() => handleSendInvitation(student.id)}
                           isLoading={invitingUserId === student.id}
                           disabled={isTeamFull || Boolean(invitingUserId)}
+                          className="min-w-[68px] whitespace-nowrap"
                         >
                           Invite
                         </Button>
