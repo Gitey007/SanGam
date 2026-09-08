@@ -91,6 +91,32 @@ export const AddEditProjectModal = ({
     }
   };
 
+  const modalFooter = (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={onClose}
+        disabled={isLoading}
+        className="shrink-0"
+      >
+        Cancel
+      </Button>
+      <Button
+        type="submit"
+        form="project-form"
+        variant="primary"
+        size="sm"
+        isLoading={isLoading}
+        disabled={isLoading}
+        className="shrink-0"
+      >
+        {isEditing ? 'Save Changes' : 'Add Project'}
+      </Button>
+    </>
+  );
+
   return (
     <Modal
       isOpen={isOpen}
@@ -98,8 +124,9 @@ export const AddEditProjectModal = ({
       title={isEditing ? 'Edit Project' : 'Add Project'}
       description="Showcase what you've built, the tech stack used, and live demo links."
       maxWidth="max-w-lg"
+      footer={modalFooter}
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form id="project-form" onSubmit={handleSubmit} className="space-y-4">
         <Input
           label="Project Name"
           name="name"
@@ -153,26 +180,6 @@ export const AddEditProjectModal = ({
             onChange={handleChange}
             placeholder="https://my-app.vercel.app"
           />
-        </div>
-
-        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onClose}
-            disabled={isLoading}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            size="sm"
-            isLoading={isLoading}
-          >
-            {isEditing ? 'Save Changes' : 'Add Project'}
-          </Button>
         </div>
       </form>
     </Modal>

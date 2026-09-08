@@ -223,6 +223,13 @@ export const teamApi = {
     const response = await api.post(`/api/teams/invitations/${invitationId}/reject`);
     return response.data;
   },
+
+  async deleteTeam(teamId) {
+    if (!teamId) throw new Error('Team ID is required');
+
+    const response = await api.delete(`/api/teams/${teamId}`);
+    return response.data;
+  },
 };
 
 export default teamApi;

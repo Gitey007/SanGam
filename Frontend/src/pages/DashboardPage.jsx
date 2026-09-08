@@ -20,6 +20,7 @@ import { useToast } from '../context/ToastContext';
 import Button from '../components/common/Button';
 import Avatar from '../components/common/Avatar';
 import Badge from '../components/common/Badge';
+import TeamCard from '../components/teams/TeamCard';
 import { formatCollege, formatBranchYear, extractErrorMessage } from '../utils/helpers';
 import { POPULAR_SKILLS } from '../utils/constants';
 import teamApi from '../services/teamApi';
@@ -342,42 +343,13 @@ export const DashboardPage = () => {
         {isLoadingTeams ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-36 bg-slate-100/70 dark:bg-slate-800/70 rounded-xl animate-pulse" />
+              <div key={i} className="h-48 bg-slate-100/70 dark:bg-slate-800/70 rounded-xl animate-pulse" />
             ))}
           </div>
         ) : teams.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {teams.map((team) => (
-              <div
-                key={team.id}
-                className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4.5 hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <h3 className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
-                      {team.name}
-                    </h3>
-                    <Badge variant="neutral" size="sm">
-                      Max {team.maxMembers || 4}
-                    </Badge>
-                  </div>
-                  {team.leaderName && (
-                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-2 truncate">
-                      Led by <span className="text-slate-600 dark:text-slate-300 font-medium">{team.leaderName}</span>
-                    </p>
-                  )}
-                  <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 mb-3">
-                    {team.description || 'No description provided.'}
-                  </p>
-                </div>
-                <Link
-                  to={`/teams/${team.id}`}
-                  className="text-xs font-medium text-slate-900 dark:text-slate-100 hover:text-brand-600 dark:hover:text-brand-400 inline-flex items-center gap-1 pt-2 border-t border-slate-100 dark:border-slate-800"
-                >
-                  <span>Details</span>
-                  <ArrowRight className="w-3 h-3" />
-                </Link>
-              </div>
+              <TeamCard key={team.id} team={team} />
             ))}
           </div>
         ) : (

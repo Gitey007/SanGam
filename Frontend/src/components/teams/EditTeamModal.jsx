@@ -279,12 +279,12 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
         Cancel
       </Button>
       <Button
-        type="button"
+        type="submit"
+        form="edit-team-form"
         variant="primary"
         size="sm"
-        onClick={handleSubmit}
         isLoading={isLoading}
-        disabled={roleSlots.length > 0 && !isSlotSumValid}
+        disabled={isLoading || (roleSlots.length > 0 && !isSlotSumValid)}
         className="shrink-0"
       >
         Save Changes
@@ -301,7 +301,7 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
       maxWidth="max-w-2xl"
       footer={modalFooter}
     >
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form id="edit-team-form" onSubmit={handleSubmit} className="space-y-5">
         {/* Team Basic Info */}
         <div className="space-y-3">
           <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">

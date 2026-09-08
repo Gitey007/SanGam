@@ -98,6 +98,32 @@ export const AddEditAchievementModal = ({
     value: cat,
   }));
 
+  const modalFooter = (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={onClose}
+        disabled={isLoading}
+        className="shrink-0"
+      >
+        Cancel
+      </Button>
+      <Button
+        type="submit"
+        form="achievement-form"
+        variant="primary"
+        size="sm"
+        isLoading={isLoading}
+        disabled={isLoading}
+        className="shrink-0"
+      >
+        {isEditing ? 'Save Changes' : 'Add Achievement'}
+      </Button>
+    </>
+  );
+
   return (
     <Modal
       isOpen={isOpen}
@@ -105,8 +131,9 @@ export const AddEditAchievementModal = ({
       title={isEditing ? 'Edit Achievement' : 'Add Achievement'}
       description="Showcase your hackathon wins, competitive ranks, certifications, and academic milestones."
       maxWidth="max-w-lg"
+      footer={modalFooter}
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form id="achievement-form" onSubmit={handleSubmit} className="space-y-4">
         <Input
           label="Achievement Title"
           name="title"
@@ -161,26 +188,6 @@ export const AddEditAchievementModal = ({
           onChange={handleChange}
           placeholder="https://certificate-or-post-link.com"
         />
-
-        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onClose}
-            disabled={isLoading}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            size="sm"
-            isLoading={isLoading}
-          >
-            {isEditing ? 'Save Changes' : 'Add Achievement'}
-          </Button>
-        </div>
       </form>
     </Modal>
   );
