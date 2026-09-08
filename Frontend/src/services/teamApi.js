@@ -104,19 +104,21 @@ export const teamApi = {
     return response.data;
   },
 
-  async acceptJoinRequest(teamId, requestId, leaderId, selectedRole = null, customRole = null) {
+  async acceptJoinRequest(teamId, requestId, leaderId, selectedRole = null, customRole = null, memberIdToRemove = null) {
     const response = await api.post(
       `/api/teams/${teamId}/join-requests/${requestId}/accept`,
       {
         leaderId,
         selectedRole,
         customRole,
+        memberIdToRemove,
       },
       {
         params: {
           ...(leaderId ? { leaderId } : {}),
           ...(selectedRole ? { selectedRole } : {}),
           ...(customRole ? { customRole } : {}),
+          ...(memberIdToRemove ? { memberIdToRemove } : {}),
         },
       }
     );

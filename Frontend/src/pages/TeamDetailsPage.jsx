@@ -21,12 +21,11 @@ import {
   Edit3,
   ExternalLink,
   Code2,
-  Sparkles,
   Github,
   FileText,
   Layers,
-  ChevronRight,
   Trash2,
+  RefreshCw,
 } from 'lucide-react';
 
 import Button from '../components/common/Button';
@@ -58,6 +57,7 @@ export const TeamDetailsPage = () => {
   const [members, setMembers] = useState([]);
   const [joinRequests, setJoinRequests] = useState([]);
   const [sentInvitations, setSentInvitations] = useState([]);
+  const [myPendingInvitation, setMyPendingInvitation] = useState(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
@@ -77,10 +77,21 @@ export const TeamDetailsPage = () => {
   const [selectedJoinRole, setSelectedJoinRole] = useState('');
   const [joinCustomRole, setJoinCustomRole] = useState('');
 
+  // Student "Accept as Another Role" Modal state (when invited role is full)
+  const [isStudentAcceptAnotherModalOpen, setIsStudentAcceptAnotherModalOpen] = useState(false);
+  const [selectedStudentAnotherRole, setSelectedStudentAnotherRole] = useState('');
+  const [studentAnotherCustomRole, setStudentAnotherCustomRole] = useState('');
+
   // Leader "Accept as Another Role" Modal state
   const [reassignModalRequest, setReassignModalRequest] = useState(null);
   const [selectedReassignRole, setSelectedReassignRole] = useState('');
   const [reassignCustomRole, setReassignCustomRole] = useState('');
+
+  // Leader "Replace Member / Free Slot" Modal state
+  const [replaceModalRequest, setReplaceModalRequest] = useState(null);
+  const [selectedMemberToReplace, setSelectedMemberToReplace] = useState(null);
+  const [isConfirmReplaceModalOpen, setIsConfirmReplaceModalOpen] = useState(false);
+  const [isReplacingMember, setIsReplacingMember] = useState(false);
 
   // Invite modal state
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -90,6 +101,29 @@ export const TeamDetailsPage = () => {
   const [selectedInviteRole, setSelectedInviteRole] = useState('');
   const [inviteCustomRole, setInviteCustomRole] = useState('');
   const [invitingUserId, setInvitingUserId] = useState(null);
+
+  /**
+   * Helper to check if role is Other / Custom
+   */
+  const isOther = (roleStr) => {
+    if (!roleStr) return false;
+    const r = roleStr.toLowerCase().trim();
+    return (
+      r === 'other' ||
+      r === 'other / custom' ||
+      r === 'other/custom' ||
+      r.includes('other')
+    );
+  };
+
+  /**
+   * Helper to check role matching
+   */
+  const roleMatches = (r1, r2) => {
+    if (!r1 || !r2) return false;
+    if (isOther(r1)) return isOther(r2);
+    return r1.trim().toLowerCase() === r2.trim().toLowerCase();
+  };
 
   /**
    * Fetch pending join requests (leader only)
@@ -118,7 +152,25 @@ export const TeamDetailsPage = () => {
   }, [id, user?.id]);
 
   /**
-   * Fetch team details + members
+   * Fetch student's own invitations to check pending invitation for this team
+   */
+  const fetchMyPendingInvitation = useCallback(async () => {
+    if (!id || !user?.id) return;
+    try {
+      const myInvs = await teamApi.getMyTeamInvitations('PENDING');
+      if (Array.isArray(myInvs)) {
+        const found = myInvs.find(
+          (inv) => String(inv.teamId) === String(id) && inv.status === 'PENDING'
+        );
+        setMyPendingInvitation(found || null);
+      }
+    } catch (err) {
+      console.error('Failed to load my invitations:', err);
+    }
+  }, [id, user?.id]);
+
+  /**
+   * Fetch team details + members + user state
    */
   const fetchTeamDetails = useCallback(async () => {
     if (!id) {
@@ -145,6 +197,9 @@ export const TeamDetailsPage = () => {
 
       if (currentUserIsMember) {
         setJoinRequestSent(false);
+        setMyPendingInvitation(null);
+      } else {
+        await fetchMyPendingInvitation();
       }
 
       // If user is leader, also fetch pending join requests and sent invitations
@@ -175,7 +230,7 @@ export const TeamDetailsPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [id, user?.id]);
+  }, [id, user?.id, fetchMyPendingInvitation]);
 
   useEffect(() => {
     fetchTeamDetails();
@@ -201,7 +256,7 @@ export const TeamDetailsPage = () => {
   const openRoles = roleSlotsList.filter((r) => r.availableSlots > 0);
 
   /**
-   * Candidate clicks "Join Team" -> opens role selection modal
+   * Candidate clicks "Join Request" -> opens role selection modal
    */
   const handleOpenJoinModal = () => {
     if (!user?.id) {
@@ -210,6 +265,10 @@ export const TeamDetailsPage = () => {
     }
     if (isMember) {
       toastError('You are already a member of this team.');
+      return;
+    }
+    if (myPendingInvitation) {
+      toastError('You have a pending invitation. Please accept or decline the invitation instead.');
       return;
     }
     if (isTeamFull) {
@@ -262,6 +321,95 @@ export const TeamDetailsPage = () => {
   };
 
   /**
+   * Student handles "Accept Invitation"
+   */
+  const handleStudentAcceptInvitation = async () => {
+    if (!myPendingInvitation) return;
+
+    const invitedRole = myPendingInvitation.invitedRole;
+    const matchingSlot = roleSlotsList.find((s) => roleMatches(s.roleName, invitedRole));
+    const isInvitedRoleFull = matchingSlot && matchingSlot.availableSlots <= 0;
+
+    if (isInvitedRoleFull) {
+      // Invited role is full -> open alternative role selection
+      if (openRoles.length > 0) {
+        setSelectedStudentAnotherRole(openRoles[0].roleName);
+      } else {
+        setSelectedStudentAnotherRole('');
+      }
+      setStudentAnotherCustomRole('');
+      setIsStudentAcceptAnotherModalOpen(true);
+      return;
+    }
+
+    // Direct acceptance
+    setActionLoading((prev) => ({ ...prev, 'my-invitation': 'accept' }));
+    try {
+      await teamApi.acceptTeamInvitation(myPendingInvitation.invitationId);
+      success('Team invitation accepted! You are now a team member.');
+      setMyPendingInvitation(null);
+      await fetchTeamDetails();
+    } catch (err) {
+      const msg = extractErrorMessage(err, 'Failed to accept invitation.');
+      toastError(msg);
+      if (err.response?.status === 409) {
+        // Role became full concurrently -> prompt alternative role selection
+        if (openRoles.length > 0) {
+          setSelectedStudentAnotherRole(openRoles[0].roleName);
+        }
+        setStudentAnotherCustomRole('');
+        setIsStudentAcceptAnotherModalOpen(true);
+      }
+    } finally {
+      setActionLoading((prev) => ({ ...prev, 'my-invitation': null }));
+    }
+  };
+
+  /**
+   * Student confirms "Accept as Another Role" for full invited role
+   */
+  const handleConfirmStudentAcceptAnotherRole = async (e) => {
+    e?.preventDefault();
+    if (!myPendingInvitation || !selectedStudentAnotherRole) return;
+
+    setActionLoading((prev) => ({ ...prev, 'my-invitation': 'accept-another' }));
+    try {
+      await teamApi.acceptTeamInvitation(
+        myPendingInvitation.invitationId,
+        selectedStudentAnotherRole,
+        studentAnotherCustomRole.trim() || null
+      );
+      success(`Invitation accepted as ${selectedStudentAnotherRole}!`);
+      setIsStudentAcceptAnotherModalOpen(false);
+      setMyPendingInvitation(null);
+      await fetchTeamDetails();
+    } catch (err) {
+      const msg = extractErrorMessage(err, 'Failed to accept invitation with selected role.');
+      toastError(msg);
+    } finally {
+      setActionLoading((prev) => ({ ...prev, 'my-invitation': null }));
+    }
+  };
+
+  /**
+   * Student declines invitation
+   */
+  const handleStudentDeclineInvitation = async () => {
+    if (!myPendingInvitation) return;
+    setActionLoading((prev) => ({ ...prev, 'my-invitation': 'decline' }));
+    try {
+      await teamApi.rejectTeamInvitation(myPendingInvitation.invitationId);
+      success('Invitation declined.');
+      setMyPendingInvitation(null);
+    } catch (err) {
+      const msg = extractErrorMessage(err, 'Failed to decline invitation.');
+      toastError(msg);
+    } finally {
+      setActionLoading((prev) => ({ ...prev, 'my-invitation': null }));
+    }
+  };
+
+  /**
    * Leader directly accepts join request
    */
   const handleAcceptRequest = async (requestId) => {
@@ -281,7 +429,7 @@ export const TeamDetailsPage = () => {
   };
 
   /**
-   * Open "Accept as Another Role" Modal
+   * Open Leader "Accept as Another Role" Modal
    */
   const handleOpenReassignModal = (request) => {
     setReassignModalRequest(request);
@@ -294,7 +442,7 @@ export const TeamDetailsPage = () => {
   };
 
   /**
-   * Confirm "Accept as Another Role"
+   * Confirm Leader "Accept as Another Role"
    */
   const handleConfirmReassignAccept = async (e) => {
     e?.preventDefault();
@@ -323,6 +471,72 @@ export const TeamDetailsPage = () => {
   };
 
   /**
+   * Open Leader "Replace Member / Free Slot" Modal
+   */
+  const handleOpenReplaceModal = (request) => {
+    setReplaceModalRequest(request);
+    const requestedRole = request.requestedRole;
+    // Find members occupying this requested role (excluding leader)
+    const matching = members.filter((m) => {
+      if (m.role === 'LEADER' || String(m.userId) === String(user?.id)) return false;
+      return roleMatches(m.assignedRole, requestedRole);
+    });
+
+    if (matching.length > 0) {
+      setSelectedMemberToReplace(matching[0]);
+    } else {
+      setSelectedMemberToReplace(null);
+    }
+  };
+
+  /**
+   * Leader proceeds to final Confirmation Modal for member replacement
+   */
+  const handleProceedToReplaceConfirm = (e) => {
+    e?.preventDefault();
+    if (!selectedMemberToReplace) {
+      toastError('Please select a member to replace.');
+      return;
+    }
+    setIsConfirmReplaceModalOpen(true);
+  };
+
+  /**
+   * Leader confirms transactional Member Replacement + Acceptance
+   */
+  const handleConfirmReplaceMemberAndAccept = async () => {
+    if (!replaceModalRequest || !selectedMemberToReplace || !user?.id) return;
+
+    setIsReplacingMember(true);
+    const reqId = replaceModalRequest.requestId;
+
+    try {
+      await teamApi.acceptJoinRequest(
+        id,
+        reqId,
+        user.id,
+        replaceModalRequest.requestedRole,
+        replaceModalRequest.customRole,
+        selectedMemberToReplace.userId
+      );
+
+      success(
+        `Replaced ${selectedMemberToReplace.name} and accepted ${replaceModalRequest.userName} into ${replaceModalRequest.requestedRole}!`
+      );
+      setIsConfirmReplaceModalOpen(false);
+      setReplaceModalRequest(null);
+      setSelectedMemberToReplace(null);
+      await Promise.all([fetchTeamDetails(), fetchJoinRequests()]);
+    } catch (err) {
+      console.error('Failed to replace member and accept request:', err);
+      const msg = extractErrorMessage(err, 'Failed to replace member.');
+      toastError(msg);
+    } finally {
+      setIsReplacingMember(false);
+    }
+  };
+
+  /**
    * Leader rejects join request
    */
   const handleRejectRequest = async (requestId) => {
@@ -331,7 +545,7 @@ export const TeamDetailsPage = () => {
 
     try {
       await teamApi.rejectJoinRequest(id, requestId, user.id);
-      success('Join request rejected successfully.');
+      success('Join request rejected.');
       await fetchJoinRequests();
     } catch (err) {
       const msg = extractErrorMessage(err, 'Failed to reject join request.');
@@ -461,20 +675,6 @@ export const TeamDetailsPage = () => {
   };
 
   /**
-   * Helper to check if role is Other/Custom
-   */
-  const isOther = (roleStr) => {
-    if (!roleStr) return false;
-    const r = roleStr.toLowerCase();
-    return (
-      r === 'other' ||
-      r === 'other / custom' ||
-      r === 'other/custom' ||
-      r.includes('other')
-    );
-  };
-
-  /**
    * Loading skeleton
    */
   if (isLoading) {
@@ -564,7 +764,7 @@ export const TeamDetailsPage = () => {
               </p>
             </div>
 
-            {/* Header Actions */}
+            {/* Header Actions - Part 4, 16, 17, 20 State Resolution */}
             <div className="shrink-0 flex flex-wrap items-center gap-2">
               {isLeader ? (
                 <>
@@ -598,7 +798,7 @@ export const TeamDetailsPage = () => {
               ) : isMember ? (
                 <div className="flex items-center gap-2.5">
                   <Badge variant="brand" size="md">
-                    You are a member
+                    Member
                   </Badge>
                   <Button
                     variant="outline"
@@ -611,7 +811,31 @@ export const TeamDetailsPage = () => {
                     Leave Team
                   </Button>
                 </div>
+              ) : myPendingInvitation ? (
+                /* Priority 2: Pending Invitation Exists -> Show Accept Invitation (Hide Join Request) */
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={Check}
+                    onClick={handleStudentAcceptInvitation}
+                    isLoading={actionLoading['my-invitation'] === 'accept'}
+                  >
+                    Accept Invitation
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={X}
+                    onClick={handleStudentDeclineInvitation}
+                    isLoading={actionLoading['my-invitation'] === 'decline'}
+                    className="text-slate-600 dark:text-slate-300 hover:text-rose-600 hover:border-rose-200 dark:hover:border-rose-800"
+                  >
+                    Decline
+                  </Button>
+                </div>
               ) : joinRequestSent ? (
+                /* Priority 3: Join Request Pending */
                 <Badge variant="neutral" size="md">
                   Request Pending
                 </Badge>
@@ -620,6 +844,7 @@ export const TeamDetailsPage = () => {
                   Team is full
                 </Badge>
               ) : (
+                /* Priority 4: No invitation/request -> Show Join Request */
                 <Button
                   variant="primary"
                   size="md"
@@ -627,12 +852,57 @@ export const TeamDetailsPage = () => {
                   onClick={handleOpenJoinModal}
                   isLoading={isJoining}
                 >
-                  Join Team
+                  Join Request
                 </Button>
               )}
             </div>
           </div>
         </div>
+
+        {/* Priority 2: Student Invitation Banner */}
+        {!isMember && !isLeader && myPendingInvitation && (
+          <div className="mx-6 md:mx-8 mt-6 p-4 rounded-xl bg-brand-50/80 dark:bg-brand-950/40 border border-brand-200 dark:border-brand-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                <span className="text-xs font-bold text-brand-900 dark:text-brand-200">
+                  You have been invited to join this squad!
+                </span>
+              </div>
+              <p className="text-xs text-brand-800 dark:text-brand-300">
+                Invited for role:{' '}
+                <span className="font-semibold underline">
+                  {myPendingInvitation.invitedRole || 'General Member'}
+                </span>
+                {myPendingInvitation.customRole && (
+                  <span className="ml-1 font-medium">
+                    ({myPendingInvitation.customRole})
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={Check}
+                onClick={handleStudentAcceptInvitation}
+                isLoading={actionLoading['my-invitation'] === 'accept'}
+              >
+                Accept Invitation
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={X}
+                onClick={handleStudentDeclineInvitation}
+                isLoading={actionLoading['my-invitation'] === 'decline'}
+              >
+                Decline
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Details Body */}
         <div className="p-6 md:p-8 space-y-7">
@@ -760,13 +1030,13 @@ export const TeamDetailsPage = () => {
               </section>
             )}
 
-          {/* Section: Role Distribution Breakdown */}
+          {/* Section: Role Distribution Breakdown - Part 18 Display */}
           {roleSlotsList.length > 0 && (
             <section className="space-y-3">
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-brand-500" />
                 <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  Role Distribution ({members.length}/{team.maxMembers || 4} Filled)
+                  ROLE DISTRIBUTION ({members.length}/{team.maxMembers || 4} Filled)
                 </h2>
               </div>
 
@@ -774,13 +1044,7 @@ export const TeamDetailsPage = () => {
                 {roleSlotsList.map((slot, index) => {
                   const isFull = slot.filledSlots >= slot.slotCount;
                   const matchingMembers = members.filter((m) => {
-                    if (isOther(slot.roleName)) {
-                      return isOther(m.assignedRole);
-                    }
-                    return (
-                      m.assignedRole?.toLowerCase() ===
-                      slot.roleName?.toLowerCase()
-                    );
+                    return roleMatches(slot.roleName, m.assignedRole);
                   });
 
                   return (
@@ -816,7 +1080,7 @@ export const TeamDetailsPage = () => {
                         </div>
 
                         {/* Members assigned to this role */}
-                        <div className="space-y-1 mt-2">
+                        <div className="space-y-1.5 mt-2.5">
                           {matchingMembers.length === 0 ? (
                             <span className="text-[11px] text-slate-400 dark:text-slate-500 italic block">
                               No members assigned yet
@@ -1016,7 +1280,7 @@ export const TeamDetailsPage = () => {
                               {inv.invitedUserName}
                             </span>
                             <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
-                              <span>Role: {inv.invitedRole || 'General'}</span>
+                              <span>Role: {inv.invitedRole || 'Not specified'}</span>
                               {inv.customRole && (
                                 <span>({inv.customRole})</span>
                               )}
@@ -1073,7 +1337,7 @@ export const TeamDetailsPage = () => {
                 )}
               </section>
 
-              {/* Pending Join Requests Section */}
+              {/* Pending Join Requests Section - Part 9, 10, 14 */}
               <section className="pt-6 border-t border-slate-100 dark:border-slate-700">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
@@ -1103,13 +1367,7 @@ export const TeamDetailsPage = () => {
                     {joinRequests.map((req) => {
                       // Check if requested role has open slots
                       const reqRoleSlot = roleSlotsList.find((s) => {
-                        if (isOther(req.requestedRole)) {
-                          return isOther(s.roleName);
-                        }
-                        return (
-                          s.roleName?.toLowerCase() ===
-                          req.requestedRole?.toLowerCase()
-                        );
+                        return roleMatches(s.roleName, req.requestedRole);
                       });
 
                       const isRoleFull =
@@ -1156,41 +1414,72 @@ export const TeamDetailsPage = () => {
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
                             {!isRoleFull ? (
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                onClick={() =>
-                                  handleAcceptRequest(req.requestId)
-                                }
-                                isLoading={
-                                  actionLoading[req.requestId] === 'accept'
-                                }
-                                disabled={
-                                  Boolean(actionLoading[req.requestId]) ||
-                                  isTeamFull
-                                }
-                                leftIcon={Check}
-                              >
-                                Accept
-                              </Button>
+                              <>
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  onClick={() =>
+                                    handleAcceptRequest(req.requestId)
+                                  }
+                                  isLoading={
+                                    actionLoading[req.requestId] === 'accept'
+                                  }
+                                  disabled={
+                                    Boolean(actionLoading[req.requestId]) ||
+                                    isTeamFull
+                                  }
+                                  leftIcon={Check}
+                                >
+                                  Accept
+                                </Button>
+                                {openRoles.length > 1 && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                      handleOpenReassignModal(req)
+                                    }
+                                    disabled={Boolean(actionLoading[req.requestId]) || isTeamFull}
+                                    className="text-brand-600 dark:text-brand-400 border-brand-300 dark:border-brand-700"
+                                  >
+                                    Accept as Another Role
+                                  </Button>
+                                )}
+                              </>
                             ) : (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  handleOpenReassignModal(req)
-                                }
-                                disabled={
-                                  Boolean(actionLoading[req.requestId]) ||
-                                  isTeamFull ||
-                                  openRoles.length === 0
-                                }
-                                className="text-brand-600 dark:text-brand-400 border-brand-300 dark:border-brand-700 hover:bg-brand-50 dark:hover:bg-brand-950/50"
-                              >
-                                Accept as Another Role
-                              </Button>
+                              /* Role is FULL: Leader gets Option A (Another Role) and Option B (Replace Member) */
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    handleOpenReassignModal(req)
+                                  }
+                                  disabled={
+                                    Boolean(actionLoading[req.requestId]) ||
+                                    isTeamFull ||
+                                    openRoles.length === 0
+                                  }
+                                  className="text-brand-600 dark:text-brand-400 border-brand-300 dark:border-brand-700 hover:bg-brand-50 dark:hover:bg-brand-950/50"
+                                >
+                                  Accept as Another Role
+                                </Button>
+
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  leftIcon={RefreshCw}
+                                  onClick={() =>
+                                    handleOpenReplaceModal(req)
+                                  }
+                                  disabled={Boolean(actionLoading[req.requestId])}
+                                  className="text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/50"
+                                >
+                                  Replace Member / Free Slot
+                                </Button>
+                              </>
                             )}
 
                             <Button
@@ -1220,12 +1509,12 @@ export const TeamDetailsPage = () => {
         </div>
       </div>
 
-      {/* Candidate Join Request Modal */}
+      {/* Candidate Join Request Modal - Part 8 */}
       <Modal
         isOpen={isJoinModalOpen}
         onClose={() => setIsJoinModalOpen(false)}
-        title={`Join ${team?.name}`}
-        description="Select the role you would like to contribute in this squad."
+        title={`Join Request for ${team?.name}`}
+        description="Select the position/role you would like to join as in this squad."
         maxWidth="max-w-md"
         footer={
           <>
@@ -1246,7 +1535,7 @@ export const TeamDetailsPage = () => {
               isLoading={isJoining}
               disabled={!selectedJoinRole}
             >
-              Send Request
+              Send Join Request
             </Button>
           </>
         }
@@ -1254,7 +1543,7 @@ export const TeamDetailsPage = () => {
         <form onSubmit={handleConfirmJoinRequest} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-              Select Your Role / Position
+              Select Role
             </label>
             <select
               value={selectedJoinRole}
@@ -1278,28 +1567,105 @@ export const TeamDetailsPage = () => {
           {isOther(selectedJoinRole) && (
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                What role would you like to contribute as?
+                Custom Role:
               </label>
-              <Input
-                name="customRole"
-                placeholder="e.g. Prompt Engineer, ML Engineer"
+              <input
+                type="text"
+                placeholder="e.g. ML Engineer, Prompt Engineer"
                 value={joinCustomRole}
                 onChange={(e) => setJoinCustomRole(e.target.value)}
                 required
+                className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
               />
             </div>
           )}
         </form>
       </Modal>
 
-      {/* Leader "Accept as Another Role" Modal */}
+      {/* Student "Accept as Another Role" Modal (Part 5, 6) */}
+      <Modal
+        isOpen={isStudentAcceptAnotherModalOpen}
+        onClose={() => setIsStudentAcceptAnotherModalOpen(false)}
+        title="Accept as Another Role"
+        description={`The role you were invited for (${
+          myPendingInvitation?.invitedRole || 'your invited role'
+        }) is currently full. Choose another available role with open slots:`}
+        maxWidth="max-w-md"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsStudentAcceptAnotherModalOpen(false)}
+              disabled={actionLoading['my-invitation'] === 'accept-another'}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleConfirmStudentAcceptAnotherRole}
+              isLoading={actionLoading['my-invitation'] === 'accept-another'}
+              disabled={!selectedStudentAnotherRole || openRoles.length === 0}
+            >
+              Accept Invitation
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleConfirmStudentAcceptAnotherRole} className="space-y-4">
+          {openRoles.length === 0 ? (
+            <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300">
+              There are no available open role slots remaining on this team at this time.
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                Available Open Roles
+              </label>
+              <select
+                value={selectedStudentAnotherRole}
+                onChange={(e) => setSelectedStudentAnotherRole(e.target.value)}
+                className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
+              >
+                {openRoles.map((slot, i) => (
+                  <option key={`${slot.roleName}-${i}`} value={slot.roleName}>
+                    {slot.roleName} ({slot.availableSlots} opening
+                    {slot.availableSlots > 1 ? 's' : ''})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {isOther(selectedStudentAnotherRole) && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                Custom Role:
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. ML Engineer"
+                value={studentAnotherCustomRole}
+                onChange={(e) => setStudentAnotherCustomRole(e.target.value)}
+                required
+                className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
+              />
+            </div>
+          )}
+        </form>
+      </Modal>
+
+      {/* Leader "Accept as Another Role" Modal - Part 9, 12 */}
       <Modal
         isOpen={Boolean(reassignModalRequest)}
         onClose={() => setReassignModalRequest(null)}
-        title="Accept as Another Role"
-        description={`The role requested by ${
-          reassignModalRequest?.userName || 'this student'
-        } is full. Select an available open role for them.`}
+        title="Accept Join Request"
+        description={`${
+          reassignModalRequest?.userName || 'This student'
+        } requested "${reassignModalRequest?.requestedRole || 'a role'}". Choose another available role:`}
         maxWidth="max-w-md"
         footer={
           <>
@@ -1316,47 +1682,160 @@ export const TeamDetailsPage = () => {
               variant="primary"
               size="sm"
               onClick={handleConfirmReassignAccept}
-              disabled={!selectedReassignRole}
+              disabled={!selectedReassignRole || openRoles.length === 0}
             >
-              Confirm Acceptance
+              Accept
             </Button>
           </>
         }
       >
         <form onSubmit={handleConfirmReassignAccept} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-              Available Open Roles
-            </label>
-            <select
-              value={selectedReassignRole}
-              onChange={(e) => setSelectedReassignRole(e.target.value)}
-              className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
-            >
-              {openRoles.map((slot, i) => (
-                <option key={`${slot.roleName}-${i}`} value={slot.roleName}>
-                  {slot.roleName} ({slot.availableSlots} opening
-                  {slot.availableSlots > 1 ? 's' : ''})
-                </option>
-              ))}
-            </select>
-          </div>
+          {openRoles.length === 0 ? (
+            <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300">
+              No other role slots are currently available.
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                Choose another available role:
+              </label>
+              <div className="space-y-2">
+                {openRoles.map((slot, i) => (
+                  <label
+                    key={`${slot.roleName}-${i}`}
+                    className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                      selectedReassignRole === slot.roleName
+                        ? 'border-brand-500 bg-brand-50/50 dark:bg-brand-950/40'
+                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="radio"
+                        name="reassignRole"
+                        value={slot.roleName}
+                        checked={selectedReassignRole === slot.roleName}
+                        onChange={() => setSelectedReassignRole(slot.roleName)}
+                        className="text-brand-600 focus:ring-brand-500"
+                      />
+                      <span className="text-xs font-semibold text-slate-900 dark:text-white">
+                        {slot.roleName}
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                      {slot.availableSlots} opening{slot.availableSlots > 1 ? 's' : ''}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {isOther(selectedReassignRole) && (
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                Assign Custom Role Name
+                Custom Role:
               </label>
-              <Input
-                name="reassignCustomRole"
-                placeholder="e.g. Prompt Engineer, Cloud Engineer"
+              <input
+                type="text"
+                placeholder="e.g. ML Engineer"
                 value={reassignCustomRole}
                 onChange={(e) => setReassignCustomRole(e.target.value)}
+                className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
               />
             </div>
           )}
         </form>
       </Modal>
+
+      {/* Leader "Replace Member / Free Slot" Selection Modal - Part 10 */}
+      <Modal
+        isOpen={Boolean(replaceModalRequest && !isConfirmReplaceModalOpen)}
+        onClose={() => setReplaceModalRequest(null)}
+        title="Replace Member / Free Slot"
+        description={`Select which member in "${replaceModalRequest?.requestedRole}" to replace for ${replaceModalRequest?.userName}:`}
+        maxWidth="max-w-md"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setReplaceModalRequest(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleProceedToReplaceConfirm}
+              disabled={!selectedMemberToReplace}
+            >
+              Proceed to Confirmation
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Current members occupying <strong className="text-slate-700 dark:text-slate-200">{replaceModalRequest?.requestedRole}</strong>:
+          </p>
+
+          <div className="space-y-2 max-h-60 overflow-y-auto">
+            {members
+              .filter((m) => {
+                if (m.role === 'LEADER' || String(m.userId) === String(user?.id)) return false;
+                return roleMatches(m.assignedRole, replaceModalRequest?.requestedRole);
+              })
+              .map((member) => (
+                <label
+                  key={member.userId}
+                  className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                    selectedMemberToReplace?.userId === member.userId
+                      ? 'border-rose-500 bg-rose-50/50 dark:bg-rose-950/30'
+                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="memberToReplace"
+                      checked={selectedMemberToReplace?.userId === member.userId}
+                      onChange={() => setSelectedMemberToReplace(member)}
+                      className="text-rose-600 focus:ring-rose-500"
+                    />
+                    <Avatar name={member.name} size="sm" />
+                    <div>
+                      <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                        {member.name}
+                      </span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                        {member.assignedRole}
+                        {member.customRole ? ` (${member.customRole})` : ''}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold">
+                    Select to remove
+                  </span>
+                </label>
+              ))}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Leader Explicit Member Replacement Confirmation Modal - Part 11 */}
+      <ConfirmModal
+        isOpen={isConfirmReplaceModalOpen}
+        onClose={() => setIsConfirmReplaceModalOpen(false)}
+        onConfirm={handleConfirmReplaceMemberAndAccept}
+        title="Remove Member and Accept Request?"
+        message={`You are about to remove "${selectedMemberToReplace?.name}" from "${replaceModalRequest?.requestedRole}" and accept "${replaceModalRequest?.userName}" for "${replaceModalRequest?.requestedRole}". This cannot be undone automatically.`}
+        confirmLabel="Remove & Accept"
+        confirmVariant="danger"
+        isLoading={isReplacingMember}
+      />
 
       {/* Invite Student Modal */}
       <Modal
@@ -1514,7 +1993,6 @@ export const TeamDetailsPage = () => {
                       </div>
                     </div>
 
-                    {/* Part 27: Fixed sizing for Invite button / Invited badge */}
                     <div className="shrink-0 flex items-center justify-end min-w-[76px]">
                       {pendingInvitation ? (
                         <span className="inline-flex items-center justify-center px-2.5 py-1 rounded text-[11px] font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 whitespace-nowrap min-w-[68px] text-center">
@@ -1555,21 +2033,21 @@ export const TeamDetailsPage = () => {
         />
       )}
 
-      {/* Delete Team Confirmation Modal (Leader only) */}
+      {/* Delete Team Confirmation Modal (Leader only) - Part 23 */}
       {isLeader && (
         <ConfirmModal
           isOpen={isDeleteModalOpen}
           onClose={() => setIsDeleteModalOpen(false)}
           onConfirm={handleDeleteTeam}
           title="Delete Team?"
-          message="Are you sure you want to permanently delete this team? All team data, invitations, and join requests will be removed. This action cannot be undone."
+          message={`Are you sure you want to delete "${team?.name}"? This action cannot be undone.`}
           confirmLabel="Delete Team"
           confirmVariant="danger"
           isLoading={isDeleting}
         />
       )}
 
-      {/* Remove Member Confirmation Modal (Leader only) */}
+      {/* Remove Member Confirmation Modal (Leader only) - Part 24 */}
       {isLeader && (
         <ConfirmModal
           isOpen={Boolean(memberToRemove)}
@@ -1579,7 +2057,7 @@ export const TeamDetailsPage = () => {
           message={`Are you sure you want to remove ${
             memberToRemove?.name || 'this member'
           } from the team?`}
-          confirmLabel="Remove"
+          confirmLabel="Remove Member"
           confirmVariant="danger"
           isLoading={Boolean(
             memberToRemove && actionLoading[`member-${memberToRemove.userId}`]

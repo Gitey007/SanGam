@@ -9,8 +9,17 @@ public class RoleActionRequest {
     private String customRole;
     private Long userId;
     private Long leaderId;
+    private Long memberIdToRemove;
 
     public RoleActionRequest() {
+    }
+
+    public Long getMemberIdToRemove() {
+        return memberIdToRemove;
+    }
+
+    public void setMemberIdToRemove(Long memberIdToRemove) {
+        this.memberIdToRemove = memberIdToRemove;
     }
 
     public String getRole() {
