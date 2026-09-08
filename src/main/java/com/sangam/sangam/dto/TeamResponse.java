@@ -1,5 +1,6 @@
 package com.sangam.sangam.dto;
 
+import java.util.List;
 import java.util.Set;
 
 public class TeamResponse {
@@ -17,8 +18,11 @@ public class TeamResponse {
     private String hackathonName;
     private String hackathonUrl;
     private String hackathonDeadline;
+    private String githubRepositoryUrl;
+    private String documentationUrl;
     private Set<String> requiredSkills;
     private Set<String> requiredRoles;
+    private List<TeamRoleSlotDto> roleSlots;
     private Integer memberCount;
     private String status; // "OPEN", "ALMOST_FULL", "FULL"
 
@@ -55,8 +59,11 @@ public class TeamResponse {
             String hackathonName,
             String hackathonUrl,
             String hackathonDeadline,
+            String githubRepositoryUrl,
+            String documentationUrl,
             Set<String> requiredSkills,
             Set<String> requiredRoles,
+            List<TeamRoleSlotDto> roleSlots,
             Integer memberCount,
             String status) {
 
@@ -73,8 +80,11 @@ public class TeamResponse {
         this.hackathonName = hackathonName;
         this.hackathonUrl = hackathonUrl;
         this.hackathonDeadline = hackathonDeadline;
+        this.githubRepositoryUrl = githubRepositoryUrl;
+        this.documentationUrl = documentationUrl;
         this.requiredSkills = requiredSkills;
         this.requiredRoles = requiredRoles;
+        this.roleSlots = roleSlots;
         this.memberCount = memberCount;
         this.status = status;
     }
@@ -131,12 +141,36 @@ public class TeamResponse {
         return hackathonDeadline;
     }
 
+    public String getGithubRepositoryUrl() {
+        return githubRepositoryUrl;
+    }
+
+    public void setGithubRepositoryUrl(String githubRepositoryUrl) {
+        this.githubRepositoryUrl = githubRepositoryUrl;
+    }
+
+    public String getDocumentationUrl() {
+        return documentationUrl;
+    }
+
+    public void setDocumentationUrl(String documentationUrl) {
+        this.documentationUrl = documentationUrl;
+    }
+
     public Set<String> getRequiredSkills() {
         return requiredSkills;
     }
 
     public Set<String> getRequiredRoles() {
         return requiredRoles;
+    }
+
+    public List<TeamRoleSlotDto> getRoleSlots() {
+        return roleSlots;
+    }
+
+    public void setRoleSlots(List<TeamRoleSlotDto> roleSlots) {
+        this.roleSlots = roleSlots;
     }
 
     public Integer getMemberCount() {

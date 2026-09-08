@@ -1,13 +1,27 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Users, ArrowRight, Trophy, Briefcase, Sparkles, Layers } from 'lucide-react';
-import Badge from '../common/Badge';
+import {
+  Users,
+  ArrowRight,
+  Trophy,
+  Github,
+  FileText,
+} from 'lucide-react';
 
 export const TeamCard = ({ team }) => {
   const leaderName = team.leaderName || team.leader?.name;
   const maxMembers = team.maxMembers || 4;
-  const memberCount = team.memberCount !== undefined ? team.memberCount : (team.members?.length || 1);
-  const status = team.status || (memberCount >= maxMembers ? 'FULL' : memberCount === maxMembers - 1 ? 'ALMOST_FULL' : 'OPEN');
+  const memberCount =
+    team.memberCount !== undefined
+      ? team.memberCount
+      : team.members?.length || 1;
+  const status =
+    team.status ||
+    (memberCount >= maxMembers
+      ? 'FULL'
+      : memberCount === maxMembers - 1
+      ? 'ALMOST_FULL'
+      : 'OPEN');
 
   const requiredSkills = Array.isArray(team.requiredSkills)
     ? team.requiredSkills
@@ -15,7 +29,12 @@ export const TeamCard = ({ team }) => {
     ? Array.from(team.requiredSkills)
     : [];
 
-  const requiredRoles = Array.isArray(team.requiredRoles)
+  const roleSlots = Array.isArray(team.roleSlots) ? team.roleSlots : [];
+  const openRoleSlots = roleSlots.filter(
+    (slot) => slot.availableSlots === undefined || slot.availableSlots > 0
+  );
+
+  const legacyRoles = Array.isArray(team.requiredRoles)
     ? team.requiredRoles
     : team.requiredRoles
     ? Array.from(team.requiredRoles)
@@ -24,27 +43,27 @@ export const TeamCard = ({ team }) => {
   const getStatusBadge = () => {
     if (status === 'FULL') {
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 shrink-0">
           FULL ({memberCount}/{maxMembers})
         </span>
       );
     }
     if (status === 'ALMOST_FULL') {
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0">
           ALMOST FULL ({memberCount}/{maxMembers})
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shrink-0">
         OPEN ({memberCount}/{maxMembers})
       </span>
     );
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-card-hover transition-all duration-150 group">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-card-hover transition-all duration-150 group h-full">
       <div>
         {/* Header with Name and Status */}
         <div className="flex items-start justify-between gap-3 mb-2">
@@ -55,7 +74,9 @@ export const TeamCard = ({ team }) => {
             {leaderName && (
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1 truncate">
                 <span className="text-slate-400 dark:text-slate-500">Led by</span>
-                <span className="font-medium text-slate-700 dark:text-slate-300">{leaderName}</span>
+                <span className="font-medium text-slate-700 dark:text-slate-300">
+                  {leaderName}
+                </span>
               </p>
             )}
           </div>
@@ -95,14 +116,44 @@ export const TeamCard = ({ team }) => {
           </div>
         )}
 
-        {/* Open Roles / Looking For */}
-        {requiredRoles.length > 0 && (
+        {/* Looking for Roles / Openings (Part 17) */}
+        {openRoleSlots.length > 0 ? (
           <div className="mb-3">
             <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
               Looking for:
             </span>
             <div className="flex flex-wrap gap-1">
-              {requiredRoles.map((role, idx) => (
+              {openRoleSlots.slice(0, 3).map((slot, idx) => {
+                const openings =
+                  slot.availableSlots !== undefined
+                    ? slot.availableSlots
+                    : slot.slotCount || 1;
+                return (
+                  <span
+                    key={`${slot.roleName}-${idx}`}
+                    className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 truncate"
+                  >
+                    <span>{slot.roleName}</span>
+                    <span className="text-slate-400 dark:text-slate-500 ml-1">
+                      — {openings} opening{openings > 1 ? 's' : ''}
+                    </span>
+                  </span>
+                );
+              })}
+              {openRoleSlots.length > 3 && (
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 self-center">
+                  +{openRoleSlots.length - 3} more
+                </span>
+              )}
+            </div>
+          </div>
+        ) : legacyRoles.length > 0 ? (
+          <div className="mb-3">
+            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
+              Looking for:
+            </span>
+            <div className="flex flex-wrap gap-1">
+              {legacyRoles.slice(0, 3).map((role, idx) => (
                 <span
                   key={`${role}-${idx}`}
                   className="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
@@ -112,11 +163,11 @@ export const TeamCard = ({ team }) => {
               ))}
             </div>
           </div>
-        )}
+        ) : null}
 
         {/* Required Skills */}
         {requiredSkills.length > 0 && (
-          <div className="mb-4">
+          <div className="mb-3">
             <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
               Required Skills:
             </span>
@@ -139,13 +190,33 @@ export const TeamCard = ({ team }) => {
         )}
       </div>
 
-      {/* Footer Info */}
+      {/* Footer Info & Compact Project Resource Icons (Part 24) */}
       <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-        <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
-          <Users className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-          <span className="font-medium">
-            {memberCount} / {maxMembers} members
-          </span>
+        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+          <div className="flex items-center gap-1">
+            <Users className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+            <span className="font-medium">
+              {memberCount}/{maxMembers}
+            </span>
+          </div>
+
+          {/* Compact resource indicators */}
+          {team.githubRepositoryUrl && (
+            <span
+              title="Has GitHub Repository"
+              className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            >
+              <Github className="w-3.5 h-3.5" />
+            </span>
+          )}
+          {team.documentationUrl && (
+            <span
+              title="Has Documentation"
+              className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            >
+              <FileText className="w-3.5 h-3.5" />
+            </span>
+          )}
         </div>
 
         <Link
@@ -161,5 +232,3 @@ export const TeamCard = ({ team }) => {
 };
 
 export default TeamCard;
-
-

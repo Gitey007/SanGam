@@ -12,17 +12,21 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.sangam.sangam.dto.CreateTeamRequest;
+import com.sangam.sangam.dto.RoleActionRequest;
 import com.sangam.sangam.dto.TeamInvitationResponse;
 import com.sangam.sangam.dto.TeamJoinRequestResponse;
 import com.sangam.sangam.dto.TeamMemberResponse;
 import com.sangam.sangam.dto.TeamResponse;
+import com.sangam.sangam.dto.UpdateTeamRequest;
 import com.sangam.sangam.entity.Team;
 import com.sangam.sangam.entity.TeamInvitation;
+import com.sangam.sangam.entity.User;
+import com.sangam.sangam.repository.UserRepository;
 import com.sangam.sangam.service.TeamService;
 
 @RestController
@@ -30,9 +34,11 @@ import com.sangam.sangam.service.TeamService;
 public class TeamController {
 
     private final TeamService teamService;
+    private final UserRepository userRepository;
 
-    public TeamController(TeamService teamService) {
+    public TeamController(TeamService teamService, UserRepository userRepository) {
         this.teamService = teamService;
+        this.userRepository = userRepository;
     }
 
     @PostMapping
@@ -50,7 +56,7 @@ public class TeamController {
     @PutMapping("/{id}")
     public ResponseEntity<TeamResponse> updateTeam(
             @PathVariable Long id,
-            @RequestBody com.sangam.sangam.dto.UpdateTeamRequest request,
+            @RequestBody UpdateTeamRequest request,
             Authentication authentication) {
 
         TeamResponse response = teamService.updateTeam(id, request, authentication != null ? authentication.getName() : null);
@@ -71,7 +77,6 @@ public class TeamController {
     }
 
     @GetMapping("/{teamId}/members")
-
     public ResponseEntity<List<TeamMemberResponse>> getTeamMembers(
             @PathVariable Long teamId) {
         return ResponseEntity.ok(
@@ -82,12 +87,21 @@ public class TeamController {
     public ResponseEntity<String> removeMember(
             @PathVariable Long teamId,
             @PathVariable Long memberId,
-            @RequestParam Long leaderId) {
+            @RequestParam(required = false) Long leaderId,
+            Authentication authentication) {
+
+        Long effectiveLeaderId = leaderId;
+        if (effectiveLeaderId == null && authentication != null) {
+            User user = userRepository.findByEmail(authentication.getName().trim().toLowerCase()).orElse(null);
+            if (user != null) {
+                effectiveLeaderId = user.getId();
+            }
+        }
 
         teamService.removeMember(
                 teamId,
                 memberId,
-                leaderId);
+                effectiveLeaderId);
 
         return ResponseEntity.ok(
                 "Member removed successfully");
@@ -96,22 +110,60 @@ public class TeamController {
     @DeleteMapping("/{teamId}/leave")
     public ResponseEntity<String> leaveTeam(
             @PathVariable Long teamId,
-            @RequestParam Long userId) {
+            @RequestParam(required = false) Long userId,
+            Authentication authentication) {
 
-        teamService.leaveTeam(teamId, userId);
+        Long effectiveUserId = userId;
+        if (effectiveUserId == null && authentication != null) {
+            User user = userRepository.findByEmail(authentication.getName().trim().toLowerCase()).orElse(null);
+            if (user != null) {
+                effectiveUserId = user.getId();
+            }
+        }
+
+        if (effectiveUserId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User ID is required");
+        }
+
+        teamService.leaveTeam(teamId, effectiveUserId);
 
         return ResponseEntity.ok(
                 "Left team successfully");
     }
 
-  
-
     @PostMapping("/{teamId}/join-request")
     public ResponseEntity<String> sendJoinRequest(
             @PathVariable Long teamId,
-            @RequestParam Long userId) {
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String requestedRole,
+            @RequestParam(required = false) String customRole,
+            @RequestBody(required = false) RoleActionRequest body,
+            Authentication authentication) {
 
-        teamService.sendJoinRequest(teamId, userId);
+        Long effectiveUserId = userId;
+        if (effectiveUserId == null && body != null && body.getUserId() != null) {
+            effectiveUserId = body.getUserId();
+        }
+        if (effectiveUserId == null && authentication != null) {
+            User user = userRepository.findByEmail(authentication.getName().trim().toLowerCase()).orElse(null);
+            if (user != null) {
+                effectiveUserId = user.getId();
+            }
+        }
+
+        if (effectiveUserId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User ID is required");
+        }
+
+        String effectiveRole = (requestedRole != null && !requestedRole.isBlank())
+                ? requestedRole
+                : (body != null ? body.getRequestedRole() : null);
+
+        String effectiveCustomRole = (customRole != null && !customRole.isBlank())
+                ? customRole
+                : (body != null ? body.getCustomRole() : null);
+
+        teamService.sendJoinRequest(teamId, effectiveUserId, effectiveRole, effectiveCustomRole);
 
         return ResponseEntity.ok(
                 "Join request sent successfully");
@@ -120,19 +172,51 @@ public class TeamController {
     @GetMapping("/{teamId}/join-requests")
     public ResponseEntity<List<TeamJoinRequestResponse>> getPendingJoinRequests(
             @PathVariable Long teamId,
-            @RequestParam(required = false) Long leaderId) {
+            @RequestParam(required = false) Long leaderId,
+            Authentication authentication) {
+
+        Long effectiveLeaderId = leaderId;
+        if (effectiveLeaderId == null && authentication != null) {
+            User user = userRepository.findByEmail(authentication.getName().trim().toLowerCase()).orElse(null);
+            if (user != null) {
+                effectiveLeaderId = user.getId();
+            }
+        }
 
         return ResponseEntity.ok(
-                teamService.getPendingJoinRequests(teamId, leaderId));
+                teamService.getPendingJoinRequests(teamId, effectiveLeaderId));
     }
 
     @PostMapping("/{teamId}/join-requests/{requestId}/accept")
     public ResponseEntity<String> acceptJoinRequest(
             @PathVariable Long teamId,
             @PathVariable Long requestId,
-            @RequestParam(required = false) Long leaderId) {
+            @RequestParam(required = false) Long leaderId,
+            @RequestParam(required = false) String selectedRole,
+            @RequestParam(required = false) String customRole,
+            @RequestBody(required = false) RoleActionRequest body,
+            Authentication authentication) {
 
-        teamService.acceptJoinRequest(teamId, requestId, leaderId);
+        Long effectiveLeaderId = leaderId;
+        if (effectiveLeaderId == null && body != null && body.getLeaderId() != null) {
+            effectiveLeaderId = body.getLeaderId();
+        }
+        if (effectiveLeaderId == null && authentication != null) {
+            User user = userRepository.findByEmail(authentication.getName().trim().toLowerCase()).orElse(null);
+            if (user != null) {
+                effectiveLeaderId = user.getId();
+            }
+        }
+
+        String effectiveRole = (selectedRole != null && !selectedRole.isBlank())
+                ? selectedRole
+                : (body != null ? body.getSelectedRole() : null);
+
+        String effectiveCustomRole = (customRole != null && !customRole.isBlank())
+                ? customRole
+                : (body != null ? body.getCustomRole() : null);
+
+        teamService.acceptJoinRequest(teamId, requestId, effectiveLeaderId, effectiveRole, effectiveCustomRole);
 
         return ResponseEntity.ok(
                 "Join request accepted successfully");
@@ -142,9 +226,18 @@ public class TeamController {
     public ResponseEntity<String> rejectJoinRequest(
             @PathVariable Long teamId,
             @PathVariable Long requestId,
-            @RequestParam(required = false) Long leaderId) {
+            @RequestParam(required = false) Long leaderId,
+            Authentication authentication) {
 
-        teamService.rejectJoinRequest(teamId, requestId, leaderId);
+        Long effectiveLeaderId = leaderId;
+        if (effectiveLeaderId == null && authentication != null) {
+            User user = userRepository.findByEmail(authentication.getName().trim().toLowerCase()).orElse(null);
+            if (user != null) {
+                effectiveLeaderId = user.getId();
+            }
+        }
+
+        teamService.rejectJoinRequest(teamId, requestId, effectiveLeaderId);
 
         return ResponseEntity.ok(
                 "Join request rejected successfully");
@@ -154,12 +247,25 @@ public class TeamController {
     public ResponseEntity<TeamInvitationResponse> inviteStudent(
             @PathVariable Long teamId,
             @PathVariable Long userId,
+            @RequestParam(required = false) String invitedRole,
+            @RequestParam(required = false) String customRole,
+            @RequestBody(required = false) RoleActionRequest body,
             Authentication authentication) {
+
+        String effectiveRole = (invitedRole != null && !invitedRole.isBlank())
+                ? invitedRole
+                : (body != null ? body.getInvitedRole() : null);
+
+        String effectiveCustomRole = (customRole != null && !customRole.isBlank())
+                ? customRole
+                : (body != null ? body.getCustomRole() : null);
 
         TeamInvitationResponse response = teamService.inviteStudent(
                 teamId,
                 userId,
-                authentication.getName());
+                authentication != null ? authentication.getName() : null,
+                effectiveRole,
+                effectiveCustomRole);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -169,9 +275,24 @@ public class TeamController {
     @PostMapping("/invitations/{invitationId}/accept")
     public ResponseEntity<String> acceptInvitation(
             @PathVariable Long invitationId,
+            @RequestParam(required = false) String selectedRole,
+            @RequestParam(required = false) String customRole,
+            @RequestBody(required = false) RoleActionRequest body,
             Authentication authentication) {
 
-        teamService.acceptInvitation(invitationId, authentication.getName());
+        String effectiveRole = (selectedRole != null && !selectedRole.isBlank())
+                ? selectedRole
+                : (body != null ? body.getSelectedRole() : null);
+
+        String effectiveCustomRole = (customRole != null && !customRole.isBlank())
+                ? customRole
+                : (body != null ? body.getCustomRole() : null);
+
+        teamService.acceptInvitation(
+                invitationId,
+                authentication != null ? authentication.getName() : null,
+                effectiveRole,
+                effectiveCustomRole);
 
         return ResponseEntity.ok(
                 "Invitation accepted successfully");
@@ -182,7 +303,7 @@ public class TeamController {
             @PathVariable Long invitationId,
             Authentication authentication) {
 
-        teamService.rejectInvitation(invitationId, authentication.getName());
+        teamService.rejectInvitation(invitationId, authentication != null ? authentication.getName() : null);
 
         return ResponseEntity.ok(
                 "Invitation rejected successfully");
@@ -194,7 +315,7 @@ public class TeamController {
             Authentication authentication) {
 
         return ResponseEntity.ok(
-                teamService.getMyInvitations(authentication.getName(), status));
+                teamService.getMyInvitations(authentication != null ? authentication.getName() : null, status));
     }
 
     @GetMapping("/{teamId}/invitations")
@@ -203,6 +324,6 @@ public class TeamController {
             Authentication authentication) {
 
         return ResponseEntity.ok(
-                teamService.getTeamInvitations(teamId, authentication.getName()));
+                teamService.getTeamInvitations(teamId, authentication != null ? authentication.getName() : null));
     }
 }

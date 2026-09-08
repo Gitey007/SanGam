@@ -3,7 +3,6 @@ package com.sangam.sangam.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -12,10 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.security.Principal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,7 +33,7 @@ import com.sangam.sangam.config.GlobalExceptionHandler;
 import com.sangam.sangam.dto.TeamInvitationResponse;
 import com.sangam.sangam.dto.TeamResponse;
 import com.sangam.sangam.dto.UpdateTeamRequest;
-import com.sangam.sangam.entity.TeamInvitation;
+import com.sangam.sangam.repository.UserRepository;
 import com.sangam.sangam.service.TeamService;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,6 +43,9 @@ class TeamControllerTest {
 
     @Mock
     private TeamService teamService;
+
+    @Mock
+    private UserRepository userRepository;
 
     @InjectMocks
     private TeamController teamController;
@@ -71,11 +71,10 @@ class TeamControllerTest {
                 LocalDateTime.now(), LocalDateTime.now(), (byte) 4
         );
 
-        when(teamService.inviteStudent(10L, 2L, "leader@college.edu")).thenReturn(response);
+        when(teamService.inviteStudent(eq(10L), eq(2L), eq("leader@college.edu"), any(), any())).thenReturn(response);
 
         mockMvc.perform(post("/api/teams/10/invite/2")
-                        .principal(leaderAuth)
-                        .contentType(MediaType.APPLICATION_JSON))
+                        .principal(leaderAuth))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.invitationId").value(100))
                 .andExpect(jsonPath("$.teamId").value(10))
@@ -87,19 +86,18 @@ class TeamControllerTest {
     @Test
     @DisplayName("POST /api/teams/{teamId}/invite/{userId} -> 403 Forbidden for non-leader")
     void testInviteStudentForbidden() throws Exception {
-        when(teamService.inviteStudent(10L, 2L, "student@college.edu"))
+        when(teamService.inviteStudent(eq(10L), eq(2L), eq("student@college.edu"), any(), any()))
                 .thenThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the team leader can invite members"));
 
         mockMvc.perform(post("/api/teams/10/invite/2")
-                        .principal(studentAuth)
-                        .contentType(MediaType.APPLICATION_JSON))
+                        .principal(studentAuth))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     @DisplayName("POST /api/teams/invitations/{invitationId}/accept -> 200 OK")
     void testAcceptInvitationSuccess() throws Exception {
-        doNothing().when(teamService).acceptInvitation(50L, "student@college.edu");
+        doNothing().when(teamService).acceptInvitation(eq(50L), eq("student@college.edu"), any(), any());
 
         mockMvc.perform(post("/api/teams/invitations/50/accept")
                         .principal(studentAuth))

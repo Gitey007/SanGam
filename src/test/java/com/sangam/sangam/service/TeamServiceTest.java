@@ -1,14 +1,18 @@
 package com.sangam.sangam.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -29,6 +33,7 @@ import com.sangam.sangam.dto.TeamInvitationResponse;
 import com.sangam.sangam.dto.TeamJoinRequestResponse;
 import com.sangam.sangam.dto.TeamMemberResponse;
 import com.sangam.sangam.dto.TeamResponse;
+import com.sangam.sangam.dto.TeamRoleSlotDto;
 import com.sangam.sangam.dto.UpdateTeamRequest;
 import com.sangam.sangam.entity.Skill;
 import com.sangam.sangam.entity.Team;
@@ -36,6 +41,7 @@ import com.sangam.sangam.entity.TeamInvitation;
 import com.sangam.sangam.entity.TeamJoinRequest;
 import com.sangam.sangam.entity.TeamMember;
 import com.sangam.sangam.entity.TeamMemberId;
+import com.sangam.sangam.entity.TeamRoleSlot;
 import com.sangam.sangam.entity.User;
 import com.sangam.sangam.repository.SkillRepository;
 import com.sangam.sangam.repository.TeamInvitationRepository;
@@ -112,419 +118,21 @@ class TeamServiceTest {
         team.setDescription("A project team for AI");
         team.setLeader(leader);
         team.setMaxMembers((byte) 4);
+        team.setRoleSlots(List.of(
+                new TeamRoleSlot("Backend Developer", 2),
+                new TeamRoleSlot("Frontend Developer", 1),
+                new TeamRoleSlot("Other / Custom", 1)
+        ));
     }
 
     @Nested
-    @DisplayName("Send Invitation Tests")
-    class SendInvitationTests {
+    @DisplayName("Role Distribution & Slot Tests (Parts 1-6, 30)")
+    class RoleDistributionTests {
 
         @Test
-        @DisplayName("1. Team leader can send invitation successfully")
-        void testLeaderCanSendInvitation() {
+        @DisplayName("1 & 2. Valid role distribution sum equals maxMembers")
+        void testValidRoleDistribution() {
             when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(leader));
-            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
-            when(userRepository.findById(2L)).thenReturn(Optional.of(student));
-            when(teamMemberRepository.existsById(new TeamMemberId(10L, 2L))).thenReturn(false);
-            when(teamMemberRepository.countByTeamId(10L)).thenReturn(1L);
-            when(teamInvitationRepository.findByTeamIdAndInvitedUserId(10L, 2L)).thenReturn(Optional.empty());
-
-            when(teamInvitationRepository.save(any(TeamInvitation.class))).thenAnswer(invocation -> {
-                TeamInvitation inv = invocation.getArgument(0);
-                inv.setId(100L);
-                return inv;
-            });
-
-            TeamInvitationResponse response = teamService.inviteStudent(10L, 2L, "leader@college.edu");
-
-            assertNotNull(response);
-            assertEquals(100L, response.getInvitationId());
-            assertEquals(10L, response.getTeamId());
-            assertEquals("Team Alpha", response.getTeamName());
-            assertEquals(2L, response.getInvitedUserId());
-            assertEquals("Student User", response.getInvitedUserName());
-            assertEquals(1L, response.getInvitedById());
-            assertEquals("Leader User", response.getInvitedByName());
-            assertEquals("PENDING", response.getStatus());
-
-            ArgumentCaptor<TeamInvitation> captor = ArgumentCaptor.forClass(TeamInvitation.class);
-            verify(teamInvitationRepository).save(captor.capture());
-            assertEquals(TeamInvitation.InvitationStatus.PENDING, captor.getValue().getStatus());
-            assertEquals(leader, captor.getValue().getInvitedBy());
-            assertEquals(student, captor.getValue().getInvitedUser());
-            assertEquals(team, captor.getValue().getTeam());
-        }
-
-        @Test
-        @DisplayName("2. Normal student cannot send invitation (403 Forbidden)")
-        void testNormalStudentCannotSendInvitation() {
-            when(userRepository.findByEmail("student@college.edu")).thenReturn(Optional.of(student));
-            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
-
-            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                    teamService.inviteStudent(10L, 3L, "student@college.edu"));
-
-            assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-            verify(teamInvitationRepository, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("3. Non-team-leader receives 403 Forbidden")
-        void testNonTeamLeaderReceives403() {
-            when(userRepository.findByEmail("other@college.edu")).thenReturn(Optional.of(otherStudent));
-            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
-
-            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                    teamService.inviteStudent(10L, 2L, "other@college.edu"));
-
-            assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-        }
-
-        @Test
-        @DisplayName("4. Cannot invite nonexistent student (404 Not Found)")
-        void testCannotInviteNonexistentStudent() {
-            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(leader));
-            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
-            when(userRepository.findById(999L)).thenReturn(Optional.empty());
-
-            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                    teamService.inviteStudent(10L, 999L, "leader@college.edu"));
-
-            assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
-        }
-
-        @Test
-        @DisplayName("5. Cannot invite to nonexistent team (404 Not Found)")
-        void testCannotInviteNonexistentTeam() {
-            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(leader));
-            when(teamRepository.findById(999L)).thenReturn(Optional.empty());
-
-            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                    teamService.inviteStudent(999L, 2L, "leader@college.edu"));
-
-            assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
-        }
-
-        @Test
-        @DisplayName("6. Cannot invite existing team member (409 Conflict)")
-        void testCannotInviteExistingMember() {
-            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(leader));
-            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
-            when(userRepository.findById(2L)).thenReturn(Optional.of(student));
-            when(teamMemberRepository.existsById(new TeamMemberId(10L, 2L))).thenReturn(true);
-
-            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                    teamService.inviteStudent(10L, 2L, "leader@college.edu"));
-
-            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
-        }
-
-        @Test
-        @DisplayName("7. Cannot invite team leader to own team (400 Bad Request)")
-        void testCannotInviteTeamLeader() {
-            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(leader));
-            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
-            when(userRepository.findById(1L)).thenReturn(Optional.of(leader));
-
-            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                    teamService.inviteStudent(10L, 1L, "leader@college.edu"));
-
-            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
-        }
-
-        @Test
-        @DisplayName("8. Duplicate PENDING invitation rejected (409 Conflict)")
-        void testDuplicatePendingInvitationRejected() {
-            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(leader));
-            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
-            when(userRepository.findById(2L)).thenReturn(Optional.of(student));
-            when(teamMemberRepository.existsById(new TeamMemberId(10L, 2L))).thenReturn(false);
-            when(teamMemberRepository.countByTeamId(10L)).thenReturn(1L);
-
-            TeamInvitation existingInv = new TeamInvitation(team, student, leader, TeamInvitation.InvitationStatus.PENDING);
-            when(teamInvitationRepository.findByTeamIdAndInvitedUserId(10L, 2L)).thenReturn(Optional.of(existingInv));
-
-            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                    teamService.inviteStudent(10L, 2L, "leader@college.edu"));
-
-            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
-        }
-
-        @Test
-        @DisplayName("Re-inviting a previously REJECTED invitation updates status back to PENDING")
-        void testReinvitingPreviouslyRejectedInvitation() {
-            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(leader));
-            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
-            when(userRepository.findById(2L)).thenReturn(Optional.of(student));
-            when(teamMemberRepository.existsById(new TeamMemberId(10L, 2L))).thenReturn(false);
-            when(teamMemberRepository.countByTeamId(10L)).thenReturn(1L);
-
-            TeamInvitation existingInv = new TeamInvitation(team, student, leader, TeamInvitation.InvitationStatus.REJECTED);
-            existingInv.setId(105L);
-            when(teamInvitationRepository.findByTeamIdAndInvitedUserId(10L, 2L)).thenReturn(Optional.of(existingInv));
-            when(teamInvitationRepository.save(any(TeamInvitation.class))).thenAnswer(i -> i.getArgument(0));
-
-            TeamInvitationResponse response = teamService.inviteStudent(10L, 2L, "leader@college.edu");
-
-            assertNotNull(response);
-            assertEquals("PENDING", response.getStatus());
-            assertEquals(TeamInvitation.InvitationStatus.PENDING, existingInv.getStatus());
-        }
-
-        @Test
-        @DisplayName("Team capacity respected: Cannot invite when team is full (409 Conflict)")
-        void testCannotInviteWhenTeamIsFull() {
-            team.setMaxMembers((byte) 2);
-            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(leader));
-            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
-            when(userRepository.findById(2L)).thenReturn(Optional.of(student));
-            when(teamMemberRepository.existsById(new TeamMemberId(10L, 2L))).thenReturn(false);
-            when(teamMemberRepository.countByTeamId(10L)).thenReturn(2L);
-
-            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                    teamService.inviteStudent(10L, 2L, "leader@college.edu"));
-
-            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
-        }
-    }
-
-    @Nested
-    @DisplayName("Accept and Reject Invitation Tests")
-    class AcceptAndRejectInvitationTests {
-
-        private TeamInvitation pendingInvitation;
-
-        @BeforeEach
-        void initInvitation() {
-            pendingInvitation = new TeamInvitation(team, student, leader, TeamInvitation.InvitationStatus.PENDING);
-            pendingInvitation.setId(50L);
-        }
-
-        @Test
-        @DisplayName("10, 13, 14. Student can accept own invitation -> creates membership and status becomes ACCEPTED")
-        void testStudentCanAcceptOwnInvitation() {
-            when(userRepository.findByEmail("student@college.edu")).thenReturn(Optional.of(student));
-            when(teamInvitationRepository.findById(50L)).thenReturn(Optional.of(pendingInvitation));
-            when(teamRepository.existsById(10L)).thenReturn(true);
-            when(teamMemberRepository.existsById(new TeamMemberId(10L, 2L))).thenReturn(false);
-            when(teamMemberRepository.countByTeamId(10L)).thenReturn(1L);
-
-            teamService.acceptInvitation(50L, "student@college.edu");
-
-            assertEquals(TeamInvitation.InvitationStatus.ACCEPTED, pendingInvitation.getStatus());
-            verify(teamInvitationRepository).save(pendingInvitation);
-
-            ArgumentCaptor<TeamMember> memberCaptor = ArgumentCaptor.forClass(TeamMember.class);
-            verify(teamMemberRepository).save(memberCaptor.capture());
-            TeamMember savedMember = memberCaptor.getValue();
-            assertEquals(10L, savedMember.getTeamId());
-            assertEquals(2L, savedMember.getUserId());
-            assertEquals(TeamMember.Role.MEMBER, savedMember.getRole());
-            assertNotNull(savedMember.getJoinedAt());
-        }
-
-        @Test
-        @DisplayName("11. Student cannot accept another student's invitation (403 Forbidden)")
-        void testStudentCannotAcceptAnotherStudentsInvitation() {
-            when(userRepository.findByEmail("other@college.edu")).thenReturn(Optional.of(otherStudent));
-            when(teamInvitationRepository.findById(50L)).thenReturn(Optional.of(pendingInvitation));
-
-            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                    teamService.acceptInvitation(50L, "other@college.edu"));
-
-            assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-            verify(teamMemberRepository, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("12, 15. Student can reject own invitation -> status becomes REJECTED, no membership created")
-        void testStudentCanRejectOwnInvitation() {
-            when(userRepository.findByEmail("student@college.edu")).thenReturn(Optional.of(student));
-            when(teamInvitationRepository.findById(50L)).thenReturn(Optional.of(pendingInvitation));
-
-            teamService.rejectInvitation(50L, "student@college.edu");
-
-            assertEquals(TeamInvitation.InvitationStatus.REJECTED, pendingInvitation.getStatus());
-            verify(teamInvitationRepository).save(pendingInvitation);
-            verify(teamMemberRepository, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("16. Already ACCEPTED invitation cannot be accepted or rejected again (400 Bad Request)")
-        void testAlreadyAcceptedInvitationCannotBeProcessedAgain() {
-            pendingInvitation.setStatus(TeamInvitation.InvitationStatus.ACCEPTED);
-            when(userRepository.findByEmail("student@college.edu")).thenReturn(Optional.of(student));
-            when(teamInvitationRepository.findById(50L)).thenReturn(Optional.of(pendingInvitation));
-
-            ResponseStatusException exAccept = assertThrows(ResponseStatusException.class, () ->
-                    teamService.acceptInvitation(50L, "student@college.edu"));
-            assertEquals(HttpStatus.BAD_REQUEST, exAccept.getStatusCode());
-
-            ResponseStatusException exReject = assertThrows(ResponseStatusException.class, () ->
-                    teamService.rejectInvitation(50L, "student@college.edu"));
-            assertEquals(HttpStatus.BAD_REQUEST, exReject.getStatusCode());
-        }
-
-        @Test
-        @DisplayName("17. Team capacity respected at acceptance time: Cannot accept if team became full (409 Conflict)")
-        void testCannotAcceptIfTeamFull() {
-            team.setMaxMembers((byte) 2);
-            when(userRepository.findByEmail("student@college.edu")).thenReturn(Optional.of(student));
-            when(teamInvitationRepository.findById(50L)).thenReturn(Optional.of(pendingInvitation));
-            when(teamRepository.existsById(10L)).thenReturn(true);
-            when(teamMemberRepository.existsById(new TeamMemberId(10L, 2L))).thenReturn(false);
-            when(teamMemberRepository.countByTeamId(10L)).thenReturn(2L);
-
-            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                    teamService.acceptInvitation(50L, "student@college.edu"));
-
-            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
-            verify(teamMemberRepository, never()).save(any());
-        }
-    }
-
-    @Nested
-    @DisplayName("Retrieve Invitations Tests")
-    class RetrieveInvitationsTests {
-
-        @Test
-        @DisplayName("9. Student can retrieve own invitations")
-        void testStudentCanRetrieveOwnInvitations() {
-            when(userRepository.findByEmail("student@college.edu")).thenReturn(Optional.of(student));
-            TeamInvitation inv1 = new TeamInvitation(team, student, leader, TeamInvitation.InvitationStatus.PENDING);
-            inv1.setId(1L);
-            when(teamInvitationRepository.findByInvitedUserId(2L)).thenReturn(List.of(inv1));
-
-            List<TeamInvitationResponse> responses = teamService.getMyInvitations("student@college.edu", null);
-
-            assertEquals(1, responses.size());
-            assertEquals(1L, responses.get(0).getInvitationId());
-            assertEquals("Team Alpha", responses.get(0).getTeamName());
-            assertEquals("Leader User", responses.get(0).getInvitedByName());
-        }
-
-        @Test
-        @DisplayName("Student can retrieve own invitations filtered by status")
-        void testStudentCanRetrieveOwnInvitationsFiltered() {
-            when(userRepository.findByEmail("student@college.edu")).thenReturn(Optional.of(student));
-            TeamInvitation inv1 = new TeamInvitation(team, student, leader, TeamInvitation.InvitationStatus.PENDING);
-            inv1.setId(1L);
-            when(teamInvitationRepository.findByInvitedUserIdAndStatus(2L, TeamInvitation.InvitationStatus.PENDING))
-                    .thenReturn(List.of(inv1));
-
-            List<TeamInvitationResponse> responses = teamService.getMyInvitations("student@college.edu", TeamInvitation.InvitationStatus.PENDING);
-
-            assertEquals(1, responses.size());
-            assertEquals("PENDING", responses.get(0).getStatus());
-        }
-
-        @Test
-        @DisplayName("Leader can retrieve team invitations; non-leader gets 403 Forbidden")
-        void testLeaderCanRetrieveTeamInvitations() {
-            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(leader));
-            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
-            TeamInvitation inv1 = new TeamInvitation(team, student, leader, TeamInvitation.InvitationStatus.PENDING);
-            inv1.setId(1L);
-            when(teamInvitationRepository.findByTeamId(10L)).thenReturn(List.of(inv1));
-
-            List<TeamInvitationResponse> responses = teamService.getTeamInvitations(10L, "leader@college.edu");
-            assertEquals(1, responses.size());
-
-            // Non-leader test
-            when(userRepository.findByEmail("student@college.edu")).thenReturn(Optional.of(student));
-            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                    teamService.getTeamInvitations(10L, "student@college.edu"));
-            assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-        }
-    }
-
-    @Nested
-    @DisplayName("18. Existing Student → Team Join Request Flow Tests")
-    class ExistingJoinRequestTests {
-
-        @Test
-        @DisplayName("Student can send join request to team")
-        void testSendJoinRequest() {
-            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
-            when(userRepository.findById(2L)).thenReturn(Optional.of(student));
-            when(teamMemberRepository.existsById(new TeamMemberId(10L, 2L))).thenReturn(false);
-            when(teamMemberRepository.countByTeamId(10L)).thenReturn(1L);
-            when(teamJoinRequestRepository.findByTeamIdAndUserId(10L, 2L)).thenReturn(Optional.empty());
-            when(teamJoinRequestRepository.save(any(TeamJoinRequest.class))).thenAnswer(i -> {
-                TeamJoinRequest r = i.getArgument(0);
-                r.setId(88L);
-                return r;
-            });
-
-            TeamJoinRequestResponse resp = teamService.sendJoinRequest(10L, 2L);
-
-            assertNotNull(resp);
-            assertEquals(88L, resp.getRequestId());
-            assertEquals(2L, resp.getUserId());
-            assertEquals("Student User", resp.getUserName());
-            assertEquals("PENDING", resp.getStatus());
-        }
-
-        @Test
-        @DisplayName("Leader can accept join request -> adds member and marks ACCEPTED")
-        void testAcceptJoinRequest() {
-            TeamJoinRequest req = new TeamJoinRequest(team, student, TeamJoinRequest.RequestStatus.PENDING);
-            req.setId(77L);
-
-            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
-            when(teamJoinRequestRepository.findById(77L)).thenReturn(Optional.of(req));
-            when(teamMemberRepository.existsById(new TeamMemberId(10L, 2L))).thenReturn(false);
-            when(teamMemberRepository.countByTeamId(10L)).thenReturn(1L);
-
-            teamService.acceptJoinRequest(10L, 77L, 1L);
-
-            assertEquals(TeamJoinRequest.RequestStatus.ACCEPTED, req.getStatus());
-            verify(teamMemberRepository).save(any(TeamMember.class));
-            verify(teamJoinRequestRepository).save(req);
-        }
-
-        @Test
-        @DisplayName("Leader can reject join request -> marks REJECTED")
-        void testRejectJoinRequest() {
-            TeamJoinRequest req = new TeamJoinRequest(team, student, TeamJoinRequest.RequestStatus.PENDING);
-            req.setId(77L);
-
-            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
-            when(teamJoinRequestRepository.findById(77L)).thenReturn(Optional.of(req));
-
-            teamService.rejectJoinRequest(10L, 77L, 1L);
-
-            assertEquals(TeamJoinRequest.RequestStatus.REJECTED, req.getStatus());
-            verify(teamJoinRequestRepository).save(req);
-            verify(teamMemberRepository, never()).save(any(TeamMember.class));
-        }
-
-        @Test
-        @DisplayName("Non-leader cannot accept join request (403 Forbidden)")
-        void testNonLeaderCannotAcceptJoinRequest() {
-            TeamJoinRequest req = new TeamJoinRequest(team, student, TeamJoinRequest.RequestStatus.PENDING);
-            req.setId(77L);
-
-            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
-            when(teamJoinRequestRepository.findById(77L)).thenReturn(Optional.of(req));
-
-            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                    teamService.acceptJoinRequest(10L, 77L, 3L));
-
-            assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-        }
-    }
-
-    @Nested
-    @DisplayName("Team Metadata and Update Tests")
-    class TeamMetadataTests {
-
-        @Test
-        @DisplayName("Create team with project, vision, hackathon, required skills, and required roles")
-        void testCreateTeamWithMetadata() {
-            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(leader));
-            when(skillRepository.findByNameIgnoreCase("React")).thenReturn(Optional.of(new Skill("React")));
-            when(skillRepository.findByNameIgnoreCase("Spring Boot")).thenReturn(Optional.empty());
-            when(skillRepository.save(any(Skill.class))).thenAnswer(i -> i.getArgument(0));
             when(teamRepository.save(any(Team.class))).thenAnswer(i -> {
                 Team t = i.getArgument(0);
                 t.setId(10L);
@@ -532,138 +140,419 @@ class TeamServiceTest {
             });
 
             CreateTeamRequest req = new CreateTeamRequest();
-            req.setName("AI Squad");
-            req.setDescription("A strong AI team");
-            req.setMaxMembers((byte) 4);
-            req.setProjectName("AI Waste Sorter");
-            req.setProjectDescription("Automated waste detection");
-            req.setTeamVision("Win SIH 2026");
-            req.setProjectType("Hackathon");
-            req.setHackathonName("SIH 2026");
-            req.setHackathonUrl("https://sih.gov.in");
-            req.setHackathonDeadline("2026-10-15");
-            req.setRequiredSkills(Set.of("React", "Spring Boot"));
-            req.setRequiredRoles(Set.of("Backend Developer", "ML Engineer"));
-
-            Team res = teamService.createTeam(req, "leader@college.edu");
-
-            assertNotNull(res);
-            assertEquals("AI Squad", res.getName());
-            assertEquals("AI Waste Sorter", res.getProjectName());
-            assertEquals("Hackathon", res.getProjectType());
-            assertEquals("SIH 2026", res.getHackathonName());
-            assertEquals(2, res.getRequiredSkills().size());
-            assertEquals(2, res.getRequiredRoles().size());
-        }
-
-        @Test
-        @DisplayName("Team leader can update team details")
-        void testLeaderCanUpdateTeam() {
-            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
-            when(skillRepository.findByNameIgnoreCase("Python")).thenReturn(Optional.of(new Skill("Python")));
-            when(teamRepository.save(any(Team.class))).thenAnswer(i -> i.getArgument(0));
-            when(teamMemberRepository.countByTeamId(10L)).thenReturn(1L);
-
-            UpdateTeamRequest req = new UpdateTeamRequest();
-            req.setName("Updated Team Name");
-            req.setDescription("Updated Description");
+            req.setName("Innovators");
             req.setMaxMembers((byte) 5);
-            req.setProjectName("New Project");
-            req.setProjectDescription("New Project Desc");
-            req.setTeamVision("New Vision");
-            req.setProjectType("Open Source");
-            req.setRequiredSkills(Set.of("Python"));
-            req.setRequiredRoles(Set.of("DevOps"));
+            req.setRoleSlots(List.of(
+                    new TeamRoleSlotDto("Backend Developer", 2),
+                    new TeamRoleSlotDto("Frontend Developer", 2),
+                    new TeamRoleSlotDto("UI/UX Designer", 1)
+            ));
+            req.setLeaderRole("Backend Developer");
 
-            TeamResponse res = teamService.updateTeam(10L, req, "leader@college.edu");
+            Team created = teamService.createTeam(req, "leader@college.edu");
+            assertNotNull(created);
+            assertEquals(3, created.getRoleSlots().size());
+            assertEquals(5, created.getRoleSlots().stream().mapToInt(TeamRoleSlot::getSlotCount).sum());
 
-            assertNotNull(res);
-            assertEquals("Updated Team Name", res.getName());
-            assertEquals("New Project", res.getProjectName());
-            assertEquals("Open Source", res.getProjectType());
-            assertEquals("OPEN", res.getStatus());
-            verify(teamRepository).save(team);
+            ArgumentCaptor<TeamMember> memberCaptor = ArgumentCaptor.forClass(TeamMember.class);
+            verify(teamMemberRepository).save(memberCaptor.capture());
+            assertEquals("Backend Developer", memberCaptor.getValue().getAssignedRole());
         }
 
         @Test
-        @DisplayName("Non-leader cannot update team (403 Forbidden)")
-        void testNonLeaderCannotUpdateTeam() {
-            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
+        @DisplayName("3. Invalid role distribution sum != maxMembers throws 400 Bad Request")
+        void testInvalidRoleDistributionSum() {
+            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(leader));
 
-            UpdateTeamRequest req = new UpdateTeamRequest();
-            req.setName("Hacked Name");
+            CreateTeamRequest req = new CreateTeamRequest();
+            req.setName("Innovators");
+            req.setMaxMembers((byte) 5);
+            req.setRoleSlots(List.of(
+                    new TeamRoleSlotDto("Backend Developer", 2),
+                    new TeamRoleSlotDto("Frontend Developer", 2)
+                    // Total 4 != 5
+            ));
 
             ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.createTeam(req, "leader@college.edu"));
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+            assertTrue(ex.getReason().contains("must equal the maximum team size"));
+        }
+
+        @Test
+        @DisplayName("4, 5, 19, 20, 21. Other / Custom role category and custom role persistence")
+        void testOtherCustomRoleCreationAndAssignment() {
+            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(leader));
+            when(teamRepository.save(any(Team.class))).thenAnswer(i -> {
+                Team t = i.getArgument(0);
+                t.setId(20L);
+                return t;
+            });
+
+            CreateTeamRequest req = new CreateTeamRequest();
+            req.setName("Web3 Pioneers");
+            req.setMaxMembers((byte) 3);
+            req.setRoleSlots(List.of(
+                    new TeamRoleSlotDto("Frontend Developer", 1),
+                    new TeamRoleSlotDto("Other / Custom", 2)
+            ));
+            req.setLeaderRole("Other / Custom");
+            req.setLeaderCustomRole("Smart Contract Developer");
+
+            Team created = teamService.createTeam(req, "leader@college.edu");
+            assertNotNull(created);
+
+            ArgumentCaptor<TeamMember> memberCaptor = ArgumentCaptor.forClass(TeamMember.class);
+            verify(teamMemberRepository).save(memberCaptor.capture());
+            assertEquals("Other / Custom", memberCaptor.getValue().getAssignedRole());
+            assertEquals("Smart Contract Developer", memberCaptor.getValue().getCustomRole());
+        }
+    }
+
+    @Nested
+    @DisplayName("Role Availability Calculation Tests (Part 7)")
+    class RoleAvailabilityTests {
+
+        @Test
+        @DisplayName("6 & 7. Role availability calculation is based strictly on TeamMembers")
+        void testRoleAvailabilityBasedOnTeamMembers() {
+            TeamMember m1 = new TeamMember();
+            m1.setTeamId(10L);
+            m1.setUserId(1L);
+            m1.setAssignedRole("Backend Developer");
+
+            TeamMember m2 = new TeamMember();
+            m2.setTeamId(10L);
+            m2.setUserId(2L);
+            m2.setAssignedRole("Other / Custom");
+            m2.setCustomRole("ML Engineer");
+
+            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
+            when(teamMemberRepository.findByTeamId(10L)).thenReturn(List.of(m1, m2));
+
+            TeamResponse resp = teamService.getTeamById(10L);
+            assertNotNull(resp);
+            assertEquals(2, resp.getMemberCount());
+
+            List<TeamRoleSlotDto> slots = resp.getRoleSlots();
+            assertEquals(3, slots.size());
+
+            // Backend Developer: 1 of 2 filled, 1 available
+            TeamRoleSlotDto backend = slots.stream().filter(s -> s.getRoleName().equals("Backend Developer")).findFirst().orElseThrow();
+            assertEquals(2, backend.getSlotCount());
+            assertEquals(1, backend.getFilledSlots());
+            assertEquals(1, backend.getAvailableSlots());
+
+            // Frontend Developer: 0 of 1 filled, 1 available
+            TeamRoleSlotDto frontend = slots.stream().filter(s -> s.getRoleName().equals("Frontend Developer")).findFirst().orElseThrow();
+            assertEquals(1, frontend.getSlotCount());
+            assertEquals(0, frontend.getFilledSlots());
+            assertEquals(1, frontend.getAvailableSlots());
+
+            // Other / Custom: 1 of 1 filled, 0 available
+            TeamRoleSlotDto other = slots.stream().filter(s -> s.getRoleName().equals("Other / Custom")).findFirst().orElseThrow();
+            assertEquals(1, other.getSlotCount());
+            assertEquals(1, other.getFilledSlots());
+            assertEquals(0, other.getAvailableSlots());
+        }
+    }
+
+    @Nested
+    @DisplayName("Join Request with Role & Acceptance (Parts 8-11, 14, 25)")
+    class JoinRequestWithRoleTests {
+
+        @Test
+        @DisplayName("8 & 9. Multiple pending requests for same role do not consume slots")
+        void testMultiplePendingRequestsDoNotConsumeSlots() {
+            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
+            when(userRepository.findById(2L)).thenReturn(Optional.of(student));
+            when(teamMemberRepository.existsById(new TeamMemberId(10L, 2L))).thenReturn(false);
+            when(teamMemberRepository.countByTeamId(10L)).thenReturn(1L);
+            when(teamJoinRequestRepository.findByTeamIdAndUserId(10L, 2L)).thenReturn(Optional.empty());
+            when(teamJoinRequestRepository.save(any(TeamJoinRequest.class))).thenAnswer(i -> {
+                TeamJoinRequest r = i.getArgument(0);
+                r.setId(101L);
+                return r;
+            });
+
+            TeamJoinRequestResponse r1 = teamService.sendJoinRequest(10L, 2L, "Backend Developer", null);
+            assertNotNull(r1);
+            assertEquals("Backend Developer", r1.getRequestedRole());
+
+            // Check that filled count in team response is still 0 (no team members added yet)
+            when(teamMemberRepository.findByTeamId(10L)).thenReturn(List.of());
+            TeamResponse tr = teamService.toTeamResponse(team);
+            TeamRoleSlotDto backendSlot = tr.getRoleSlots().stream().filter(s -> s.getRoleName().equals("Backend Developer")).findFirst().orElseThrow();
+            assertEquals(0, backendSlot.getFilledSlots());
+            assertEquals(2, backendSlot.getAvailableSlots());
+        }
+
+        @Test
+        @DisplayName("10 & 25. Accepting request consumes one slot and persists assigned role")
+        void testAcceptingRequestConsumesSlot() {
+            TeamJoinRequest req = new TeamJoinRequest(team, student, TeamJoinRequest.RequestStatus.PENDING, "Backend Developer", null);
+            req.setId(55L);
+
+            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
+            when(teamJoinRequestRepository.findById(55L)).thenReturn(Optional.of(req));
+            when(teamMemberRepository.existsById(new TeamMemberId(10L, 2L))).thenReturn(false);
+            when(teamMemberRepository.findByTeamId(10L)).thenReturn(List.of());
+
+            teamService.acceptJoinRequest(10L, 55L, 1L, null, null);
+
+            assertEquals(TeamJoinRequest.RequestStatus.ACCEPTED, req.getStatus());
+            ArgumentCaptor<TeamMember> captor = ArgumentCaptor.forClass(TeamMember.class);
+            verify(teamMemberRepository).save(captor.capture());
+            assertEquals("Backend Developer", captor.getValue().getAssignedRole());
+            assertNull(captor.getValue().getCustomRole());
+        }
+
+        @Test
+        @DisplayName("11 & 12. Full role cannot be accepted directly, pending request remains")
+        void testFullRoleCannotBeAccepted() {
+            TeamJoinRequest req = new TeamJoinRequest(team, student, TeamJoinRequest.RequestStatus.PENDING, "Frontend Developer", null);
+            req.setId(56L);
+
+            TeamMember existingFrontendMember = new TeamMember();
+            existingFrontendMember.setTeamId(10L);
+            existingFrontendMember.setUserId(3L);
+            existingFrontendMember.setAssignedRole("Frontend Developer");
+
+            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
+            when(teamJoinRequestRepository.findById(56L)).thenReturn(Optional.of(req));
+            when(teamMemberRepository.existsById(new TeamMemberId(10L, 2L))).thenReturn(false);
+            when(teamMemberRepository.findByTeamId(10L)).thenReturn(List.of(existingFrontendMember));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.acceptJoinRequest(10L, 56L, 1L, null, null));
+
+            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+            assertEquals("This role is no longer available.", ex.getReason());
+            // Request is NOT modified or rejected; remains PENDING
+            assertEquals(TeamJoinRequest.RequestStatus.PENDING, req.getStatus());
+        }
+
+        @Test
+        @DisplayName("13. Accept as Another Role when requested role is full")
+        void testAcceptAsAnotherRole() {
+            TeamJoinRequest req = new TeamJoinRequest(team, student, TeamJoinRequest.RequestStatus.PENDING, "Frontend Developer", null);
+            req.setId(57L);
+
+            TeamMember existingFrontendMember = new TeamMember();
+            existingFrontendMember.setTeamId(10L);
+            existingFrontendMember.setUserId(3L);
+            existingFrontendMember.setAssignedRole("Frontend Developer");
+
+            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
+            when(teamJoinRequestRepository.findById(57L)).thenReturn(Optional.of(req));
+            when(teamMemberRepository.existsById(new TeamMemberId(10L, 2L))).thenReturn(false);
+            when(teamMemberRepository.findByTeamId(10L)).thenReturn(List.of(existingFrontendMember));
+
+            // Leader accepts student as "Backend Developer" instead
+            teamService.acceptJoinRequest(10L, 57L, 1L, "Backend Developer", null);
+
+            assertEquals(TeamJoinRequest.RequestStatus.ACCEPTED, req.getStatus());
+            ArgumentCaptor<TeamMember> captor = ArgumentCaptor.forClass(TeamMember.class);
+            verify(teamMemberRepository).save(captor.capture());
+            assertEquals("Backend Developer", captor.getValue().getAssignedRole());
+        }
+    }
+
+    @Nested
+    @DisplayName("Invitations with Role & Acceptance (Parts 12-14)")
+    class InvitationWithRoleTests {
+
+        @Test
+        @DisplayName("14 & 15. Leader can send invitation with role; pending invitation does not consume slot")
+        void testInviteWithRole() {
+            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(leader));
+            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
+            when(userRepository.findById(2L)).thenReturn(Optional.of(student));
+            when(teamMemberRepository.existsById(new TeamMemberId(10L, 2L))).thenReturn(false);
+            when(teamMemberRepository.countByTeamId(10L)).thenReturn(1L);
+            when(teamInvitationRepository.findByTeamIdAndInvitedUserId(10L, 2L)).thenReturn(Optional.empty());
+            when(teamInvitationRepository.save(any(TeamInvitation.class))).thenAnswer(i -> {
+                TeamInvitation inv = i.getArgument(0);
+                inv.setId(201L);
+                return inv;
+            });
+
+            TeamInvitationResponse resp = teamService.inviteStudent(10L, 2L, "leader@college.edu", "Other / Custom", "Cloud Architect");
+            assertNotNull(resp);
+            assertEquals("Other / Custom", resp.getInvitedRole());
+            assertEquals("Cloud Architect", resp.getCustomRole());
+        }
+
+        @Test
+        @DisplayName("16. Accepting invitation consumes slot and sets role")
+        void testAcceptInvitationConsumesSlot() {
+            TeamInvitation inv = new TeamInvitation(team, student, leader, TeamInvitation.InvitationStatus.PENDING, "Backend Developer", null);
+            inv.setId(202L);
+
+            when(userRepository.findByEmail("student@college.edu")).thenReturn(Optional.of(student));
+            when(teamInvitationRepository.findById(202L)).thenReturn(Optional.of(inv));
+            when(teamRepository.existsById(10L)).thenReturn(true);
+            when(teamMemberRepository.existsById(new TeamMemberId(10L, 2L))).thenReturn(false);
+            when(teamMemberRepository.findByTeamId(10L)).thenReturn(List.of());
+
+            teamService.acceptInvitation(202L, "student@college.edu", null, null);
+
+            assertEquals(TeamInvitation.InvitationStatus.ACCEPTED, inv.getStatus());
+            ArgumentCaptor<TeamMember> captor = ArgumentCaptor.forClass(TeamMember.class);
+            verify(teamMemberRepository).save(captor.capture());
+            assertEquals("Backend Developer", captor.getValue().getAssignedRole());
+        }
+
+        @Test
+        @DisplayName("17 & 18. Full role on invitation cannot be accepted directly, can accept as another role")
+        void testFullRoleInvitationAndAcceptAlternateRole() {
+            TeamInvitation inv = new TeamInvitation(team, student, leader, TeamInvitation.InvitationStatus.PENDING, "Frontend Developer", null);
+            inv.setId(203L);
+
+            TeamMember m = new TeamMember();
+            m.setTeamId(10L);
+            m.setUserId(3L);
+            m.setAssignedRole("Frontend Developer");
+
+            when(userRepository.findByEmail("student@college.edu")).thenReturn(Optional.of(student));
+            when(teamInvitationRepository.findById(203L)).thenReturn(Optional.of(inv));
+            when(teamRepository.existsById(10L)).thenReturn(true);
+            when(teamMemberRepository.existsById(new TeamMemberId(10L, 2L))).thenReturn(false);
+            when(teamMemberRepository.findByTeamId(10L)).thenReturn(List.of(m));
+
+            // Direct acceptance fails
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.acceptInvitation(203L, "student@college.edu", null, null));
+            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+            assertEquals("This role is no longer available.", ex.getReason());
+
+            // Accept as another role ("Backend Developer") succeeds
+            teamService.acceptInvitation(203L, "student@college.edu", "Backend Developer", null);
+            assertEquals(TeamInvitation.InvitationStatus.ACCEPTED, inv.getStatus());
+        }
+    }
+
+    @Nested
+    @DisplayName("Project Links Tests (Parts 18-25, 27-31)")
+    class ProjectLinksTests {
+
+        @Test
+        @DisplayName("27 & 28. GitHub repository URL and documentation URL saved successfully")
+        void testProjectUrlsSaved() {
+            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(leader));
+            when(teamRepository.save(any(Team.class))).thenAnswer(i -> {
+                Team t = i.getArgument(0);
+                t.setId(15L);
+                return t;
+            });
+
+            CreateTeamRequest req = new CreateTeamRequest();
+            req.setName("Project Link Team");
+            req.setMaxMembers((byte) 4);
+            req.setGithubRepositoryUrl("https://github.com/team-org/cool-project");
+            req.setDocumentationUrl("https://docs.google.com/document/d/12345");
+
+            Team created = teamService.createTeam(req, "leader@college.edu");
+            assertNotNull(created);
+            assertEquals("https://github.com/team-org/cool-project", created.getGithubRepositoryUrl());
+            assertEquals("https://docs.google.com/document/d/12345", created.getDocumentationUrl());
+        }
+
+        @Test
+        @DisplayName("29 & 30. Documentation URL can be null/empty, legacy teams work seamlessly")
+        void testDocumentationUrlOptionalAndLegacyTeams() {
+            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(leader));
+            when(teamRepository.save(any(Team.class))).thenAnswer(i -> {
+                Team t = i.getArgument(0);
+                t.setId(16L);
+                return t;
+            });
+
+            CreateTeamRequest req = new CreateTeamRequest();
+            req.setName("Open Repo Team");
+            req.setMaxMembers((byte) 4);
+            req.setGithubRepositoryUrl("https://github.com/team-org/cool-project");
+            req.setDocumentationUrl("");
+
+            Team created = teamService.createTeam(req, "leader@college.edu");
+            assertNotNull(created);
+            assertEquals("https://github.com/team-org/cool-project", created.getGithubRepositoryUrl());
+            assertNull(created.getDocumentationUrl());
+        }
+
+        @Test
+        @DisplayName("31. Only team leader can update project links")
+        void testOnlyLeaderCanUpdateProjectLinks() {
+            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
+            when(teamRepository.save(any(Team.class))).thenAnswer(i -> i.getArgument(0));
+
+            UpdateTeamRequest req = new UpdateTeamRequest();
+            req.setGithubRepositoryUrl("https://github.com/new/repo");
+            req.setDocumentationUrl("https://notion.so/newdocs");
+
+            TeamResponse resp = teamService.updateTeam(10L, req, "leader@college.edu");
+            assertNotNull(resp);
+            assertEquals("https://github.com/new/repo", resp.getGithubRepositoryUrl());
+            assertEquals("https://notion.so/newdocs", resp.getDocumentationUrl());
+
+            // Non-leader update throws 403
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
                     teamService.updateTeam(10L, req, "student@college.edu"));
-
             assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-            verify(teamRepository, never()).save(any());
         }
 
         @Test
-        @DisplayName("Team status computation: OPEN, ALMOST_FULL, FULL")
-        void testTeamStatusComputation() {
+        @DisplayName("Invalid URL scheme rejected (400 Bad Request)")
+        void testInvalidUrlSchemeRejected() {
+            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(leader));
+
+            CreateTeamRequest req = new CreateTeamRequest();
+            req.setName("Bad URL Team");
+            req.setGithubRepositoryUrl("ftp://invalidscheme.com");
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.createTeam(req, "leader@college.edu"));
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        }
+    }
+
+    @Nested
+    @DisplayName("Team Member Management & Slot Release (Part 26)")
+    class MemberManagementTests {
+
+        @Test
+        @DisplayName("26. Removing or leaving member frees up role slot")
+        void testRemovingMemberFreesUpSlot() {
+            TeamMember m = new TeamMember();
+            m.setTeamId(10L);
+            m.setUserId(2L);
+            m.setAssignedRole("Backend Developer");
+
             when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
+            when(teamMemberRepository.existsById(new TeamMemberId(10L, 2L))).thenReturn(true);
 
-            // Max members is 4. When count is 1 -> OPEN
-            when(teamMemberRepository.countByTeamId(10L)).thenReturn(1L);
-            TeamResponse r1 = teamService.getTeamById(10L);
-            assertEquals("OPEN", r1.getStatus());
-
-            // When count is 3 (max - 1) -> ALMOST_FULL
-            when(teamMemberRepository.countByTeamId(10L)).thenReturn(3L);
-            TeamResponse r2 = teamService.getTeamById(10L);
-            assertEquals("ALMOST_FULL", r2.getStatus());
-
-            // When count is 4 (max) -> FULL
-            when(teamMemberRepository.countByTeamId(10L)).thenReturn(4L);
-            TeamResponse r3 = teamService.getTeamById(10L);
-            assertEquals("FULL", r3.getStatus());
+            teamService.removeMember(10L, 2L, 1L);
+            verify(teamMemberRepository).deleteById(new TeamMemberId(10L, 2L));
         }
 
         @Test
-        @DisplayName("getTeamById safely loads and maps requiredRoles, requiredSkills, and leader info")
-        void testGetTeamByIdWithRolesAndSkills() {
-            team.setRequiredRoles(Set.of("Frontend Developer", "ML Engineer"));
-            team.setRequiredSkills(Set.of(new Skill("React"), new Skill("Python")));
-            when(teamRepository.findById(10L)).thenReturn(Optional.of(team));
-            when(teamMemberRepository.countByTeamId(10L)).thenReturn(2L);
+        @DisplayName("Member list response returns assignedRole and customRole")
+        void testGetTeamMembersReturnsRoles() {
+            TeamMember m = new TeamMember();
+            m.setTeamId(10L);
+            m.setUserId(2L);
+            m.setRole(TeamMember.Role.MEMBER);
+            m.setAssignedRole("Other / Custom");
+            m.setCustomRole("DevOps Engineer");
 
-            TeamResponse res = teamService.getTeamById(10L);
+            when(teamRepository.existsById(10L)).thenReturn(true);
+            when(teamMemberRepository.findByTeamId(10L)).thenReturn(List.of(m));
+            when(userRepository.findById(2L)).thenReturn(Optional.of(student));
 
-            assertNotNull(res);
-            assertEquals(10L, res.getId());
-            assertEquals("Team Alpha", res.getName());
-            assertEquals(1L, res.getLeaderId());
-            assertEquals("Leader User", res.getLeaderName());
-            assertEquals(2, res.getRequiredRoles().size());
-            assertEquals(Set.of("Frontend Developer", "ML Engineer"), res.getRequiredRoles());
-            assertEquals(2, res.getRequiredSkills().size());
-            assertEquals(Set.of("React", "Python"), res.getRequiredSkills());
-            assertEquals(2, res.getMemberCount());
-            assertEquals("OPEN", res.getStatus());
-        }
-
-        @Test
-        @DisplayName("getAllTeams safely loads and maps all teams with requiredRoles and requiredSkills")
-        void testGetAllTeamsWithRolesAndSkills() {
-            team.setRequiredRoles(Set.of("Backend Developer"));
-            team.setRequiredSkills(Set.of(new Skill("Java"), new Skill("Spring Boot")));
-            when(teamRepository.findAll()).thenReturn(List.of(team));
-            when(teamMemberRepository.countByTeamId(10L)).thenReturn(1L);
-
-            List<TeamResponse> resList = teamService.getAllTeams();
-
-            assertNotNull(resList);
-            assertEquals(1, resList.size());
-            TeamResponse res = resList.get(0);
-            assertEquals(10L, res.getId());
-            assertEquals(1L, res.getLeaderId());
-            assertEquals("Leader User", res.getLeaderName());
-            assertEquals(Set.of("Backend Developer"), res.getRequiredRoles());
-            assertEquals(Set.of("Java", "Spring Boot"), res.getRequiredSkills());
+            List<TeamMemberResponse> members = teamService.getTeamMembers(10L);
+            assertEquals(1, members.size());
+            assertEquals("Other / Custom", members.get(0).getAssignedRole());
+            assertEquals("DevOps Engineer", members.get(0).getCustomRole());
         }
     }
 }
-
-

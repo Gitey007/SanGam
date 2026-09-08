@@ -33,6 +33,12 @@ public class TeamJoinRequest {
     @Column(nullable = false)
     private RequestStatus status = RequestStatus.PENDING;
 
+    @Column(name = "requested_role", length = 100)
+    private String requestedRole;
+
+    @Column(name = "custom_role", length = 150)
+    private String customRole;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -53,6 +59,16 @@ public class TeamJoinRequest {
         this.team = team;
         this.user = user;
         this.status = status;
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public TeamJoinRequest(Team team, User user, RequestStatus status, String requestedRole, String customRole) {
+        this.team = team;
+        this.user = user;
+        this.status = status;
+        this.requestedRole = requestedRole;
+        this.customRole = customRole;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
@@ -87,6 +103,22 @@ public class TeamJoinRequest {
 
     public void setStatus(RequestStatus status) {
         this.status = status;
+    }
+
+    public String getRequestedRole() {
+        return requestedRole;
+    }
+
+    public void setRequestedRole(String requestedRole) {
+        this.requestedRole = requestedRole;
+    }
+
+    public String getCustomRole() {
+        return customRole;
+    }
+
+    public void setCustomRole(String customRole) {
+        this.customRole = customRole;
     }
 
     public LocalDateTime getCreatedAt() {

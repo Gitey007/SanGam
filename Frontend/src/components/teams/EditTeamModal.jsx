@@ -3,11 +3,25 @@ import Modal from '../common/Modal';
 import Input from '../common/Input';
 import Select from '../common/Select';
 import Button from '../common/Button';
-import { PROJECT_TYPES, POPULAR_ROLES, POPULAR_SKILLS } from '../../utils/constants';
+import {
+  PROJECT_TYPES,
+  POPULAR_ROLES,
+  POPULAR_SKILLS,
+} from '../../utils/constants';
 import { teamApi } from '../../services/teamApi';
 import { useToast } from '../../context/ToastContext';
 import { extractErrorMessage } from '../../utils/helpers';
-import { Plus, X, Trophy } from 'lucide-react';
+import {
+  Plus,
+  Minus,
+  Trash2,
+  X,
+  Trophy,
+  Github,
+  FileText,
+  AlertCircle,
+  CheckCircle2,
+} from 'lucide-react';
 
 export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
   const { success, error: toastError } = useToast();
@@ -23,12 +37,17 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
     hackathonName: '',
     hackathonUrl: '',
     hackathonDeadline: '',
-    requiredSkills: [],
-    requiredRoles: [],
+    githubRepositoryUrl: '',
+    documentationUrl: '',
   });
 
+  const [roleSlots, setRoleSlots] = useState([]);
+  const [customRoleInput, setCustomRoleInput] = useState('');
+  const [customRoleSlots, setCustomRoleSlots] = useState(1);
+  const [showAddCustomRole, setShowAddCustomRole] = useState(false);
+
+  const [skills, setSkills] = useState([]);
   const [customSkill, setCustomSkill] = useState('');
-  const [customRole, setCustomRole] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -45,20 +64,45 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
         hackathonName: team.hackathonName || '',
         hackathonUrl: team.hackathonUrl || '',
         hackathonDeadline: team.hackathonDeadline || '',
-        requiredSkills: Array.isArray(team.requiredSkills)
+        githubRepositoryUrl: team.githubRepositoryUrl || '',
+        documentationUrl: team.documentationUrl || '',
+      });
+
+      if (team.roleSlots && team.roleSlots.length > 0) {
+        setRoleSlots(
+          team.roleSlots.map((r) => ({
+            roleName: r.roleName,
+            slotCount: r.slotCount || 1,
+          }))
+        );
+      } else if (team.requiredRoles && team.requiredRoles.length > 0) {
+        const rolesArr = Array.isArray(team.requiredRoles)
+          ? team.requiredRoles
+          : Array.from(team.requiredRoles);
+        setRoleSlots(rolesArr.map((r) => ({ roleName: r, slotCount: 1 })));
+      } else {
+        setRoleSlots([]);
+      }
+
+      setSkills(
+        Array.isArray(team.requiredSkills)
           ? team.requiredSkills
           : team.requiredSkills
           ? Array.from(team.requiredSkills)
-          : [],
-        requiredRoles: Array.isArray(team.requiredRoles)
-          ? team.requiredRoles
-          : team.requiredRoles
-          ? Array.from(team.requiredRoles)
-          : [],
-      });
+          : []
+      );
     }
     setErrors({});
+    setShowAddCustomRole(false);
   }, [team, isOpen]);
+
+  const totalRoleSlots = roleSlots.reduce(
+    (sum, r) => sum + (Number(r.slotCount) || 1),
+    0
+  );
+  const maxMembersNum = Number(formData.maxMembers) || 4;
+  const isSlotSumValid =
+    roleSlots.length === 0 || totalRoleSlots === maxMembersNum;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -68,50 +112,106 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
     }
   };
 
+  const handleMaxMembersChange = (newMax) => {
+    const minAllowed = team?.memberCount || 2;
+    const val = Math.max(minAllowed, Math.min(12, Number(newMax) || 2));
+    setFormData((prev) => ({ ...prev, maxMembers: val }));
+  };
+
+  const handleSlotCountChange = (index, delta) => {
+    setRoleSlots((prev) => {
+      const updated = [...prev];
+      const newCount = Math.max(1, (updated[index].slotCount || 1) + delta);
+      updated[index] = { ...updated[index], slotCount: newCount };
+      return updated;
+    });
+  };
+
+  const handleRemoveRoleSlot = (index) => {
+    setRoleSlots((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleAddPredefinedRole = (roleName) => {
+    if (!roleName) return;
+    const existingIndex = roleSlots.findIndex(
+      (r) => r.roleName.toLowerCase() === roleName.toLowerCase()
+    );
+    if (existingIndex >= 0) {
+      handleSlotCountChange(existingIndex, 1);
+    } else {
+      setRoleSlots((prev) => [
+        ...prev,
+        { roleName: roleName.trim(), slotCount: 1 },
+      ]);
+    }
+  };
+
+  const handleAddCustomRole = () => {
+    const trimmed = customRoleInput.trim();
+    if (!trimmed) return;
+    const slots = Math.max(1, Number(customRoleSlots) || 1);
+    const existingIndex = roleSlots.findIndex(
+      (r) => r.roleName.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (existingIndex >= 0) {
+      setRoleSlots((prev) => {
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          slotCount: updated[existingIndex].slotCount + slots,
+        };
+        return updated;
+      });
+    } else {
+      setRoleSlots((prev) => [
+        ...prev,
+        { roleName: trimmed, slotCount: slots },
+      ]);
+    }
+    setCustomRoleInput('');
+    setCustomRoleSlots(1);
+    setShowAddCustomRole(false);
+  };
+
   const handleAddSkill = (skillToAdd) => {
     const s = (skillToAdd || customSkill).trim();
     if (!s) return;
-    if (!formData.requiredSkills.includes(s)) {
-      setFormData((prev) => ({
-        ...prev,
-        requiredSkills: [...prev.requiredSkills, s],
-      }));
+    if (!skills.includes(s)) {
+      setSkills((prev) => [...prev, s]);
     }
     setCustomSkill('');
   };
 
   const handleRemoveSkill = (skillToRemove) => {
-    setFormData((prev) => ({
-      ...prev,
-      requiredSkills: prev.requiredSkills.filter((s) => s !== skillToRemove),
-    }));
-  };
-
-  const handleAddRole = (roleToAdd) => {
-    const r = (roleToAdd || customRole).trim();
-    if (!r) return;
-    if (!formData.requiredRoles.includes(r)) {
-      setFormData((prev) => ({
-        ...prev,
-        requiredRoles: [...prev.requiredRoles, r],
-      }));
-    }
-    setCustomRole('');
-  };
-
-  const handleRemoveRole = (roleToRemove) => {
-    setFormData((prev) => ({
-      ...prev,
-      requiredRoles: prev.requiredRoles.filter((r) => r !== roleToRemove),
-    }));
+    setSkills((prev) => prev.filter((s) => s !== skillToRemove));
   };
 
   const validate = () => {
     const errs = {};
     if (!formData.name.trim()) errs.name = 'Team name is required';
-    if (!formData.description.trim()) errs.description = 'Team description is required';
-    if (formData.maxMembers < 2) errs.maxMembers = 'Minimum 2 members required';
-    if (formData.maxMembers > 10) errs.maxMembers = 'Maximum 10 members allowed';
+    if (!formData.description.trim())
+      errs.description = 'Team description is required';
+
+    if (roleSlots.length > 0 && totalRoleSlots !== maxMembersNum) {
+      errs.roleSlots = `The sum of role slots (${totalRoleSlots}) must equal the max team size (${maxMembersNum}).`;
+    }
+
+    if (formData.githubRepositoryUrl?.trim()) {
+      const url = formData.githubRepositoryUrl.trim();
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        errs.githubRepositoryUrl =
+          'GitHub URL must start with https:// or http://';
+      }
+    }
+
+    if (formData.documentationUrl?.trim()) {
+      const url = formData.documentationUrl.trim();
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        errs.documentationUrl =
+          'Documentation URL must start with https:// or http://';
+      }
+    }
+
     return errs;
   };
 
@@ -125,7 +225,29 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
 
     setIsLoading(true);
     try {
-      const updated = await teamApi.updateTeam(team.id, formData);
+      const payload = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        maxMembers: maxMembersNum,
+        projectName: formData.projectName.trim() || undefined,
+        projectDescription: formData.projectDescription.trim() || undefined,
+        teamVision: formData.teamVision.trim() || undefined,
+        projectType: formData.projectType || undefined,
+        hackathonName: formData.hackathonName.trim() || undefined,
+        hackathonUrl: formData.hackathonUrl.trim() || undefined,
+        hackathonDeadline: formData.hackathonDeadline.trim() || undefined,
+        githubRepositoryUrl:
+          formData.githubRepositoryUrl.trim() || undefined,
+        documentationUrl: formData.documentationUrl.trim() || undefined,
+        requiredSkills: skills,
+        roleSlots: roleSlots.map((r) => ({
+          roleName: r.roleName.trim(),
+          slotCount: Number(r.slotCount) || 1,
+        })),
+        requiredRoles: roleSlots.map((r) => r.roleName.trim()),
+      };
+
+      const updated = await teamApi.updateTeam(team.id, payload);
       success('Team updated successfully');
       if (onTeamUpdated) {
         onTeamUpdated(updated);
@@ -144,19 +266,46 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
     value: pt,
   }));
 
+  const modalFooter = (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={onClose}
+        disabled={isLoading}
+        className="shrink-0"
+      >
+        Cancel
+      </Button>
+      <Button
+        type="button"
+        variant="primary"
+        size="sm"
+        onClick={handleSubmit}
+        isLoading={isLoading}
+        disabled={roleSlots.length > 0 && !isSlotSumValid}
+        className="shrink-0"
+      >
+        Save Changes
+      </Button>
+    </>
+  );
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title="Edit Team Details"
-      description="Update your project scope, vision, required skills, and open positions."
+      description="Update team size, role distribution, project resources, and technical requirements."
       maxWidth="max-w-2xl"
+      footer={modalFooter}
     >
-      <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+      <form onSubmit={handleSubmit} className="space-y-5">
         {/* Team Basic Info */}
         <div className="space-y-3">
           <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-            Team Details
+            1. Team Details
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-2">
@@ -170,44 +319,282 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
               />
             </div>
             <div>
-              <Input
-                label="Max Members"
-                name="maxMembers"
-                type="number"
-                min="2"
-                max="10"
-                value={formData.maxMembers}
-                onChange={handleChange}
-                error={errors.maxMembers}
-                required
-              />
+              <label
+                htmlFor="team-maxMembers-edit"
+                className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5"
+              >
+                Max Team Size
+              </label>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleMaxMembersChange(maxMembersNum - 1)
+                  }
+                  disabled={
+                    maxMembersNum <= (team?.memberCount || 2)
+                  }
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors"
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+                <input
+                  type="number"
+                  id="team-maxMembers-edit"
+                  name="maxMembers"
+                  min={team?.memberCount || 2}
+                  max="12"
+                  value={formData.maxMembers}
+                  onChange={(e) =>
+                    handleMaxMembersChange(e.target.value)
+                  }
+                  className="w-12 h-8 text-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleMaxMembersChange(maxMembersNum + 1)
+                  }
+                  disabled={maxMembersNum >= 12}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
 
           <div>
-            <label htmlFor="team-desc" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-              Team Summary / Description <span className="text-red-500">*</span>
+            <label
+              htmlFor="team-desc-edit"
+              className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5"
+            >
+              Team Summary / Description <span className="text-rose-500">*</span>
             </label>
             <textarea
-              id="team-desc"
+              id="team-desc-edit"
               name="description"
               rows={2}
               value={formData.description}
               onChange={handleChange}
               placeholder="A brief overview of your team and its culture..."
-              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 dark:hover:border-slate-600 resize-none"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 dark:hover:border-slate-600 resize-none"
               required
             />
             {errors.description && (
-              <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.description}</p>
+              <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">
+                {errors.description}
+              </p>
             )}
           </div>
         </div>
 
-        {/* Project & Vision */}
-        <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+        {/* Section 2: Role Distribution (Multiple Slots) */}
+        <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                2. Role Distribution
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Total slot capacity must equal max team size ({maxMembersNum}).
+              </p>
+            </div>
+
+            <div
+              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                isSlotSumValid
+                  ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                  : 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+              }`}
+            >
+              {isSlotSumValid ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              )}
+              <span>
+                Total Slots: {totalRoleSlots} / {maxMembersNum}{' '}
+                {isSlotSumValid ? '✓' : ''}
+              </span>
+            </div>
+          </div>
+
+          {errors.roleSlots && (
+            <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errors.roleSlots}</span>
+            </div>
+          )}
+
+          {/* Configured Role Slots List */}
+          <div className="space-y-1.5">
+            {roleSlots.map((slot, index) => (
+              <div
+                key={`${slot.roleName}-${index}`}
+                className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60"
+              >
+                <span className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                  {slot.roleName}
+                </span>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                    Slots:
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleSlotCountChange(index, -1)}
+                      disabled={slot.slotCount <= 1}
+                      className="w-6 h-6 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors"
+                    >
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <span className="w-6 text-center text-xs font-bold text-slate-900 dark:text-white">
+                      {slot.slotCount}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleSlotCountChange(index, 1)}
+                      className="w-6 h-6 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveRoleSlot(index)}
+                    className="p-1 rounded text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
+                    title="Remove role"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Quick Add Suggested Roles */}
+          <div className="flex flex-wrap gap-1 mt-1">
+            <span className="text-[11px] text-slate-400 dark:text-slate-500 mr-1">
+              Suggested:
+            </span>
+            {POPULAR_ROLES.map((role) => (
+              <button
+                key={role}
+                type="button"
+                onClick={() => handleAddPredefinedRole(role)}
+                className="px-2 py-0.5 rounded text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-brand-50 dark:hover:bg-brand-950/50 hover:text-brand-700 dark:hover:text-brand-300 text-slate-600 dark:text-slate-300 transition-colors"
+              >
+                + {role}
+              </button>
+            ))}
+          </div>
+
+          {/* Add Custom Role */}
+          {!showAddCustomRole ? (
+            <button
+              type="button"
+              onClick={() => setShowAddCustomRole(true)}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors pt-1"
+            >
+              <Plus className="w-3 h-3" />
+              <span>Add Custom Role</span>
+            </button>
+          ) : (
+            <div className="p-3 rounded-lg border border-brand-200 dark:border-brand-800 bg-brand-50/40 dark:bg-brand-950/30 space-y-2">
+              <span className="text-xs font-bold text-brand-900 dark:text-brand-200">
+                Add Custom Role
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="sm:col-span-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. Blockchain Developer"
+                    value={customRoleInput}
+                    onChange={(e) => setCustomRoleInput(e.target.value)}
+                    className="w-full h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    Slots:
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={customRoleSlots}
+                    onChange={(e) =>
+                      setCustomRoleSlots(
+                        Math.max(1, Number(e.target.value) || 1)
+                      )
+                    }
+                    className="w-12 h-8 text-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={() => {
+                    setShowAddCustomRole(false);
+                    setCustomRoleInput('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="xs"
+                  onClick={handleAddCustomRole}
+                  disabled={!customRoleInput.trim()}
+                >
+                  Add Role
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Section 3: Project Resources & Links (Team-Level) */}
+        <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
           <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-            Project & Vision
+            3. Project Resources & Links (Team-Level)
+          </h3>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="GitHub Repository"
+              name="githubRepositoryUrl"
+              placeholder="https://github.com/team-org/project"
+              value={formData.githubRepositoryUrl}
+              onChange={handleChange}
+              error={errors.githubRepositoryUrl}
+              leftIcon={Github}
+            />
+
+            <Input
+              label="Documentation / Resources (Optional)"
+              name="documentationUrl"
+              placeholder="https://docs.google.com/... or Notion"
+              value={formData.documentationUrl}
+              onChange={handleChange}
+              error={errors.documentationUrl}
+              leftIcon={FileText}
+            />
+          </div>
+        </div>
+
+        {/* Section 4: Project & Vision */}
+        <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+            4. Project & Vision
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -229,32 +616,38 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
           </div>
 
           <div>
-            <label htmlFor="project-desc" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+            <label
+              htmlFor="project-desc-edit"
+              className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5"
+            >
               Project Description
             </label>
             <textarea
-              id="project-desc"
+              id="project-desc-edit"
               name="projectDescription"
               rows={2}
               value={formData.projectDescription}
               onChange={handleChange}
               placeholder="What problem does your project solve and what are you building?"
-              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 dark:hover:border-slate-600 resize-none"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 dark:hover:border-slate-600 resize-none"
             />
           </div>
 
           <div>
-            <label htmlFor="team-vision" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+            <label
+              htmlFor="team-vision-edit"
+              className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5"
+            >
               Team Vision & Goals
             </label>
             <textarea
-              id="team-vision"
+              id="team-vision-edit"
               name="teamVision"
               rows={2}
               value={formData.teamVision}
               onChange={handleChange}
-              placeholder="What does the team want to accomplish together (e.g. Win Hackathon, publish paper, launch startup)?"
-              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 dark:hover:border-slate-600 resize-none"
+              placeholder="What does the team want to accomplish together?"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 dark:hover:border-slate-600 resize-none"
             />
           </div>
         </div>
@@ -294,73 +687,13 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
           </div>
         )}
 
-        {/* Required Roles / Positions */}
-        <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+        {/* Section 5: Required Skills */}
+        <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
           <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-            Required Roles / Open Positions
+            5. Required Technical Skills
           </label>
           <div className="flex flex-wrap gap-1.5 mb-2">
-            {formData.requiredRoles.map((role) => (
-              <span
-                key={role}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-brand-50 dark:bg-brand-950/50 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800"
-              >
-                <span>{role}</span>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveRole(role)}
-                  className="p-0.5 hover:bg-brand-200/60 dark:hover:bg-brand-800/60 rounded-full"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            ))}
-          </div>
-
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={customRole}
-              onChange={(e) => setCustomRole(e.target.value)}
-              placeholder="Add position (e.g. ML Engineer, DevOps)..."
-              className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => handleAddRole()}
-              leftIcon={Plus}
-            >
-              Add Role
-            </Button>
-          </div>
-
-          {/* Quick pick roles */}
-          <div className="flex flex-wrap gap-1 mt-1.5">
-            <span className="text-[11px] text-slate-400 dark:text-slate-500 mr-1">Popular:</span>
-            {POPULAR_ROLES.filter((pr) => !formData.requiredRoles.includes(pr))
-              .slice(0, 5)
-              .map((role) => (
-                <button
-                  key={role}
-                  type="button"
-                  onClick={() => handleAddRole(role)}
-                  className="px-2 py-0.5 rounded text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-brand-50 dark:hover:bg-slate-700 hover:text-brand-700 dark:hover:text-white text-slate-600 dark:text-slate-300"
-                >
-                  + {role}
-                </button>
-              ))}
-          </div>
-        </div>
-
-        {/* Required Skills */}
-        <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-          <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-            Required Technical Skills
-          </label>
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {formData.requiredSkills.map((skill) => (
+            {skills.map((skill) => (
               <span
                 key={skill}
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
@@ -383,7 +716,7 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
               value={customSkill}
               onChange={(e) => setCustomSkill(e.target.value)}
               placeholder="Add skill (e.g. React, Spring Boot, PyTorch)..."
-              className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
+              className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
             />
             <Button
               type="button"
@@ -396,42 +729,23 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
             </Button>
           </div>
 
-          {/* Quick pick skills */}
           <div className="flex flex-wrap gap-1 mt-1.5">
-            <span className="text-[11px] text-slate-400 dark:text-slate-500 mr-1">Popular:</span>
-            {POPULAR_SKILLS.filter((ps) => !formData.requiredSkills.includes(ps))
+            <span className="text-[11px] text-slate-400 dark:text-slate-500 mr-1">
+              Popular:
+            </span>
+            {POPULAR_SKILLS.filter((ps) => !skills.includes(ps))
               .slice(0, 6)
               .map((skill) => (
                 <button
                   key={skill}
                   type="button"
                   onClick={() => handleAddSkill(skill)}
-                  className="px-2 py-0.5 rounded text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-brand-50 dark:hover:bg-slate-700 hover:text-brand-700 dark:hover:text-white text-slate-600 dark:text-slate-300"
+                  className="px-2 py-0.5 rounded text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-brand-50 dark:hover:bg-brand-950/50 hover:text-brand-700 dark:hover:text-brand-300 text-slate-600 dark:text-slate-300 transition-colors"
                 >
                   + {skill}
                 </button>
               ))}
           </div>
-        </div>
-
-        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onClose}
-            disabled={isLoading}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            size="sm"
-            isLoading={isLoading}
-          >
-            Save Changes
-          </Button>
         </div>
       </form>
     </Modal>

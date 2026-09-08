@@ -8,6 +8,8 @@ public class TeamJoinRequestResponse {
     private Long userId;
     private String userName;
     private String status;
+    private String requestedRole;
+    private String customRole;
     private LocalDateTime createdAt;
 
     public TeamJoinRequestResponse() {
@@ -24,6 +26,24 @@ public class TeamJoinRequestResponse {
         this.userId = userId;
         this.userName = userName;
         this.status = status;
+        this.createdAt = createdAt;
+    }
+
+    public TeamJoinRequestResponse(
+            Long requestId,
+            Long userId,
+            String userName,
+            String status,
+            String requestedRole,
+            String customRole,
+            LocalDateTime createdAt) {
+
+        this.requestId = requestId;
+        this.userId = userId;
+        this.userName = userName;
+        this.status = status;
+        this.requestedRole = requestedRole;
+        this.customRole = customRole;
         this.createdAt = createdAt;
     }
 
@@ -57,6 +77,22 @@ public class TeamJoinRequestResponse {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getRequestedRole() {
+        return requestedRole;
+    }
+
+    public void setRequestedRole(String requestedRole) {
+        this.requestedRole = requestedRole;
+    }
+
+    public String getCustomRole() {
+        return customRole;
+    }
+
+    public void setCustomRole(String customRole) {
+        this.customRole = customRole;
     }
 
     public LocalDateTime getCreatedAt() {

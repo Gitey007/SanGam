@@ -1,5 +1,6 @@
 package com.sangam.sangam.dto;
 
+import java.util.List;
 import java.util.Set;
 
 public class CreateTeamRequest {
@@ -15,8 +16,13 @@ public class CreateTeamRequest {
     private String hackathonName;
     private String hackathonUrl;
     private String hackathonDeadline;
+    private String githubRepositoryUrl;
+    private String documentationUrl;
+    private String leaderRole;
+    private String leaderCustomRole;
     private Set<String> requiredSkills;
     private Set<String> requiredRoles;
+    private List<TeamRoleSlotDto> roleSlots;
 
     public CreateTeamRequest() {
     }
@@ -109,6 +115,38 @@ public class CreateTeamRequest {
         this.hackathonDeadline = hackathonDeadline;
     }
 
+    public String getGithubRepositoryUrl() {
+        return githubRepositoryUrl;
+    }
+
+    public void setGithubRepositoryUrl(String githubRepositoryUrl) {
+        this.githubRepositoryUrl = githubRepositoryUrl;
+    }
+
+    public String getDocumentationUrl() {
+        return documentationUrl;
+    }
+
+    public void setDocumentationUrl(String documentationUrl) {
+        this.documentationUrl = documentationUrl;
+    }
+
+    public String getLeaderRole() {
+        return leaderRole;
+    }
+
+    public void setLeaderRole(String leaderRole) {
+        this.leaderRole = leaderRole;
+    }
+
+    public String getLeaderCustomRole() {
+        return leaderCustomRole;
+    }
+
+    public void setLeaderCustomRole(String leaderCustomRole) {
+        this.leaderCustomRole = leaderCustomRole;
+    }
+
     public Set<String> getRequiredSkills() {
         return requiredSkills;
     }
@@ -123,5 +161,13 @@ public class CreateTeamRequest {
 
     public void setRequiredRoles(Set<String> requiredRoles) {
         this.requiredRoles = requiredRoles;
+    }
+
+    public List<TeamRoleSlotDto> getRoleSlots() {
+        return roleSlots;
+    }
+
+    public void setRoleSlots(List<TeamRoleSlotDto> roleSlots) {
+        this.roleSlots = roleSlots;
     }
 }

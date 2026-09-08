@@ -13,6 +13,8 @@ public class TeamInvitationResponse {
     private Long invitedUserId;
     private String invitedUserName;
     private String status;
+    private String invitedRole;
+    private String customRole;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private Byte maxMembers;
@@ -43,6 +45,38 @@ public class TeamInvitationResponse {
         this.invitedUserId = invitedUserId;
         this.invitedUserName = invitedUserName;
         this.status = status;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+        this.maxMembers = maxMembers;
+    }
+
+    public TeamInvitationResponse(
+            Long invitationId,
+            Long teamId,
+            String teamName,
+            String teamDescription,
+            Long invitedById,
+            String invitedByName,
+            Long invitedUserId,
+            String invitedUserName,
+            String status,
+            String invitedRole,
+            String customRole,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt,
+            Byte maxMembers) {
+
+        this.invitationId = invitationId;
+        this.teamId = teamId;
+        this.teamName = teamName;
+        this.teamDescription = teamDescription;
+        this.invitedById = invitedById;
+        this.invitedByName = invitedByName;
+        this.invitedUserId = invitedUserId;
+        this.invitedUserName = invitedUserName;
+        this.status = status;
+        this.invitedRole = invitedRole;
+        this.customRole = customRole;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
         this.maxMembers = maxMembers;
@@ -118,6 +152,22 @@ public class TeamInvitationResponse {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getInvitedRole() {
+        return invitedRole;
+    }
+
+    public void setInvitedRole(String invitedRole) {
+        this.invitedRole = invitedRole;
+    }
+
+    public String getCustomRole() {
+        return customRole;
+    }
+
+    public void setCustomRole(String customRole) {
+        this.customRole = customRole;
     }
 
     public LocalDateTime getCreatedAt() {
