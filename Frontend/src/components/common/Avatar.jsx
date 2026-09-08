@@ -22,14 +22,14 @@ export const Avatar = ({
       <img
         src={src}
         alt={name}
-        className={`rounded-full object-cover border border-slate-200 ${sizeStyles[size] || sizeStyles.md} ${className}`}
+        className={`rounded-full object-cover border border-slate-200 dark:border-slate-700 ${sizeStyles[size] || sizeStyles.md} ${className}`}
       />
     );
   }
 
   return (
     <div
-      className={`rounded-full flex items-center justify-center font-medium bg-slate-100 text-slate-700 border border-slate-200/80 shrink-0 select-none ${
+      className={`rounded-full flex items-center justify-center font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 shrink-0 select-none ${
         sizeStyles[size] || sizeStyles.md
       } ${className}`}
       title={name}

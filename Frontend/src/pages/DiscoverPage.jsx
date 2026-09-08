@@ -114,20 +114,20 @@ export const DiscoverPage = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <Compass className="w-5 h-5 text-slate-900" />
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+            <Compass className="w-5 h-5 text-slate-900 dark:text-slate-100" />
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
               Discover students
             </h1>
           </div>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             Find collaborators by college scope, academic year, and technical skills.
           </p>
         </div>
 
         {/* Real-time Result Badge */}
         {!isLoading && !error && (
-          <div className="text-xs font-medium text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-subtle self-start sm:self-auto">
-            Showing <span className="text-slate-900 font-semibold">{filteredStudents.length}</span> students
+          <div className="text-xs font-medium text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-lg shadow-subtle self-start sm:self-auto">
+            Showing <span className="text-slate-900 dark:text-slate-100 font-semibold">{filteredStudents.length}</span> students
           </div>
         )}
       </div>

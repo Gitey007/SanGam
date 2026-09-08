@@ -311,4 +311,138 @@ class AuthServiceTest {
         verify(emailOtpService, never()).consumeVerifiedEmail(anyString());
         verify(userRepository, never()).save(any(User.class));
     }
+
+    // =========================================================================
+    // Forgot Password Tests
+    // =========================================================================
+
+    @Test
+    void testForgotPasswordSendOtp_ExistingUser_SendsOtpAndReturnsGenericMessage() {
+        String email = "student@college.edu";
+        when(userRepository.existsByEmail(email)).thenReturn(true);
+
+        String message = authService.forgotPasswordSendOtp(email);
+
+        assertEquals("If the email is registered, an OTP has been sent.", message);
+        verify(emailOtpService).sendOtp(email);
+    }
+
+    @Test
+    void testForgotPasswordSendOtp_NonExistingUser_ReturnsGenericMessageWithoutSendingOtp() {
+        String email = "unknown@college.edu";
+        when(userRepository.existsByEmail(email)).thenReturn(false);
+
+        String message = authService.forgotPasswordSendOtp(email);
+
+        assertEquals("If the email is registered, an OTP has been sent.", message);
+        verify(emailOtpService, never()).sendOtp(anyString());
+    }
+
+    @Test
+    void testForgotPasswordVerifyOtp_ValidOtp_ReturnsTrue() {
+        String email = "student@college.edu";
+        String otp = "123456";
+        when(emailOtpService.verifyOtp(email, otp)).thenReturn(true);
+
+        boolean result = authService.forgotPasswordVerifyOtp(email, otp);
+
+        assertTrue(result);
+        verify(emailOtpService).verifyOtp(email, otp);
+    }
+
+    @Test
+    void testForgotPasswordVerifyOtp_InvalidOtp_ReturnsFalse() {
+        String email = "student@college.edu";
+        String otp = "999999";
+        when(emailOtpService.verifyOtp(email, otp)).thenReturn(false);
+
+        boolean result = authService.forgotPasswordVerifyOtp(email, otp);
+
+        assertFalse(result);
+        verify(emailOtpService).verifyOtp(email, otp);
+    }
+
+    @Test
+    void testForgotPasswordReset_Success_UpdatesPasswordHash() {
+        String email = "student@college.edu";
+        com.sangam.sangam.dto.ResetPasswordRequest request =
+                new com.sangam.sangam.dto.ResetPasswordRequest(email, "newSecretPass123");
+
+        User user = new User();
+        user.setId(1L);
+        user.setEmail(email);
+        user.setPasswordHash("oldPasswordHash");
+
+        when(emailOtpService.consumeVerifiedEmail(email)).thenReturn(true);
+        when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
+        when(passwordEncoder.encode("newSecretPass123")).thenReturn("newPasswordHash");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        authService.forgotPasswordReset(request);
+
+        assertEquals("newPasswordHash", user.getPasswordHash());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void testForgotPasswordReset_UnverifiedOtp_Fails() {
+        String email = "student@college.edu";
+        com.sangam.sangam.dto.ResetPasswordRequest request =
+                new com.sangam.sangam.dto.ResetPasswordRequest(email, "newSecretPass123");
+
+        when(emailOtpService.consumeVerifiedEmail(email)).thenReturn(false);
+
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> {
+                    authService.forgotPasswordReset(request);
+                });
+
+        assertTrue(ex.getReason().contains("OTP verification required"));
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void testForgotPasswordReset_ShortPassword_Fails() {
+        String email = "student@college.edu";
+        com.sangam.sangam.dto.ResetPasswordRequest request =
+                new com.sangam.sangam.dto.ResetPasswordRequest(email, "short");
+
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> {
+                    authService.forgotPasswordReset(request);
+                });
+
+        assertTrue(ex.getReason().contains("at least 8 characters"));
+        verify(emailOtpService, never()).consumeVerifiedEmail(anyString());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void testForgotPasswordReset_SingleUse_CannotReuseSession() {
+        String email = "student@college.edu";
+        com.sangam.sangam.dto.ResetPasswordRequest request =
+                new com.sangam.sangam.dto.ResetPasswordRequest(email, "newSecretPass123");
+
+        User user = new User();
+        user.setId(1L);
+        user.setEmail(email);
+        user.setPasswordHash("oldPasswordHash");
+
+        when(emailOtpService.consumeVerifiedEmail(email)).thenReturn(true, false);
+        when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
+        when(passwordEncoder.encode("newSecretPass123")).thenReturn("newPasswordHash");
+
+        // First reset succeeds
+        authService.forgotPasswordReset(request);
+        assertEquals("newPasswordHash", user.getPasswordHash());
+
+        // Second reset attempt with same request fails because verified state was consumed
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> {
+                    authService.forgotPasswordReset(request);
+                });
+
+        assertTrue(ex.getReason().contains("OTP verification required"));
+    }
 }
+

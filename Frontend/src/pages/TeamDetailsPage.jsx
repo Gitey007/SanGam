@@ -342,15 +342,15 @@ export const TeamDetailsPage = () => {
   if (isLoading) {
     return (
       <div className="max-w-4xl mx-auto py-8">
-        <div className="bg-white rounded-xl border border-slate-200 p-8 animate-pulse space-y-5">
-          <div className="h-4 w-24 bg-slate-200 rounded" />
-          <div className="h-7 w-56 bg-slate-200 rounded" />
-          <div className="h-4 w-80 bg-slate-100 rounded" />
-          <div className="h-24 bg-slate-50 rounded-lg mt-6" />
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 animate-pulse space-y-5">
+          <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded" />
+          <div className="h-7 w-56 bg-slate-200 dark:bg-slate-700 rounded" />
+          <div className="h-4 w-80 bg-slate-100 dark:bg-slate-700 rounded" />
+          <div className="h-24 bg-slate-50 dark:bg-slate-700/50 rounded-lg mt-6" />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
-            <div className="h-16 bg-slate-100 rounded-lg" />
-            <div className="h-16 bg-slate-100 rounded-lg" />
+            <div className="h-16 bg-slate-100 dark:bg-slate-700/50 rounded-lg" />
+            <div className="h-16 bg-slate-100 dark:bg-slate-700/50 rounded-lg" />
           </div>
         </div>
       </div>
@@ -381,45 +381,45 @@ export const TeamDetailsPage = () => {
       <button
         type="button"
         onClick={() => navigate('/teams')}
-        className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
       >
         <ArrowLeft className="w-3.5 h-3.5" />
         <span>Back to Teams</span>
       </button>
 
       {/* Main Team Card */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-subtle">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-subtle">
         {/* Header */}
-        <div className="p-6 md:p-8 border-b border-slate-100">
+        <div className="p-6 md:p-8 border-b border-slate-100 dark:border-slate-700">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2.5 mb-2">
-                <h1 className="text-xl md:text-2xl font-bold text-slate-900 break-words">
+                <h1 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white break-words">
                   {team.name}
                 </h1>
 
                 {isTeamFull ? (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
                     FULL ({members.length}/{team.maxMembers})
                   </span>
                 ) : isAlmostFull ? (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
                     ALMOST FULL (1 slot left)
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
                     OPEN ({members.length}/{team.maxMembers} Members)
                   </span>
                 )}
               </div>
 
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Led by{' '}
-                <span className="font-semibold text-slate-800">
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
                   {team.leaderName || 'Team Leader'}
                 </span>
                 {team.createdAt && (
-                  <span className="ml-2 text-slate-400">
+                  <span className="ml-2 text-slate-400 dark:text-slate-500">
                     • Created {new Date(team.createdAt).toLocaleDateString()}
                   </span>
                 )}
@@ -458,7 +458,7 @@ export const TeamDetailsPage = () => {
                     size="sm"
                     onClick={handleLeaveTeam}
                     isLoading={isLeaving}
-                    className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+                    className="text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 border-rose-200 dark:border-rose-800"
                     leftIcon={LogOut}
                   >
                     Leave Team
@@ -491,22 +491,22 @@ export const TeamDetailsPage = () => {
         <div className="p-6 md:p-8 space-y-7">
           {/* Section: Project Overview */}
           {(team.projectName || team.description) && (
-            <section className="p-5 rounded-xl bg-slate-50/70 border border-slate-200/80">
+            <section className="p-5 rounded-xl bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700">
               <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="flex items-center gap-2">
                   <Briefcase className="w-4 h-4 text-brand-500" />
-                  <h2 className="text-sm font-bold text-slate-900">
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white">
                     {team.projectName || 'Project Details'}
                   </h2>
                 </div>
                 {team.projectType && (
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-brand-50 text-brand-700 border border-brand-200">
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800">
                     {team.projectType}
                   </span>
                 )}
               </div>
 
-              <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
+              <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
                 {team.projectDescription || team.description}
               </p>
             </section>
@@ -521,7 +521,7 @@ export const TeamDetailsPage = () => {
                   Team Vision & Ambition
                 </h2>
               </div>
-              <p className="text-xs text-slate-700 leading-relaxed max-w-3xl whitespace-pre-line bg-white p-4 rounded-xl border border-slate-200">
+              <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed max-w-3xl whitespace-pre-line bg-white dark:bg-slate-800/80 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
                 {team.teamVision}
               </p>
             </section>
@@ -529,11 +529,11 @@ export const TeamDetailsPage = () => {
 
           {/* Section: Hackathon Details */}
           {(team.hackathonName || team.projectType === 'Hackathon') && team.hackathonName && (
-            <section className="bg-amber-50/60 border border-amber-200/70 rounded-xl p-4">
+            <section className="bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/60 rounded-xl p-4">
               <div className="flex items-center justify-between gap-3 mb-2">
                 <div className="flex items-center gap-2">
-                  <Trophy className="w-4 h-4 text-amber-600" />
-                  <h3 className="text-xs font-bold text-amber-900 uppercase tracking-wider">
+                  <Trophy className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <h3 className="text-xs font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider">
                     Target Hackathon: {team.hackathonName}
                   </h3>
                 </div>
@@ -542,7 +542,7 @@ export const TeamDetailsPage = () => {
                     href={team.hackathonUrl.startsWith('http') ? team.hackathonUrl : `https://${team.hackathonUrl}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs font-medium text-amber-900 hover:text-amber-700 underline"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-amber-900 dark:text-amber-300 hover:text-amber-700 dark:hover:text-amber-200 underline"
                   >
                     <span>Event Website</span>
                     <ExternalLink className="w-3 h-3" />
@@ -550,7 +550,7 @@ export const TeamDetailsPage = () => {
                 )}
               </div>
               {team.hackathonDeadline && (
-                <p className="text-xs text-amber-800">
+                <p className="text-xs text-amber-800 dark:text-amber-400">
                   <span className="font-semibold">Submission Deadline / Date:</span> {team.hackathonDeadline}
                 </p>
               )}
@@ -562,10 +562,10 @@ export const TeamDetailsPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Open Positions */}
               {team.requiredRoles && team.requiredRoles.length > 0 && (
-                <div className="p-4 rounded-xl border border-slate-200 bg-white">
+                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60">
                   <div className="flex items-center gap-2 mb-2.5">
                     <UserPlus className="w-3.5 h-3.5 text-brand-500" />
-                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                       Open Positions / Looking For
                     </h3>
                   </div>
@@ -573,7 +573,7 @@ export const TeamDetailsPage = () => {
                     {(Array.isArray(team.requiredRoles) ? team.requiredRoles : Array.from(team.requiredRoles)).map((role, idx) => (
                       <span
                         key={`${role}-${idx}`}
-                        className="px-2.5 py-1 rounded-md text-xs font-medium bg-brand-50 text-brand-700 border border-brand-200"
+                        className="px-2.5 py-1 rounded-md text-xs font-medium bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800"
                       >
                         {role}
                       </span>
@@ -584,10 +584,10 @@ export const TeamDetailsPage = () => {
 
               {/* Required Skills */}
               {team.requiredSkills && team.requiredSkills.length > 0 && (
-                <div className="p-4 rounded-xl border border-slate-200 bg-white">
+                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60">
                   <div className="flex items-center gap-2 mb-2.5">
                     <Code2 className="w-3.5 h-3.5 text-brand-500" />
-                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                       Required Technical Skills
                     </h3>
                   </div>
@@ -595,7 +595,7 @@ export const TeamDetailsPage = () => {
                     {(Array.isArray(team.requiredSkills) ? team.requiredSkills : Array.from(team.requiredSkills)).map((skill, idx) => (
                       <span
                         key={`${skill}-${idx}`}
-                        className="px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-800 border border-slate-200"
+                        className="px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-600"
                       >
                         {skill}
                       </span>
@@ -610,7 +610,7 @@ export const TeamDetailsPage = () => {
           <section>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-slate-500" />
+                <Users className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                 <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                   Team Members ({members.length} / {team.maxMembers || 4})
                 </h2>
@@ -618,8 +618,8 @@ export const TeamDetailsPage = () => {
             </div>
 
             {members.length === 0 ? (
-              <div className="p-5 rounded-lg border border-slate-200 bg-slate-50 text-center">
-                <p className="text-xs text-slate-500">
+              <div className="p-5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-center">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   No team members found.
                 </p>
               </div>
@@ -635,22 +635,22 @@ export const TeamDetailsPage = () => {
                   return (
                     <div
                       key={member.userId}
-                      className="flex items-center justify-between gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50"
+                      className="flex items-center justify-between gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50"
                     >
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <Avatar name={member.name} size="sm" />
 
                         <div className="flex-1 min-w-0">
-                          <span className="text-xs font-semibold text-slate-900 block truncate">
+                          <span className="text-xs font-semibold text-slate-900 dark:text-white block truncate">
                             {member.name}
                           </span>
 
-                          <span className="text-[11px] text-slate-500 block truncate">
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
                             {isMemberLeader ? 'Team Leader' : 'Member'}
                           </span>
 
                           {member.branch && (
-                            <span className="text-[10px] text-slate-400 block truncate mt-0.5">
+                            <span className="text-[10px] text-slate-400 dark:text-slate-500 block truncate mt-0.5">
                               {member.branch}
                               {member.year ? ` • Year ${member.year}` : ''}
                             </span>
@@ -660,7 +660,7 @@ export const TeamDetailsPage = () => {
 
                       <div className="shrink-0 flex items-center gap-2">
                         {isMemberLeader && (
-                          <ShieldCheck className="w-4 h-4 text-slate-500" />
+                          <ShieldCheck className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                         )}
 
                         {canLeaderRemove && (
@@ -671,7 +671,7 @@ export const TeamDetailsPage = () => {
                             }
                             disabled={actionLoading[`member-${member.userId}`]}
                             title="Remove member"
-                            className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-50"
+                            className="p-1 rounded text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors disabled:opacity-50"
                           >
                             <UserMinus className="w-4 h-4" />
                           </button>
@@ -688,10 +688,10 @@ export const TeamDetailsPage = () => {
           {isLeader && (
             <>
               {/* Sent Invitations Section */}
-              <section className="pt-6 border-t border-slate-100">
+              <section className="pt-6 border-t border-slate-100 dark:border-slate-700">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-slate-500" />
+                    <Mail className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                     <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                       Sent Invitations
                     </h2>
@@ -717,8 +717,8 @@ export const TeamDetailsPage = () => {
                 </div>
 
                 {sentInvitations.length === 0 ? (
-                  <div className="p-4 rounded-lg border border-slate-200 bg-slate-50 text-center">
-                    <p className="text-xs text-slate-500">
+                  <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-center">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       No invitations sent yet. Click "Invite Student" to invite teammates.
                     </p>
                   </div>
@@ -727,16 +727,16 @@ export const TeamDetailsPage = () => {
                     {sentInvitations.map((inv) => (
                       <div
                         key={inv.invitationId}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-slate-200 bg-slate-50"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50"
                       >
                         <div className="flex items-center gap-3">
                           <Avatar name={inv.invitedUserName} size="sm" />
                           <div>
-                            <span className="text-xs font-semibold text-slate-900 block">
+                            <span className="text-xs font-semibold text-slate-900 dark:text-white block">
                               {inv.invitedUserName}
                             </span>
-                            <span className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                              <Clock className="w-3 h-3 text-slate-400" />
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
+                              <Clock className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                               Sent {inv.createdAt
                                 ? new Date(inv.createdAt).toLocaleDateString(
                                     undefined,
@@ -787,10 +787,10 @@ export const TeamDetailsPage = () => {
               </section>
 
               {/* Pending Join Requests Section */}
-              <section className="pt-6 border-t border-slate-100">
+              <section className="pt-6 border-t border-slate-100 dark:border-slate-700">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <UserCheck className="w-4 h-4 text-slate-500" />
+                    <UserCheck className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                     <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                       Pending Join Requests
                     </h2>
@@ -806,8 +806,8 @@ export const TeamDetailsPage = () => {
                 </div>
 
                 {joinRequests.length === 0 ? (
-                  <div className="p-4 rounded-lg border border-slate-200 bg-slate-50 text-center">
-                    <p className="text-xs text-slate-500">
+                  <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-center">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       No pending join requests at this time.
                     </p>
                   </div>
@@ -816,16 +816,16 @@ export const TeamDetailsPage = () => {
                     {joinRequests.map((req) => (
                       <div
                         key={req.requestId}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-50/80 transition-colors"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-50/80 dark:hover:bg-slate-700/50 transition-colors"
                       >
                         <div className="flex items-center gap-3">
                           <Avatar name={req.userName} size="sm" />
                           <div>
-                            <span className="text-xs font-semibold text-slate-900 block">
+                            <span className="text-xs font-semibold text-slate-900 dark:text-white block">
                               {req.userName}
                             </span>
-                            <span className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                              <Clock className="w-3 h-3 text-slate-400" />
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
+                              <Clock className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                               {req.createdAt
                                 ? new Date(req.createdAt).toLocaleDateString(
                                     undefined,
@@ -865,7 +865,7 @@ export const TeamDetailsPage = () => {
                             }
                             disabled={Boolean(actionLoading[req.requestId])}
                             leftIcon={X}
-                            className="text-slate-600 hover:text-rose-600 hover:border-rose-200"
+                            className="text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-200 dark:hover:border-rose-800"
                           >
                             Reject
                           </Button>
@@ -882,11 +882,11 @@ export const TeamDetailsPage = () => {
 
       {/* Pending request notice for applicant */}
       {joinRequestSent && !isMember && !isLeader && (
-        <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
-          <p className="text-xs font-medium text-slate-800">
+        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+          <p className="text-xs font-medium text-slate-800 dark:text-slate-200">
             Your join request has been sent.
           </p>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             The team leader must accept your request before you become a
             member of this team.
           </p>
@@ -910,22 +910,22 @@ export const TeamDetailsPage = () => {
               placeholder="Search by name, skill, college, or branch..."
               value={inviteSearchTerm}
               onChange={(e) => setInviteSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-slate-200 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+              className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-hidden focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
             />
           </div>
 
           {/* Warning if full */}
           {isTeamFull && (
-            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 flex items-center gap-2 text-amber-800 text-xs">
+            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-center gap-2 text-amber-800 dark:text-amber-300 text-xs">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>This team is currently full ({members.length}/{team.maxMembers}). You cannot invite more members.</span>
             </div>
           )}
 
           {/* Student list */}
-          <div className="max-h-80 overflow-y-auto space-y-2 divide-y divide-slate-100 pr-1">
+          <div className="max-h-80 overflow-y-auto space-y-2 divide-y divide-slate-100 dark:divide-slate-700 pr-1">
             {isLoadingStudents ? (
-              <div className="py-8 text-center text-xs text-slate-500 animate-pulse">
+              <div className="py-8 text-center text-xs text-slate-500 dark:text-slate-400 animate-pulse">
                 Loading students...
               </div>
             ) : (() => {
@@ -948,7 +948,7 @@ export const TeamDetailsPage = () => {
 
               if (eligibleStudents.length === 0) {
                 return (
-                  <div className="py-8 text-center text-xs text-slate-500">
+                  <div className="py-8 text-center text-xs text-slate-500 dark:text-slate-400">
                     {inviteSearchTerm ? 'No students matching your search query.' : 'No other students available to invite.'}
                   </div>
                 );
@@ -974,14 +974,14 @@ export const TeamDetailsPage = () => {
                       <Avatar name={student.name} size="sm" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-slate-900 truncate">
+                          <span className="text-xs font-semibold text-slate-900 dark:text-white truncate">
                             {student.name}
                           </span>
-                          <span className="text-[10px] text-slate-400 truncate">
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
                             {formatBranchYear(student.branch, student.year)}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
                           {formatCollege(student.college)}
                         </p>
                         {skillsList.length > 0 && (
@@ -989,7 +989,7 @@ export const TeamDetailsPage = () => {
                             {skillsList.slice(0, 3).map((sk) => (
                               <span
                                 key={sk}
-                                className="px-1.5 py-0.2 rounded text-[10px] bg-slate-100 text-slate-600 font-medium"
+                                className="px-1.5 py-0.2 rounded text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium"
                               >
                                 {sk}
                               </span>

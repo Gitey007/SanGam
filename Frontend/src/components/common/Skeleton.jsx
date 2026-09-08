@@ -3,7 +3,7 @@ import React from 'react';
 export const Skeleton = ({ className = '', ...props }) => {
   return (
     <div
-      className={`animate-pulse bg-slate-200/70 rounded ${className}`}
+      className={`animate-pulse bg-slate-200/70 dark:bg-slate-800/70 rounded ${className}`}
       {...props}
     />
   );
@@ -11,7 +11,7 @@ export const Skeleton = ({ className = '', ...props }) => {
 
 export const StudentCardSkeleton = () => {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5 flex flex-col justify-between h-full">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between h-full">
       <div>
         {/* Header */}
         <div className="flex items-start gap-3.5 mb-4">
@@ -38,7 +38,7 @@ export const StudentCardSkeleton = () => {
       </div>
 
       {/* Footer link */}
-      <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+      <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
         <Skeleton className="h-3 w-20" />
         <Skeleton className="h-3 w-16" />
       </div>
@@ -49,8 +49,8 @@ export const StudentCardSkeleton = () => {
 export const ProfileSkeleton = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="bg-white rounded-xl border border-slate-200 p-6 md:p-8">
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-6 pb-6 border-b border-slate-100">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 md:p-8">
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-6 pb-6 border-b border-slate-100 dark:border-slate-800">
           <Skeleton className="w-20 h-20 rounded-full shrink-0" />
           <div className="space-y-2 flex-1">
             <Skeleton className="h-6 w-48" />
@@ -65,7 +65,7 @@ export const ProfileSkeleton = () => {
           <Skeleton className="h-3.5 w-5/6" />
         </div>
 
-        <div className="pt-6 border-t border-slate-100 space-y-3">
+        <div className="pt-6 border-t border-slate-100 dark:border-slate-800 space-y-3">
           <Skeleton className="h-4 w-20" />
           <div className="flex flex-wrap gap-2">
             <Skeleton className="h-6 w-16 rounded-md" />

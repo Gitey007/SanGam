@@ -158,4 +158,56 @@ public class AuthService {
                 });
     }
 
+    public String forgotPasswordSendOtp(String email) {
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Email is required");
+        }
+
+        String normalizedEmail = email.trim().toLowerCase();
+
+        // Check if user exists. If yes, send OTP. If not, do NOT reveal existence (generic response).
+        if (userRepository.existsByEmail(normalizedEmail)) {
+            emailOtpService.sendOtp(normalizedEmail);
+        }
+
+        return "If the email is registered, an OTP has been sent.";
+    }
+
+    public boolean forgotPasswordVerifyOtp(String email, String otp) {
+        if (email == null || otp == null || email.isBlank() || otp.isBlank()) {
+            return false;
+        }
+
+        String normalizedEmail = email.trim().toLowerCase();
+        return emailOtpService.verifyOtp(normalizedEmail, otp);
+    }
+
+    public void forgotPasswordReset(com.sangam.sangam.dto.ResetPasswordRequest request) {
+        if (request == null || request.getEmail() == null || request.getEmail().isBlank()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Email is required");
+        }
+
+        if (request.getNewPassword() == null || request.getNewPassword().length() < 8) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Password must be at least 8 characters");
+        }
+
+        String normalizedEmail = request.getEmail().trim().toLowerCase();
+
+        // Server-side verification check: consume the verified state (single-use)
+        boolean isVerified = emailOtpService.consumeVerifiedEmail(normalizedEmail);
+        if (!isVerified) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "OTP verification required or reset session expired. Please verify OTP again.");
+        }
+
+        User user = userRepository.findByEmail(normalizedEmail)
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.BAD_REQUEST, "Unable to reset password"));
+
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+    }
 }

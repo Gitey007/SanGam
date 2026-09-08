@@ -53,7 +53,7 @@ export const authApi = {
    * Verify Email OTP
    * POST /api/auth/email/verify-otp
    * Request body: { email, otp }
-   * Response: { token, id, name, email, college, branch, year }
+   * Response: { message, email, verified }
    */
   async verifyOtp(email, otp) {
     const payload = {
@@ -61,6 +61,47 @@ export const authApi = {
       otp: otp?.trim(),
     };
     const response = await api.post('/api/auth/email/verify-otp', payload);
+    return response.data;
+  },
+
+  /**
+   * Forgot Password - Request OTP
+   * POST /api/auth/forgot-password/send-otp
+   * Request body: { email }
+   */
+  async forgotPasswordSendOtp(email) {
+    const payload = {
+      email: email?.trim(),
+    };
+    const response = await api.post('/api/auth/forgot-password/send-otp', payload);
+    return response.data;
+  },
+
+  /**
+   * Forgot Password - Verify OTP
+   * POST /api/auth/forgot-password/verify-otp
+   * Request body: { email, otp }
+   */
+  async forgotPasswordVerifyOtp(email, otp) {
+    const payload = {
+      email: email?.trim(),
+      otp: otp?.trim(),
+    };
+    const response = await api.post('/api/auth/forgot-password/verify-otp', payload);
+    return response.data;
+  },
+
+  /**
+   * Forgot Password - Reset Password
+   * POST /api/auth/forgot-password/reset
+   * Request body: { email, newPassword }
+   */
+  async forgotPasswordReset(email, newPassword) {
+    const payload = {
+      email: email?.trim(),
+      newPassword,
+    };
+    const response = await api.post('/api/auth/forgot-password/reset', payload);
     return response.data;
   },
 };

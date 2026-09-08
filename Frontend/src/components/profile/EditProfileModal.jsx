@@ -117,7 +117,7 @@ export const EditProfileModal = ({ isOpen, onClose, userProfile, onProfileUpdate
       <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
         {/* Basic Info */}
         <div className="space-y-3">
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+          <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
             Basic Information
           </h3>
           <Input
@@ -163,7 +163,7 @@ export const EditProfileModal = ({ isOpen, onClose, userProfile, onProfileUpdate
           <div>
             <label
               htmlFor="profile-bio"
-              className="block text-xs font-medium text-slate-700 mb-1.5"
+              className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5"
             >
               Bio / About You
             </label>
@@ -174,17 +174,17 @@ export const EditProfileModal = ({ isOpen, onClose, userProfile, onProfileUpdate
               value={formData.bio}
               onChange={handleChange}
               placeholder="Tell others what you love building, your background, and passions..."
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 resize-none"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 dark:hover:border-slate-600 resize-none"
             />
           </div>
         </div>
 
         {/* Looking For / Availability */}
-        <div className="space-y-2 pt-2 border-t border-slate-100">
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+        <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
             Interested In / Looking For
           </h3>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Select the types of collaborations you are open to:
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
@@ -197,8 +197,8 @@ export const EditProfileModal = ({ isOpen, onClose, userProfile, onProfileUpdate
                   onClick={() => handleLookingForToggle(option)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium border text-left transition-all ${
                     isSelected
-                      ? 'bg-brand-50 border-brand-500 text-brand-700 font-semibold shadow-xs'
-                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                      ? 'bg-brand-50 dark:bg-brand-950/50 border-brand-500 text-brand-700 dark:text-brand-300 font-semibold shadow-xs'
+                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
                   }`}
                 >
                   {isSelected ? '✓ ' : '+ '} {option}
@@ -209,8 +209,8 @@ export const EditProfileModal = ({ isOpen, onClose, userProfile, onProfileUpdate
         </div>
 
         {/* External Profiles & Links */}
-        <div className="space-y-3 pt-2 border-t border-slate-100">
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+        <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
             External Profiles & Links
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -252,7 +252,7 @@ export const EditProfileModal = ({ isOpen, onClose, userProfile, onProfileUpdate
           />
         </div>
 
-        <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
           <Button
             type="button"
             variant="outline"

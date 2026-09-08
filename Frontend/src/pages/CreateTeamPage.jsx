@@ -125,18 +125,18 @@ export const CreateTeamPage = () => {
       {/* Back button */}
       <button
         onClick={() => navigate("/teams")}
-        className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
       >
         <ArrowLeft className="w-3.5 h-3.5" />
         <span>Back to Teams</span>
       </button>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-6 md:p-8 shadow-subtle">
-        <div className="border-b border-slate-100 pb-5 mb-6">
-          <h1 className="text-xl font-bold text-slate-900">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 md:p-8 shadow-subtle">
+        <div className="border-b border-slate-100 dark:border-slate-700 pb-5 mb-6">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">
             Create a New Team
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Specify project requirements, required roles, and recruit student collaborators.
           </p>
         </div>
@@ -162,7 +162,7 @@ export const CreateTeamPage = () => {
               <div>
                 <label
                   htmlFor="team-maxMembers"
-                  className="block text-xs font-medium text-slate-700 mb-1.5"
+                  className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5"
                 >
                   Max Team Size
                 </label>
@@ -171,7 +171,7 @@ export const CreateTeamPage = () => {
                   name="maxMembers"
                   value={formData.maxMembers}
                   onChange={handleChange}
-                  className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
+                  className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
                 >
                   <option value="2">2 Members</option>
                   <option value="3">3 Members</option>
@@ -186,7 +186,7 @@ export const CreateTeamPage = () => {
             <div>
               <label
                 htmlFor="team-description"
-                className="block text-xs font-medium text-slate-700 mb-1.5"
+                className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5"
               >
                 Team Summary / Description <span className="text-rose-500">*</span>
               </label>
@@ -197,7 +197,7 @@ export const CreateTeamPage = () => {
                 value={formData.description}
                 onChange={handleChange}
                 placeholder="Describe your team's objective, work style, and environment..."
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 resize-none"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 dark:hover:border-slate-600 resize-none"
               />
               {errors.description && (
                 <p className="mt-1.5 text-xs text-rose-600 font-normal">
@@ -208,7 +208,7 @@ export const CreateTeamPage = () => {
           </div>
 
           {/* Section 2: Project & Vision */}
-          <div className="space-y-4 pt-4 border-t border-slate-100">
+          <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-700">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
               2. Project Details & Vision
             </h2>
@@ -234,7 +234,7 @@ export const CreateTeamPage = () => {
             <div>
               <label
                 htmlFor="project-description"
-                className="block text-xs font-medium text-slate-700 mb-1.5"
+                className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5"
               >
                 Project Description
               </label>
@@ -245,14 +245,14 @@ export const CreateTeamPage = () => {
                 value={formData.projectDescription}
                 onChange={handleChange}
                 placeholder="What problem does this project solve? What is the core architecture or idea?"
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 resize-none"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 dark:hover:border-slate-600 resize-none"
               />
             </div>
 
             <div>
               <label
                 htmlFor="team-vision"
-                className="block text-xs font-medium text-slate-700 mb-1.5"
+                className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5"
               >
                 Team Vision
               </label>
@@ -263,17 +263,17 @@ export const CreateTeamPage = () => {
                 value={formData.teamVision}
                 onChange={handleChange}
                 placeholder="What do you want to accomplish together (e.g. win SIH 2026, submit research paper, launch beta)?"
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 resize-none"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 dark:hover:border-slate-600 resize-none"
               />
             </div>
           </div>
 
           {/* Section 3: Hackathon Details (Conditional) */}
           {formData.projectType === "Hackathon" && (
-            <div className="space-y-3 pt-4 border-t border-slate-100 bg-amber-50/50 p-4 rounded-xl border border-amber-200/70">
+            <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-700 bg-amber-50/50 dark:bg-amber-950/30 p-4 rounded-xl border border-amber-200/70 dark:border-amber-800/60">
               <div className="flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-amber-600" />
-                <h2 className="text-xs font-bold text-amber-900 uppercase tracking-wider">
+                <Trophy className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <h2 className="text-xs font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider">
                   3. Hackathon Details
                 </h2>
               </div>
@@ -306,11 +306,11 @@ export const CreateTeamPage = () => {
           )}
 
           {/* Section 4: Required Roles / Positions */}
-          <div className="space-y-3 pt-4 border-t border-slate-100">
+          <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-700">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
               {formData.projectType === "Hackathon" ? "4. Required Roles / Positions" : "3. Required Roles / Positions"}
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Specify what kind of teammates you are looking to recruit:
             </p>
 
@@ -326,7 +326,7 @@ export const CreateTeamPage = () => {
                     handleAddRole();
                   }
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
               />
               <Button
                 type="button"
@@ -340,17 +340,17 @@ export const CreateTeamPage = () => {
             </div>
 
             {roles.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 p-2.5 bg-brand-50/50 rounded-lg border border-brand-100">
+              <div className="flex flex-wrap gap-1.5 p-2.5 bg-brand-50/50 dark:bg-brand-950/30 rounded-lg border border-brand-100 dark:border-brand-900">
                 {roles.map((r) => (
                   <span
                     key={r}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white border border-brand-200 text-xs font-semibold text-brand-800"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white dark:bg-slate-800 border border-brand-200 dark:border-brand-800 text-xs font-semibold text-brand-800 dark:text-brand-300"
                   >
                     <span>{r}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveRole(r)}
-                      className="text-brand-400 hover:text-brand-700"
+                      className="text-brand-400 hover:text-brand-700 dark:hover:text-brand-200"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -360,7 +360,7 @@ export const CreateTeamPage = () => {
             )}
 
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[11px] text-slate-400">Popular Roles:</span>
+              <span className="text-[11px] text-slate-400 dark:text-slate-500">Popular Roles:</span>
               {POPULAR_ROLES.filter((pr) => !roles.includes(pr))
                 .slice(0, 5)
                 .map((pr) => (
@@ -368,7 +368,7 @@ export const CreateTeamPage = () => {
                     key={pr}
                     type="button"
                     onClick={() => handleAddRole(pr)}
-                    className="text-[11px] px-2 py-0.5 rounded bg-slate-100 hover:bg-brand-50 hover:text-brand-700 text-slate-600 transition-colors"
+                    className="text-[11px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 hover:bg-brand-50 dark:hover:bg-brand-950/50 hover:text-brand-700 dark:hover:text-brand-300 text-slate-600 dark:text-slate-300 transition-colors"
                   >
                     +{pr}
                   </button>
@@ -377,7 +377,7 @@ export const CreateTeamPage = () => {
           </div>
 
           {/* Section 5: Required Skills */}
-          <div className="space-y-3 pt-4 border-t border-slate-100">
+          <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-700">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
               {formData.projectType === "Hackathon" ? "5. Required Technical Skills" : "4. Required Technical Skills"}
             </h2>
@@ -394,7 +394,7 @@ export const CreateTeamPage = () => {
                     handleAddSkill();
                   }
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
               />
               <Button
                 type="button"
@@ -408,17 +408,17 @@ export const CreateTeamPage = () => {
             </div>
 
             {skills.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+              <div className="flex flex-wrap gap-1.5 p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700">
                 {skills.map((s) => (
                   <span
                     key={s}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white border border-slate-200 text-xs font-medium text-slate-700"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-300"
                   >
                     <span>{s}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveSkill(s)}
-                      className="text-slate-400 hover:text-slate-700"
+                      className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -428,7 +428,7 @@ export const CreateTeamPage = () => {
             )}
 
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[11px] text-slate-400">Suggestions:</span>
+              <span className="text-[11px] text-slate-400 dark:text-slate-500">Suggestions:</span>
               {POPULAR_SKILLS.filter((ps) => !skills.includes(ps))
                 .slice(0, 6)
                 .map((s) => (
@@ -436,7 +436,7 @@ export const CreateTeamPage = () => {
                     key={s}
                     type="button"
                     onClick={() => handleAddSkill(s)}
-                    className="text-[11px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
+                    className="text-[11px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 transition-colors"
                   >
                     +{s}
                   </button>
@@ -444,7 +444,7 @@ export const CreateTeamPage = () => {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-end gap-3">
             <Button
               type="button"
               variant="outline"
