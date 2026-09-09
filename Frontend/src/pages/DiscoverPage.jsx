@@ -22,7 +22,6 @@ export const DiscoverPage = () => {
   const [scope, setScope] = useState(scopeParam);
   const [year, setYear] = useState(yearParam);
   const [skill, setSkill] = useState(skillParam);
-  const [debouncedSkill, setDebouncedSkill] = useState(skillParam);
   const [clientSearchTerm, setClientSearchTerm] = useState('');
 
   // Data fetching state
@@ -30,26 +29,15 @@ export const DiscoverPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Debounce skill text input by 300ms
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSkill(skill);
-    }, 300);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [skill]);
-
   // Sync state with URL search params when changed
   useEffect(() => {
     const params = {};
     if (scope && scope !== DISCOVERY_SCOPES.ALL) params.scope = scope;
     if (year) params.year = year;
-    if (debouncedSkill) params.skill = debouncedSkill;
+    if (skill) params.skill = skill;
 
     setSearchParams(params, { replace: true });
-  }, [scope, year, debouncedSkill, setSearchParams]);
+  }, [scope, year, skill, setSearchParams]);
 
   // Main fetch function calling the real backend GET /api/users
   const fetchStudents = useCallback(async () => {
@@ -60,7 +48,7 @@ export const DiscoverPage = () => {
       const filters = {
         scope,
         year: year ? parseInt(year, 10) : undefined,
-        skill: debouncedSkill.trim() || undefined,
+        skill: skill.trim() || undefined,
       };
 
       const data = await userApi.getUsers(filters);
@@ -79,7 +67,7 @@ export const DiscoverPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [scope, year, debouncedSkill]);
+  }, [scope, year, skill]);
 
   // Fetch when backend query filters change
   useEffect(() => {
@@ -107,7 +95,6 @@ export const DiscoverPage = () => {
     setScope(DISCOVERY_SCOPES.ALL);
     setYear('');
     setSkill('');
-    setDebouncedSkill('');
     setClientSearchTerm('');
   };
 
@@ -119,7 +106,6 @@ export const DiscoverPage = () => {
 
   const handleSkillBadgeClick = (clickedSkill) => {
     setSkill(clickedSkill);
-    setDebouncedSkill(clickedSkill);
   };
 
   return (
