@@ -170,7 +170,7 @@ export const TeamDetailsPage = () => {
   }, [id, user?.id]);
 
   /**
-   * Fetch team details + members + user state
+   * Fetch team details + members + user state in parallel
    */
   const fetchTeamDetails = useCallback(async () => {
     if (!id) {
@@ -183,9 +183,11 @@ export const TeamDetailsPage = () => {
     setError(null);
 
     try {
-      const [teamData, membersData] = await Promise.all([
+      // Parallelize team info, members, and student pending invitations check
+      const [teamData, membersData, myInvs] = await Promise.all([
         teamApi.getTeamById(id),
         teamApi.getTeamMembers(id),
+        user?.id ? teamApi.getMyTeamInvitations('PENDING').catch(() => []) : Promise.resolve([]),
       ]);
 
       setTeam(teamData);
@@ -198,11 +200,14 @@ export const TeamDetailsPage = () => {
       if (currentUserIsMember) {
         setJoinRequestSent(false);
         setMyPendingInvitation(null);
-      } else {
-        await fetchMyPendingInvitation();
+      } else if (Array.isArray(myInvs)) {
+        const found = myInvs.find(
+          (inv) => String(inv.teamId) === String(id) && inv.status === 'PENDING'
+        );
+        setMyPendingInvitation(found || null);
       }
 
-      // If user is leader, also fetch pending join requests and sent invitations
+      // If user is leader, also fetch pending join requests and sent invitations concurrently
       if (
         teamData?.leaderId &&
         user?.id &&
@@ -230,7 +235,7 @@ export const TeamDetailsPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [id, user?.id, fetchMyPendingInvitation]);
+  }, [id, user?.id]);
 
   useEffect(() => {
     fetchTeamDetails();
@@ -419,7 +424,7 @@ export const TeamDetailsPage = () => {
     try {
       await teamApi.acceptJoinRequest(id, requestId, user.id);
       success('Join request accepted successfully!');
-      await Promise.all([fetchTeamDetails(), fetchJoinRequests()]);
+      await fetchTeamDetails();
     } catch (err) {
       const msg = extractErrorMessage(err, 'Failed to accept join request.');
       toastError(msg);
@@ -461,7 +466,7 @@ export const TeamDetailsPage = () => {
       );
       success('Join request accepted with assigned role!');
       setReassignModalRequest(null);
-      await Promise.all([fetchTeamDetails(), fetchJoinRequests()]);
+      await fetchTeamDetails();
     } catch (err) {
       const msg = extractErrorMessage(err, 'Failed to accept join request.');
       toastError(msg);
@@ -526,7 +531,7 @@ export const TeamDetailsPage = () => {
       setIsConfirmReplaceModalOpen(false);
       setReplaceModalRequest(null);
       setSelectedMemberToReplace(null);
-      await Promise.all([fetchTeamDetails(), fetchJoinRequests()]);
+      await fetchTeamDetails();
     } catch (err) {
       console.error('Failed to replace member and accept request:', err);
       const msg = extractErrorMessage(err, 'Failed to replace member.');
