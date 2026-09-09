@@ -2,6 +2,7 @@ import axios from 'axios';
 import { API_BASE_URL, AUTH_TOKEN_KEY } from '../utils/constants';
 import { isServerWakingUpError } from '../utils/helpers';
 import healthApi from './healthApi';
+import apiCache from './apiCache';
 
 // Retry configuration for cold starts
 const RETRY_DELAYS = [10000, 15000, 20000]; // 10s, 15s, 20s
@@ -78,6 +79,14 @@ api.interceptors.response.use(
     if (onServerWakingCallback) {
       onServerWakingCallback(false);
     }
+
+    // Automatically invalidate cache on mutating methods
+    const method = response.config?.method;
+    const url = response.config?.url;
+    if (method && url && method.toUpperCase() !== 'GET') {
+      apiCache.invalidateOnMutation(method, url);
+    }
+
     return response;
   },
   async (error) => {
@@ -142,5 +151,54 @@ api.interceptors.response.use(
   }
 );
 
+// Bind native Axios method for non-intercepted execution
+const originalGet = api.get.bind(api);
+
+/**
+ * Enhanced GET with in-flight deduplication and safe client-side caching
+ */
+api.get = function (url, config = {}) {
+  const shouldBypass = config.bypassCache === true || apiCache.isNoCacheUrl(url);
+
+  if (shouldBypass) {
+    return originalGet(url, config);
+  }
+
+  const cacheKey = apiCache.generateKey(url, config.params);
+
+  // 1. Return cached response data if available and fresh
+  const cachedData = apiCache.get(cacheKey);
+  if (cachedData !== null) {
+    return Promise.resolve({
+      data: cachedData,
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+      request: {},
+      __fromCache: true,
+    });
+  }
+
+  // 2. Return in-flight promise if an identical request is already active
+  const inFlightPromise = apiCache.getInFlight(cacheKey);
+  if (inFlightPromise) {
+    return inFlightPromise;
+  }
+
+  // 3. Initiate request, deduplicate concurrent callers, and cache successful result
+  const requestPromise = originalGet(url, config).then((response) => {
+    if (response && response.status >= 200 && response.status < 300) {
+      apiCache.set(cacheKey, response.data, config.cacheTtlMs);
+    }
+    return response;
+  });
+
+  apiCache.setInFlight(cacheKey, requestPromise);
+  return requestPromise;
+};
+
+export { apiCache };
 export default api;
+
 
