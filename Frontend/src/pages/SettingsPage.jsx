@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Settings as SettingsIcon,
@@ -13,22 +13,98 @@ import {
   Sun,
   Moon,
   Laptop,
+  Trash2,
+  AlertTriangle,
+  KeyRound,
+  Send,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useToast } from '../context/ToastContext';
 import Button from '../components/common/Button';
 import Avatar from '../components/common/Avatar';
 import Badge from '../components/common/Badge';
+import Modal from '../components/common/Modal';
+import userApi from '../services/userApi';
 import { API_BASE_URL } from '../utils/constants';
+import { extractErrorMessage } from '../utils/helpers';
 
 export const SettingsPage = () => {
   const { user, logout, token } = useAuth();
   const { theme, setTheme, isDark } = useTheme();
+  const { success, error: toastError } = useToast();
   const navigate = useNavigate();
+
+  // Delete Account State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [otpRequested, setOtpRequested] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [isRequestingOtp, setIsRequestingOtp] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    let timer;
+    if (cooldown > 0) {
+      timer = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [cooldown]);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleOpenDeleteModal = () => {
+    setOtpRequested(false);
+    setOtp('');
+    setDeleteError(null);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleRequestDeleteOtp = async () => {
+    setIsRequestingOtp(true);
+    setDeleteError(null);
+    try {
+      await userApi.requestDeleteAccountOtp();
+      setOtpRequested(true);
+      setCooldown(60);
+      success('Verification OTP has been sent to your registered email.');
+    } catch (err) {
+      console.error('Failed to request delete OTP:', err);
+      const msg = extractErrorMessage(err, 'Failed to send OTP. Please try again.');
+      setDeleteError(msg);
+      toastError(msg);
+    } finally {
+      setIsRequestingOtp(false);
+    }
+  };
+
+  const handleConfirmDeleteAccount = async (e) => {
+    e?.preventDefault();
+    if (!otp.trim() || otp.trim().length !== 6) {
+      setDeleteError('Please enter a valid 6-digit OTP code.');
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    setDeleteError(null);
+    try {
+      await userApi.verifyAndDeleteAccount(otp.trim());
+      success('Your SanGam account has been permanently deleted.');
+      setIsDeleteModalOpen(false);
+      logout();
+      navigate('/register');
+    } catch (err) {
+      console.error('Failed to delete account:', err);
+      const msg = extractErrorMessage(err, 'Failed to delete account. Please verify your OTP.');
+      setDeleteError(msg);
+      toastError(msg);
+    } finally {
+      setIsDeletingAccount(false);
+    }
   };
 
   return (
@@ -201,8 +277,16 @@ export const SettingsPage = () => {
         </div>
       </div>
 
-      {/* Danger Zone / Logout */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-subtle">
+      {/* Danger Zone */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-rose-200 dark:border-rose-900/40 p-6 shadow-subtle space-y-6">
+        <div className="flex items-center gap-2 pb-3 border-b border-rose-100 dark:border-rose-900/30">
+          <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+          <h2 className="text-sm font-semibold text-rose-900 dark:text-rose-200">
+            Danger Zone
+          </h2>
+        </div>
+
+        {/* Sign Out */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Sign Out</h3>
@@ -212,15 +296,142 @@ export const SettingsPage = () => {
           </div>
 
           <Button
-            variant="danger"
+            variant="outline"
             size="sm"
             onClick={handleLogout}
             leftIcon={LogOut}
+            className="text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
           >
             Sign Out
           </Button>
         </div>
+
+        {/* Delete Account */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+          <div>
+            <h3 className="text-sm font-semibold text-rose-700 dark:text-rose-400">Delete Account</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-lg">
+              Permanently delete your SanGam account, team memberships, and profile data. Requires email OTP verification.
+            </p>
+          </div>
+
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={handleOpenDeleteModal}
+            leftIcon={Trash2}
+          >
+            Delete Account
+          </Button>
+        </div>
       </div>
+
+      {/* Delete Account OTP Verification Modal */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="Delete Your SanGam Account"
+        description="Permanently remove your student account and personal data from SanGam."
+        maxWidth="max-w-md"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsDeleteModalOpen(false)}
+              disabled={isDeletingAccount}
+            >
+              Cancel
+            </Button>
+            {otpRequested ? (
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                onClick={handleConfirmDeleteAccount}
+                isLoading={isDeletingAccount}
+                disabled={!otp.trim() || otp.trim().length !== 6}
+                leftIcon={Trash2}
+              >
+                Confirm & Permanently Delete
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={handleRequestDeleteOtp}
+                isLoading={isRequestingOtp}
+                leftIcon={Send}
+              >
+                Send Verification OTP
+              </Button>
+            )}
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="p-3.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-xs text-rose-800 dark:text-rose-300 space-y-1">
+            <p className="font-semibold flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
+              Warning: This action is irreversible!
+            </p>
+            <p className="text-[11px] leading-relaxed">
+              Your profile, achievements, projects, skills, and memberships will be deleted. If you lead active teams, please delete or transfer your teams first.
+            </p>
+          </div>
+
+          {deleteError && (
+            <div className="p-3 rounded-lg bg-rose-100/70 dark:bg-rose-900/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300">
+              {deleteError}
+            </div>
+          )}
+
+          {!otpRequested ? (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                To confirm this deletion, click below to receive a 6-digit one-time password at:
+              </p>
+              <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-xs font-semibold text-slate-800 dark:text-slate-200">
+                {user?.email}
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleConfirmDeleteAccount} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Enter 6-digit OTP code sent to your email:
+                </label>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="123456"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                    className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-center tracking-widest text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-1">
+                <span>Didn't receive the OTP?</span>
+                <button
+                  type="button"
+                  onClick={handleRequestDeleteOtp}
+                  disabled={cooldown > 0 || isRequestingOtp}
+                  className="font-medium text-brand-600 dark:text-brand-400 hover:underline disabled:opacity-50 disabled:no-underline"
+                >
+                  {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend OTP'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 };

@@ -71,6 +71,9 @@ public class Team {
     @jakarta.persistence.CollectionTable(name = "team_required_roles", joinColumns = @JoinColumn(name = "team_id"))
     private java.util.List<TeamRoleSlot> roleSlots = new java.util.ArrayList<>();
 
+    @Column(name = "join_deadline")
+    private LocalDateTime joinDeadline;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -84,6 +87,18 @@ public class Team {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public LocalDateTime getJoinDeadline() {
+        return joinDeadline;
+    }
+
+    public void setJoinDeadline(LocalDateTime joinDeadline) {
+        this.joinDeadline = joinDeadline;
+    }
+
+    public boolean isExpired() {
+        return joinDeadline != null && LocalDateTime.now().isAfter(joinDeadline);
     }
 
     public String getName() {

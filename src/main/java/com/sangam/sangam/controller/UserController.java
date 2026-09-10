@@ -146,4 +146,26 @@ public class UserController {
         userService.deleteProject(id, projectId, authentication != null ? authentication.getName() : null);
         return ResponseEntity.ok("Project deleted successfully");
     }
+
+    // Self Account Deletion with OTP Verification (Protected)
+    @PostMapping("/delete-account/send-otp")
+    public ResponseEntity<Map<String, String>> sendDeleteAccountOtp(Authentication authentication) {
+        if (authentication == null || authentication.getName() == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "User not authenticated"));
+        }
+        userService.sendDeleteAccountOtp(authentication.getName());
+        return ResponseEntity.ok(Map.of("message", "OTP has been sent to your registered email"));
+    }
+
+    @PostMapping("/delete-account/verify-and-delete")
+    public ResponseEntity<Map<String, String>> deleteAccount(
+            @RequestBody Map<String, String> payload,
+            Authentication authentication) {
+        if (authentication == null || authentication.getName() == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "User not authenticated"));
+        }
+        String otp = payload != null ? payload.get("otp") : null;
+        userService.deleteAccount(otp, authentication.getName());
+        return ResponseEntity.ok(Map.of("message", "Account deleted successfully"));
+    }
 }

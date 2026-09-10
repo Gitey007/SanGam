@@ -1240,5 +1240,111 @@ class TeamServiceTest {
             assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
         }
     }
+
+    @Nested
+    @DisplayName("Team Deadline, Extension & Sorting Tests")
+    class TeamDeadlineAndSortingTests {
+
+        private Team testTeam;
+
+        @BeforeEach
+        void init() {
+            testTeam = new Team();
+            testTeam.setId(30L);
+            testTeam.setName("Deadline Team");
+            testTeam.setLeader(leader);
+            testTeam.setMaxMembers((byte) 4);
+        }
+
+        @Test
+        @DisplayName("Expired team rejects join request with CONFLICT")
+        void testExpiredTeamRejectsJoinRequest() {
+            testTeam.setJoinDeadline(LocalDateTime.now().minusDays(1));
+            when(teamRepository.findById(30L)).thenReturn(Optional.of(testTeam));
+            when(userRepository.findById(2L)).thenReturn(Optional.of(student));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.sendJoinRequest(30L, 2L, "Backend Developer", null));
+
+            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+            assertTrue(ex.getReason().contains("deadline has expired"));
+        }
+
+        @Test
+        @DisplayName("Expired team rejects invitation with CONFLICT")
+        void testExpiredTeamRejectsInvitation() {
+            testTeam.setJoinDeadline(LocalDateTime.now().minusDays(1));
+            when(teamRepository.findById(30L)).thenReturn(Optional.of(testTeam));
+            when(userRepository.findByEmail(leader.getEmail())).thenReturn(Optional.of(leader));
+            when(userRepository.findById(2L)).thenReturn(Optional.of(student));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.inviteStudent(30L, 2L, leader.getEmail(), "Backend Developer", null));
+
+            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+            assertTrue(ex.getReason().contains("deadline has expired"));
+        }
+
+        @Test
+        @DisplayName("Leader can extend deadline successfully")
+        void testLeaderCanExtendDeadline() {
+            testTeam.setJoinDeadline(LocalDateTime.now().minusDays(1));
+            when(teamRepository.findById(30L)).thenReturn(Optional.of(testTeam));
+            when(teamRepository.save(any(Team.class))).thenAnswer(i -> i.getArgument(0));
+
+            LocalDateTime newDeadline = LocalDateTime.now().plusDays(7);
+            TeamResponse res = teamService.extendDeadline(30L, newDeadline, leader.getEmail());
+
+            assertNotNull(res);
+            assertFalse(res.isExpired());
+            assertEquals(newDeadline, res.getJoinDeadline());
+        }
+
+        @Test
+        @DisplayName("Non-leader cannot extend deadline (403 Forbidden)")
+        void testNonLeaderCannotExtendDeadline() {
+            when(teamRepository.findById(30L)).thenReturn(Optional.of(testTeam));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.extendDeadline(30L, LocalDateTime.now().plusDays(7), "stranger@college.edu"));
+
+            assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        }
+
+        @Test
+        @DisplayName("Teams are sorted: Active (more capacity first) -> Expired")
+        void testTeamSortingOrder() {
+            Team activeMoreCapacity = new Team();
+            activeMoreCapacity.setId(101L);
+            activeMoreCapacity.setName("Active More Cap");
+            activeMoreCapacity.setLeader(leader);
+            activeMoreCapacity.setMaxMembers((byte) 5);
+            activeMoreCapacity.setJoinDeadline(LocalDateTime.now().plusDays(5));
+
+            Team activeLessCapacity = new Team();
+            activeLessCapacity.setId(102L);
+            activeLessCapacity.setName("Active Less Cap");
+            activeLessCapacity.setLeader(leader);
+            activeLessCapacity.setMaxMembers((byte) 3);
+            activeLessCapacity.setJoinDeadline(LocalDateTime.now().plusDays(5));
+
+            Team expiredTeam = new Team();
+            expiredTeam.setId(103L);
+            expiredTeam.setName("Expired Team");
+            expiredTeam.setLeader(leader);
+            expiredTeam.setMaxMembers((byte) 10);
+            expiredTeam.setJoinDeadline(LocalDateTime.now().minusDays(2));
+
+            when(teamRepository.findAll()).thenReturn(List.of(expiredTeam, activeLessCapacity, activeMoreCapacity));
+            when(teamMemberRepository.findByTeamId(any())).thenReturn(java.util.Collections.emptyList());
+
+            List<TeamResponse> sorted = teamService.getAllTeams();
+
+            assertEquals(3, sorted.size());
+            assertEquals(101L, sorted.get(0).getId()); // Active with cap 5
+            assertEquals(102L, sorted.get(1).getId()); // Active with cap 3
+            assertEquals(103L, sorted.get(2).getId()); // Expired
+        }
+    }
 }
 

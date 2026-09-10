@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.sangam.sangam.dto.AchievementDto;
@@ -32,6 +33,10 @@ import com.sangam.sangam.entity.UserProject;
 import com.sangam.sangam.repository.SkillRepository;
 import com.sangam.sangam.repository.UserAchievementRepository;
 import com.sangam.sangam.repository.UserProjectRepository;
+import com.sangam.sangam.repository.TeamInvitationRepository;
+import com.sangam.sangam.repository.TeamJoinRequestRepository;
+import com.sangam.sangam.repository.TeamMemberRepository;
+import com.sangam.sangam.repository.TeamRepository;
 import com.sangam.sangam.repository.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,11 +54,28 @@ class UserServiceTest {
     @Mock
     private UserProjectRepository userProjectRepository;
 
+    @Mock
+    private EmailOtpService emailOtpService;
+
+    @Mock
+    private TeamRepository teamRepository;
+
+    @Mock
+    private TeamMemberRepository teamMemberRepository;
+
+    @Mock
+    private TeamJoinRequestRepository teamJoinRequestRepository;
+
+    @Mock
+    private TeamInvitationRepository teamInvitationRepository;
+
     private UserService userService;
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, skillRepository, userAchievementRepository, userProjectRepository);
+        userService = new UserService(
+                userRepository, skillRepository, userAchievementRepository, userProjectRepository,
+                emailOtpService, teamRepository, teamMemberRepository, teamJoinRequestRepository, teamInvitationRepository);
     }
 
     private User createUser(Long id, String name, String email, String college, String branch, Byte year, String... skillNames) {
@@ -397,5 +419,65 @@ class UserServiceTest {
         assertEquals(1, responses.size());
         assertEquals("Skill Specialist", responses.get(0).getName());
         assertEquals(Set.of("Rust", "Go"), responses.get(0).getSkills());
+    }
+
+    // 13. sendDeleteAccountOtp
+    @Test
+    void testSendDeleteAccountOtp_Success() {
+        User user = createUser(1L, "Delete Me", "del@college.edu", "IIT", "CS", (byte) 2);
+        when(userRepository.findByEmail("del@college.edu")).thenReturn(Optional.of(user));
+
+        userService.sendDeleteAccountOtp("del@college.edu");
+
+        verify(emailOtpService).sendAccountDeletionOtp("del@college.edu");
+    }
+
+    // 14. deleteAccount - wrong OTP
+    @Test
+    void testDeleteAccount_InvalidOtp_ThrowsBadRequest() {
+        User user = createUser(1L, "Delete Me", "del@college.edu", "IIT", "CS", (byte) 2);
+        when(userRepository.findByEmail("del@college.edu")).thenReturn(Optional.of(user));
+        when(emailOtpService.verifyOtp("del@college.edu", "123456")).thenReturn(false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                userService.deleteAccount("123456", "del@college.edu"));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("Invalid or expired OTP"));
+    }
+
+    // 15. deleteAccount - user is team leader
+    @Test
+    void testDeleteAccount_UserIsLeader_ThrowsBadRequest() {
+        User user = createUser(1L, "Delete Leader", "leader@college.edu", "IIT", "CS", (byte) 2);
+        when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(user));
+        when(emailOtpService.verifyOtp("leader@college.edu", "654321")).thenReturn(true);
+        when(teamRepository.existsByLeaderId(1L)).thenReturn(true);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                userService.deleteAccount("654321", "leader@college.edu"));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("Cannot delete account while you are the leader"));
+    }
+
+    // 16. deleteAccount - non-leader success
+    @Test
+    void testDeleteAccount_Success() {
+        User user = createUser(1L, "Delete Member", "member@college.edu", "IIT", "CS", (byte) 2);
+        when(userRepository.findByEmail("member@college.edu")).thenReturn(Optional.of(user));
+        when(emailOtpService.verifyOtp("member@college.edu", "654321")).thenReturn(true);
+        when(teamRepository.existsByLeaderId(1L)).thenReturn(false);
+
+        userService.deleteAccount("654321", "member@college.edu");
+
+        verify(teamMemberRepository).deleteByUserId(1L);
+        verify(teamJoinRequestRepository).deleteByUserId(1L);
+        verify(teamInvitationRepository).deleteByInvitedUserId(1L);
+        verify(teamInvitationRepository).deleteByInvitedById(1L);
+        verify(userAchievementRepository).deleteByUserId(1L);
+        verify(userProjectRepository).deleteByUserId(1L);
+        verify(userRepository).delete(user);
+        verify(emailOtpService).clearVerifiedEmail("member@college.edu");
     }
 }

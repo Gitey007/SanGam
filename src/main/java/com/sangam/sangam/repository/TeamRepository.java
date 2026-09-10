@@ -34,5 +34,9 @@ public interface TeamRepository extends JpaRepository<Team, Long> {
     @Override
     @EntityGraph(attributePaths = {"leader", "requiredSkills", "roleSlots"})
     List<Team> findAll();
+
+    boolean existsByLeaderId(Long leaderId);
+
+    long countByLeaderId(Long leaderId);
 }
 

@@ -11,4 +11,6 @@ public interface UserProjectRepository extends JpaRepository<UserProject, Long> 
     List<UserProject> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     List<UserProject> findByUserId(Long userId);
+
+    void deleteByUserId(Long userId);
 }

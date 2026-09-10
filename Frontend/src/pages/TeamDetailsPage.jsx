@@ -26,6 +26,7 @@ import {
   Layers,
   Trash2,
   RefreshCw,
+  Calendar,
 } from 'lucide-react';
 
 import Button from '../components/common/Button';
@@ -69,8 +70,12 @@ export const TeamDetailsPage = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [memberToRemove, setMemberToRemove] = useState(null);
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
+
+  // Extend Deadline Modal state (Leader only)
+  const [isExtendDeadlineModalOpen, setIsExtendDeadlineModalOpen] = useState(false);
+  const [extendDeadlineValue, setExtendDeadlineValue] = useState('');
+  const [isExtendingDeadline, setIsExtendingDeadline] = useState(false);
 
   // Candidate Join Modal state
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
@@ -255,6 +260,11 @@ export const TeamDetailsPage = () => {
   const maxMembers = team?.maxMembers || 0;
   const isTeamFull = maxMembers > 0 && members.length >= maxMembers;
   const isAlmostFull = maxMembers > 0 && members.length === maxMembers - 1;
+  const isExpired = Boolean(
+    team?.isExpired ||
+    team?.expired ||
+    (team?.joinDeadline && new Date(team?.joinDeadline) < new Date())
+  );
 
   // Available roles with openings
   const roleSlotsList = team?.roleSlots || [];
@@ -274,6 +284,10 @@ export const TeamDetailsPage = () => {
     }
     if (myPendingInvitation) {
       toastError('You have a pending invitation. Please accept or decline the invitation instead.');
+      return;
+    }
+    if (isExpired) {
+      toastError('The deadline to join this team has expired.');
       return;
     }
     if (isTeamFull) {
@@ -564,6 +578,14 @@ export const TeamDetailsPage = () => {
    * Open invite student modal
    */
   const handleOpenInviteModal = async () => {
+    if (isExpired) {
+      toastError('The deadline to invite members has expired. Please extend the deadline first.');
+      return;
+    }
+    if (isTeamFull) {
+      toastError('Cannot invite students. The team is already full.');
+      return;
+    }
     setIsInviteModalOpen(true);
     if (openRoles.length > 0) {
       setSelectedInviteRole(openRoles[0].roleName);
@@ -741,7 +763,11 @@ export const TeamDetailsPage = () => {
                   {team.name}
                 </h1>
 
-                {isTeamFull ? (
+                {isExpired ? (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
+                    EXPIRED ({members.length}/{team.maxMembers})
+                  </span>
+                ) : isTeamFull ? (
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
                     FULL ({members.length}/{team.maxMembers})
                   </span>
@@ -773,6 +799,20 @@ export const TeamDetailsPage = () => {
             <div className="shrink-0 flex flex-wrap items-center gap-2">
               {isLeader ? (
                 <>
+                  {isExpired && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      leftIcon={Calendar}
+                      onClick={() => {
+                        setExtendDeadlineValue('');
+                        setIsExtendDeadlineModalOpen(true);
+                      }}
+                      className="bg-amber-600 hover:bg-amber-700 text-white"
+                    >
+                      Extend Deadline
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -795,7 +835,8 @@ export const TeamDetailsPage = () => {
                     size="sm"
                     leftIcon={UserPlus}
                     onClick={handleOpenInviteModal}
-                    disabled={isTeamFull}
+                    disabled={isTeamFull || isExpired}
+                    title={isExpired ? 'Cannot invite while team is expired' : isTeamFull ? 'Team is full' : ''}
                   >
                     Invite Student
                   </Button>
@@ -834,7 +875,7 @@ export const TeamDetailsPage = () => {
                     leftIcon={X}
                     onClick={handleStudentDeclineInvitation}
                     isLoading={actionLoading['my-invitation'] === 'decline'}
-                    className="text-slate-600 dark:text-slate-300 hover:text-rose-600 hover:border-rose-200 dark:hover:border-rose-800"
+                    className="text-slate-600 dark:text-slate-300 hover:text-rose-600 hover:border-rose-200 dark:border-rose-800"
                   >
                     Decline
                   </Button>
@@ -844,10 +885,14 @@ export const TeamDetailsPage = () => {
                 <Badge variant="neutral" size="md">
                   Request Pending
                 </Badge>
+              ) : isExpired ? (
+                <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
+                  Join Deadline Expired
+                </span>
               ) : isTeamFull ? (
-                <Badge variant="neutral" size="md">
+                <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
                   Team is full
-                </Badge>
+                </span>
               ) : (
                 /* Priority 4: No invitation/request -> Show Join Request */
                 <Button
@@ -1556,18 +1601,28 @@ export const TeamDetailsPage = () => {
               className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
             >
               {roleSlotsList.map((slot, i) => (
-                <option key={`${slot.roleName}-${i}`} value={slot.roleName}>
+                <option
+                  key={`${slot.roleName}-${i}`}
+                  value={slot.roleName}
+                  disabled={slot.availableSlots <= 0}
+                >
                   {slot.roleName} (
                   {slot.availableSlots > 0
                     ? `${slot.availableSlots} opening${
                         slot.availableSlots > 1 ? 's' : ''
                       }`
-                    : 'FULL'}
+                    : 'FULL - Slot Closed'}
                   )
                 </option>
               ))}
             </select>
           </div>
+
+          {roleSlotsList.find((r) => r.roleName === selectedJoinRole)?.availableSlots <= 0 && (
+            <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300">
+              This role slot is already full. Please select an available role.
+            </div>
+          )}
 
           {isOther(selectedJoinRole) && (
             <div>
@@ -2068,6 +2123,77 @@ export const TeamDetailsPage = () => {
             memberToRemove && actionLoading[`member-${memberToRemove.userId}`]
           )}
         />
+      )}
+
+      {/* Extend Deadline Modal (Leader only) */}
+      {isLeader && (
+        <Modal
+          isOpen={isExtendDeadlineModalOpen}
+          onClose={() => setIsExtendDeadlineModalOpen(false)}
+          title="Extend Join / Invite Deadline"
+          description="Set a new future deadline to reactivate join requests and student invitations for your team."
+          maxWidth="max-w-md"
+          footer={
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsExtendDeadlineModalOpen(false)}
+                disabled={isExtendingDeadline}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={async (e) => {
+                  e?.preventDefault();
+                  if (!extendDeadlineValue) {
+                    toastError('Please select a valid new deadline.');
+                    return;
+                  }
+                  setIsExtendingDeadline(true);
+                  try {
+                    await teamApi.extendDeadline(id, extendDeadlineValue);
+                    success('Team join deadline extended successfully!');
+                    setIsExtendDeadlineModalOpen(false);
+                    await fetchTeamDetails();
+                  } catch (err) {
+                    console.error('Failed to extend deadline:', err);
+                    const msg = extractErrorMessage(err, 'Failed to extend deadline.');
+                    toastError(msg);
+                  } finally {
+                    setIsExtendingDeadline(false);
+                  }
+                }}
+                isLoading={isExtendingDeadline}
+                disabled={!extendDeadlineValue}
+              >
+                Save & Reactivate Team
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                New Join Deadline <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="datetime-local"
+                value={extendDeadlineValue}
+                onChange={(e) => setExtendDeadlineValue(e.target.value)}
+                required
+                className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
+              />
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                Must be a future date/time. Once set, students can send join requests again.
+              </p>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* Leave Team Confirmation Modal (Members only) */}

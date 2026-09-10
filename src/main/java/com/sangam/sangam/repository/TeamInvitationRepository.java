@@ -22,4 +22,8 @@ public interface TeamInvitationRepository extends JpaRepository<TeamInvitation, 
     boolean existsByTeamIdAndInvitedUserIdAndStatus(Long teamId, Long userId, TeamInvitation.InvitationStatus status);
 
     void deleteByTeamId(Long teamId);
+
+    void deleteByInvitedUserId(Long userId);
+
+    void deleteByInvitedById(Long userId);
 }

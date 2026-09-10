@@ -132,6 +132,81 @@ public class EmailOtpService {
         }
     }
 
+    public void sendAccountDeletionOtp(String email) {
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Email cannot be empty");
+        }
+
+        String normalizedEmail = email.trim().toLowerCase();
+        String otp = String.format("%06d", random.nextInt(1_000_000));
+
+        otpStore.put(
+                normalizedEmail,
+                new OtpData(
+                        otp,
+                        Instant.now().plusSeconds(OTP_EXPIRATION_SECONDS)
+                )
+        );
+
+        logger.info(
+                "Starting account deletion OTP dispatch to: {}",
+                maskEmail(normalizedEmail)
+        );
+
+        Map<String, Object> requestBody = Map.of(
+                "sender", Map.of(
+                        "name", "SanGam",
+                        "email", senderEmail
+                ),
+                "to", List.of(
+                        Map.of(
+                                "email", normalizedEmail
+                        )
+                ),
+                "subject", "SanGam Account Deletion Verification OTP",
+                "textContent",
+                "You have requested to permanently delete your SanGam account.\n\n"
+                        + "Your verification OTP is: " + otp
+                        + "\n\n"
+                        + "This OTP is valid for 5 minutes."
+                        + "\n\n"
+                        + "If you did not request this, please change your password immediately."
+                        + "\n\n"
+                        + "Do not share this OTP with anyone."
+        );
+
+        try {
+            restClient.post()
+                    .uri("/v3/smtp/email")
+                    .header("api-key", brevoApiKey)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(requestBody)
+                    .retrieve()
+                    .toBodilessEntity();
+
+            logger.info(
+                    "Account deletion OTP successfully sent to: {}",
+                    maskEmail(normalizedEmail)
+            );
+
+        } catch (Exception ex) {
+            otpStore.remove(normalizedEmail);
+
+            logger.error(
+                    "Failed to send account deletion OTP email to {}. Exception: [{}] {}",
+                    maskEmail(normalizedEmail),
+                    ex.getClass().getName(),
+                    ex.getMessage()
+            );
+
+            throw new RuntimeException(
+                    "Unable to send OTP email",
+                    ex
+            );
+        }
+    }
+
     public boolean verifyOtp(
             String email,
             String otp) {

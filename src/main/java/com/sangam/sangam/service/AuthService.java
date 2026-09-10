@@ -32,7 +32,7 @@ public class AuthService {
         this.emailOtpService = emailOtpService;
     }
 
-    public User register(RegisterRequest request) {
+    public LoginResponse register(RegisterRequest request) {
 
         if (request.getEmail() == null || request.getEmail().isBlank()) {
             throw new RuntimeException("Email is required");
@@ -70,7 +70,24 @@ public class AuthService {
         user.setBio(request.getBio());
         user.setEmailVerified(true);
 
-        return userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        org.springframework.security.core.userdetails.UserDetails userDetails = org.springframework.security.core.userdetails.User
+                .withUsername(savedUser.getEmail())
+                .password(savedUser.getPasswordHash())
+                .authorities("USER")
+                .build();
+
+        String token = jwtService.generateToken(userDetails);
+
+        return new LoginResponse(
+                token,
+                savedUser.getId(),
+                savedUser.getName(),
+                savedUser.getEmail(),
+                savedUser.getCollege(),
+                savedUser.getBranch(),
+                savedUser.getYear() != null ? savedUser.getYear().intValue() : 1);
     }
 
     public LoginResponse login(LoginRequest request) {
