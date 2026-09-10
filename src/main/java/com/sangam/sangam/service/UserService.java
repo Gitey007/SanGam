@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,10 @@ import com.sangam.sangam.entity.User;
 import com.sangam.sangam.entity.UserAchievement;
 import com.sangam.sangam.entity.UserProject;
 import com.sangam.sangam.repository.SkillRepository;
+import com.sangam.sangam.repository.TeamInvitationRepository;
+import com.sangam.sangam.repository.TeamJoinRequestRepository;
+import com.sangam.sangam.repository.TeamMemberRepository;
+import com.sangam.sangam.repository.TeamRepository;
 import com.sangam.sangam.repository.UserAchievementRepository;
 import com.sangam.sangam.repository.UserProjectRepository;
 import com.sangam.sangam.repository.UserRepository;
@@ -32,16 +37,40 @@ public class UserService {
     private final SkillRepository skillRepository;
     private final UserAchievementRepository userAchievementRepository;
     private final UserProjectRepository userProjectRepository;
+    private final EmailOtpService emailOtpService;
+    private final TeamRepository teamRepository;
+    private final TeamMemberRepository teamMemberRepository;
+    private final TeamJoinRequestRepository teamJoinRequestRepository;
+    private final TeamInvitationRepository teamInvitationRepository;
+
+    @Autowired
+    public UserService(
+            UserRepository userRepository,
+            SkillRepository skillRepository,
+            UserAchievementRepository userAchievementRepository,
+            UserProjectRepository userProjectRepository,
+            @Autowired(required = false) EmailOtpService emailOtpService,
+            @Autowired(required = false) TeamRepository teamRepository,
+            @Autowired(required = false) TeamMemberRepository teamMemberRepository,
+            @Autowired(required = false) TeamJoinRequestRepository teamJoinRequestRepository,
+            @Autowired(required = false) TeamInvitationRepository teamInvitationRepository) {
+        this.userRepository = userRepository;
+        this.skillRepository = skillRepository;
+        this.userAchievementRepository = userAchievementRepository;
+        this.userProjectRepository = userProjectRepository;
+        this.emailOtpService = emailOtpService;
+        this.teamRepository = teamRepository;
+        this.teamMemberRepository = teamMemberRepository;
+        this.teamJoinRequestRepository = teamJoinRequestRepository;
+        this.teamInvitationRepository = teamInvitationRepository;
+    }
 
     public UserService(
             UserRepository userRepository,
             SkillRepository skillRepository,
             UserAchievementRepository userAchievementRepository,
             UserProjectRepository userProjectRepository) {
-        this.userRepository = userRepository;
-        this.skillRepository = skillRepository;
-        this.userAchievementRepository = userAchievementRepository;
-        this.userProjectRepository = userProjectRepository;
+        this(userRepository, skillRepository, userAchievementRepository, userProjectRepository, null, null, null, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -422,5 +451,72 @@ public class UserService {
                 project.getGithubUrl(),
                 project.getLiveDemoUrl()
         );
+    }
+
+    @Transactional
+    public void sendDeleteAccountOtp(String authenticatedEmail) {
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
+
+        User user = userRepository.findByEmail(authenticatedEmail.trim().toLowerCase())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (emailOtpService != null) {
+            emailOtpService.sendAccountDeletionOtp(user.getEmail());
+        }
+    }
+
+    @Transactional
+    public void deleteAccount(String otp, String authenticatedEmail) {
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
+
+        if (otp == null || otp.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "OTP is required");
+        }
+
+        User user = userRepository.findByEmail(authenticatedEmail.trim().toLowerCase())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (emailOtpService != null && !emailOtpService.verifyOtp(user.getEmail(), otp.trim())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired OTP");
+        }
+
+        Long userId = user.getId();
+
+        // Foreign Key Safety Check: If user is leader of any team, reject deletion with clear business message
+        if (teamRepository != null && teamRepository.existsByLeaderId(userId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Cannot delete account while you are the leader of active team(s). Please transfer leadership or delete your team(s) first.");
+        }
+
+        // Clean up all user relations safely
+        if (teamMemberRepository != null) {
+            teamMemberRepository.deleteByUserId(userId);
+        }
+        if (teamJoinRequestRepository != null) {
+            teamJoinRequestRepository.deleteByUserId(userId);
+        }
+        if (teamInvitationRepository != null) {
+            teamInvitationRepository.deleteByInvitedUserId(userId);
+            teamInvitationRepository.deleteByInvitedById(userId);
+        }
+        if (userAchievementRepository != null) {
+            userAchievementRepository.deleteByUserId(userId);
+        }
+        if (userProjectRepository != null) {
+            userProjectRepository.deleteByUserId(userId);
+        }
+
+        user.getSkills().clear();
+        userRepository.save(user);
+        userRepository.delete(user);
+
+        if (emailOtpService != null) {
+            emailOtpService.clearVerifiedEmail(user.getEmail());
+        }
     }
 }

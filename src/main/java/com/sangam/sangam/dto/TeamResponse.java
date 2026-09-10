@@ -1,5 +1,6 @@
 package com.sangam.sangam.dto;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -18,6 +19,9 @@ public class TeamResponse {
     private String hackathonName;
     private String hackathonUrl;
     private String hackathonDeadline;
+    private LocalDateTime joinDeadline;
+    private Boolean expired;
+    private Integer availableCapacity;
     private String githubRepositoryUrl;
     private String documentationUrl;
     private Set<String> requiredSkills;
@@ -87,6 +91,56 @@ public class TeamResponse {
         this.roleSlots = roleSlots;
         this.memberCount = memberCount;
         this.status = status;
+        this.availableCapacity = (maxMembers != null && memberCount != null) ? Math.max(0, maxMembers - memberCount) : 0;
+    }
+
+    public TeamResponse(
+            Long id,
+            String name,
+            String description,
+            Long leaderId,
+            String leaderName,
+            Byte maxMembers,
+            String projectName,
+            String projectDescription,
+            String teamVision,
+            String projectType,
+            String hackathonName,
+            String hackathonUrl,
+            String hackathonDeadline,
+            LocalDateTime joinDeadline,
+            Boolean expired,
+            String githubRepositoryUrl,
+            String documentationUrl,
+            Set<String> requiredSkills,
+            Set<String> requiredRoles,
+            List<TeamRoleSlotDto> roleSlots,
+            Integer memberCount,
+            String status) {
+
+        this.id = id;
+        this.name = name;
+        this.description = description;
+        this.leaderId = leaderId;
+        this.leaderName = leaderName;
+        this.maxMembers = maxMembers;
+        this.projectName = projectName;
+        this.projectDescription = projectDescription;
+        this.teamVision = teamVision;
+        this.projectType = projectType;
+        this.hackathonName = hackathonName;
+        this.hackathonUrl = hackathonUrl;
+        this.hackathonDeadline = hackathonDeadline;
+        this.joinDeadline = joinDeadline;
+        this.expired = expired;
+        this.githubRepositoryUrl = githubRepositoryUrl;
+        this.documentationUrl = documentationUrl;
+        this.requiredSkills = requiredSkills;
+        this.requiredRoles = requiredRoles;
+        this.roleSlots = roleSlots;
+        this.memberCount = memberCount;
+        this.status = status;
+        this.availableCapacity = (maxMembers != null && memberCount != null) ? Math.max(0, maxMembers - memberCount) : 0;
     }
 
     public Long getId() {
@@ -247,5 +301,33 @@ public class TeamResponse {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public LocalDateTime getJoinDeadline() {
+        return joinDeadline;
+    }
+
+    public void setJoinDeadline(LocalDateTime joinDeadline) {
+        this.joinDeadline = joinDeadline;
+    }
+
+    public Boolean getExpired() {
+        return expired;
+    }
+
+    public boolean isExpired() {
+        return Boolean.TRUE.equals(expired);
+    }
+
+    public void setExpired(Boolean expired) {
+        this.expired = expired;
+    }
+
+    public Integer getAvailableCapacity() {
+        return availableCapacity;
+    }
+
+    public void setAvailableCapacity(Integer availableCapacity) {
+        this.availableCapacity = availableCapacity;
     }
 }

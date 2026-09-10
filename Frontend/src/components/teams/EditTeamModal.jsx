@@ -37,6 +37,7 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
     hackathonName: '',
     hackathonUrl: '',
     hackathonDeadline: '',
+    joinDeadline: '',
     githubRepositoryUrl: '',
     documentationUrl: '',
   });
@@ -64,6 +65,7 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
         hackathonName: team.hackathonName || '',
         hackathonUrl: team.hackathonUrl || '',
         hackathonDeadline: team.hackathonDeadline || '',
+        joinDeadline: team.joinDeadline ? team.joinDeadline.slice(0, 16) : '',
         githubRepositoryUrl: team.githubRepositoryUrl || '',
         documentationUrl: team.documentationUrl || '',
       });
@@ -236,6 +238,7 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
         hackathonName: formData.hackathonName.trim() || undefined,
         hackathonUrl: formData.hackathonUrl.trim() || undefined,
         hackathonDeadline: formData.hackathonDeadline.trim() || undefined,
+        joinDeadline: formData.joinDeadline || undefined,
         githubRepositoryUrl:
           formData.githubRepositoryUrl.trim() || undefined,
         documentationUrl: formData.documentationUrl.trim() || undefined,
@@ -381,13 +384,24 @@ export const EditTeamModal = ({ isOpen, onClose, team, onTeamUpdated }) => {
               className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 dark:hover:border-slate-600 resize-none"
               required
             />
-            {errors.description && (
-              <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">
-                {errors.description}
-              </p>
-            )}
+              {errors.description && (
+                <p className="mt-1.5 text-xs text-rose-600 dark:text-rose-400 font-normal">
+                  {errors.description}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Input
+                label="Join / Invite Deadline (Optional)"
+                name="joinDeadline"
+                type="datetime-local"
+                value={formData.joinDeadline}
+                onChange={handleChange}
+                helperText="New join requests and invitations will be accepted until this date/time."
+              />
+            </div>
           </div>
-        </div>
 
         {/* Section 2: Role Distribution (Multiple Slots) */}
         <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">

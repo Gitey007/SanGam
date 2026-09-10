@@ -1,5 +1,6 @@
 package com.sangam.sangam.dto;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -16,6 +17,7 @@ public class CreateTeamRequest {
     private String hackathonName;
     private String hackathonUrl;
     private String hackathonDeadline;
+    private LocalDateTime joinDeadline;
     private String githubRepositoryUrl;
     private String documentationUrl;
     private String leaderRole;
@@ -169,5 +171,13 @@ public class CreateTeamRequest {
 
     public void setRoleSlots(List<TeamRoleSlotDto> roleSlots) {
         this.roleSlots = roleSlots;
+    }
+
+    public LocalDateTime getJoinDeadline() {
+        return joinDeadline;
+    }
+
+    public void setJoinDeadline(LocalDateTime joinDeadline) {
+        this.joinDeadline = joinDeadline;
     }
 }

@@ -6,6 +6,7 @@ import {
   Trophy,
   Github,
   FileText,
+  Clock,
 } from 'lucide-react';
 
 export const TeamCard = ({ team }) => {
@@ -15,6 +16,11 @@ export const TeamCard = ({ team }) => {
     team.memberCount !== undefined
       ? team.memberCount
       : team.members?.length || 1;
+  const isExpired = Boolean(
+    team.isExpired ||
+    team.expired ||
+    (team.joinDeadline && new Date(team.joinDeadline) < new Date())
+  );
   const status =
     team.status ||
     (memberCount >= maxMembers
@@ -41,6 +47,13 @@ export const TeamCard = ({ team }) => {
     : [];
 
   const getStatusBadge = () => {
+    if (isExpired) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700 shrink-0">
+          EXPIRED ({memberCount}/{maxMembers})
+        </span>
+      );
+    }
     if (status === 'FULL') {
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 shrink-0">
@@ -110,9 +123,24 @@ export const TeamCard = ({ team }) => {
 
         {/* Hackathon Badge if applicable */}
         {team.hackathonName && (
-          <div className="flex items-center gap-1.5 text-xs text-amber-800 dark:text-amber-300 bg-amber-50/60 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/60 px-2 py-1 rounded-md mb-3">
+          <div className="flex items-center gap-1.5 text-xs text-amber-800 dark:text-amber-300 bg-amber-50/60 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/60 px-2 py-1 rounded-md mb-2.5">
             <Trophy className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
             <span className="font-medium truncate">{team.hackathonName}</span>
+          </div>
+        )}
+
+        {/* Join Deadline */}
+        {team.joinDeadline && (
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+            <Clock className="w-3 h-3 text-slate-400 dark:text-slate-500 shrink-0" />
+            <span className={isExpired ? 'text-rose-600 dark:text-rose-400 font-medium' : ''}>
+              {isExpired ? 'Expired: ' : 'Deadline: '}
+              {new Date(team.joinDeadline).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })}
+            </span>
           </div>
         )}
 

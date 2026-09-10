@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,6 +46,26 @@ public class TeamService {
     private final TeamJoinRequestRepository teamJoinRequestRepository;
     private final TeamInvitationRepository teamInvitationRepository;
     private final SkillRepository skillRepository;
+    private final EmailNotificationService emailNotificationService;
+
+    @Autowired
+    public TeamService(
+            TeamRepository teamRepository,
+            UserRepository userRepository,
+            TeamMemberRepository teamMemberRepository,
+            TeamJoinRequestRepository teamJoinRequestRepository,
+            TeamInvitationRepository teamInvitationRepository,
+            SkillRepository skillRepository,
+            @Autowired(required = false) EmailNotificationService emailNotificationService) {
+
+        this.teamRepository = teamRepository;
+        this.userRepository = userRepository;
+        this.teamMemberRepository = teamMemberRepository;
+        this.teamJoinRequestRepository = teamJoinRequestRepository;
+        this.teamInvitationRepository = teamInvitationRepository;
+        this.skillRepository = skillRepository;
+        this.emailNotificationService = emailNotificationService;
+    }
 
     public TeamService(
             TeamRepository teamRepository,
@@ -53,13 +74,7 @@ public class TeamService {
             TeamJoinRequestRepository teamJoinRequestRepository,
             TeamInvitationRepository teamInvitationRepository,
             SkillRepository skillRepository) {
-
-        this.teamRepository = teamRepository;
-        this.userRepository = userRepository;
-        this.teamMemberRepository = teamMemberRepository;
-        this.teamJoinRequestRepository = teamJoinRequestRepository;
-        this.teamInvitationRepository = teamInvitationRepository;
-        this.skillRepository = skillRepository;
+        this(teamRepository, userRepository, teamMemberRepository, teamJoinRequestRepository, teamInvitationRepository, skillRepository, null);
     }
 
     public static boolean isOtherRole(String roleName) {
@@ -115,6 +130,9 @@ public class TeamService {
         team.setHackathonName(request.getHackathonName());
         team.setHackathonUrl(validateAndCleanUrl(request.getHackathonUrl(), "Hackathon URL"));
         team.setHackathonDeadline(request.getHackathonDeadline());
+        if (request.getJoinDeadline() != null) {
+            team.setJoinDeadline(request.getJoinDeadline());
+        }
 
         team.setGithubRepositoryUrl(validateAndCleanUrl(request.getGithubRepositoryUrl(), "GitHub repository URL"));
         team.setDocumentationUrl(validateAndCleanUrl(request.getDocumentationUrl(), "Documentation URL"));
@@ -217,6 +235,9 @@ public class TeamService {
         team.setHackathonName(request.getHackathonName());
         team.setHackathonUrl(validateAndCleanUrl(request.getHackathonUrl(), "Hackathon URL"));
         team.setHackathonDeadline(request.getHackathonDeadline());
+        if (request.getJoinDeadline() != null) {
+            team.setJoinDeadline(request.getJoinDeadline());
+        }
 
         team.setGithubRepositoryUrl(validateAndCleanUrl(request.getGithubRepositoryUrl(), "GitHub repository URL"));
         team.setDocumentationUrl(validateAndCleanUrl(request.getDocumentationUrl(), "Documentation URL"));
@@ -258,6 +279,29 @@ public class TeamService {
             team.setRequiredSkills(skills);
         }
 
+        team.setUpdatedAt(LocalDateTime.now());
+        Team saved = teamRepository.save(team);
+        return toTeamResponse(saved);
+    }
+
+    @Transactional
+    public TeamResponse extendDeadline(Long teamId, LocalDateTime newDeadline, String authenticatedEmail) {
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
+
+        if (newDeadline == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New deadline is required");
+        }
+
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
+
+        if (!team.getLeader().getEmail().equalsIgnoreCase(authenticatedEmail.trim())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the team leader can extend the team deadline");
+        }
+
+        team.setJoinDeadline(newDeadline);
         team.setUpdatedAt(LocalDateTime.now());
         Team saved = teamRepository.save(team);
         return toTeamResponse(saved);
@@ -317,6 +361,8 @@ public class TeamService {
             }
         }
 
+        boolean isExpired = team.getJoinDeadline() != null && LocalDateTime.now().isAfter(team.getJoinDeadline());
+
         return new TeamResponse(
                 team.getId(),
                 team.getName(),
@@ -331,6 +377,8 @@ public class TeamService {
                 team.getHackathonName(),
                 team.getHackathonUrl(),
                 team.getHackathonDeadline(),
+                team.getJoinDeadline(),
+                isExpired,
                 team.getGithubRepositoryUrl(),
                 team.getDocumentationUrl(),
                 skillNames,
@@ -345,6 +393,21 @@ public class TeamService {
         return teamRepository.findAll()
                 .stream()
                 .map(this::toTeamResponse)
+                .sorted((a, b) -> {
+                    boolean aExp = Boolean.TRUE.equals(a.getExpired());
+                    boolean bExp = Boolean.TRUE.equals(b.getExpired());
+                    if (aExp != bExp) {
+                        return aExp ? 1 : -1; // Active teams first, Expired teams at bottom
+                    }
+                    // Among active (or expired), sort by available capacity descending
+                    int aAvail = a.getAvailableCapacity() != null ? a.getAvailableCapacity() : 0;
+                    int bAvail = b.getAvailableCapacity() != null ? b.getAvailableCapacity() : 0;
+                    if (aAvail != bAvail) {
+                        return Integer.compare(bAvail, aAvail);
+                    }
+                    // Tie-breaker: ID descending
+                    return Long.compare(b.getId() != null ? b.getId() : 0, a.getId() != null ? a.getId() : 0);
+                })
                 .toList();
     }
 
@@ -465,6 +528,12 @@ public class TeamService {
                     "You have a pending invitation for this team. Please accept the invitation instead.");
         }
 
+        if (team.getJoinDeadline() != null && LocalDateTime.now().isAfter(team.getJoinDeadline())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Team join deadline has expired");
+        }
+
         long currentMemberCount = teamMemberRepository.countByTeamId(teamId);
         if (team.getMaxMembers() != null && currentMemberCount >= team.getMaxMembers()) {
             throw new ResponseStatusException(
@@ -472,8 +541,28 @@ public class TeamService {
                     "Team is full");
         }
 
+        if (requestedRole != null && !requestedRole.isBlank() && team.getRoleSlots() != null && !team.getRoleSlots().isEmpty()) {
+            TeamRoleSlot matchingSlot = team.getRoleSlots().stream()
+                    .filter(slot -> roleMatches(slot.getRoleName(), requestedRole.trim()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (matchingSlot != null) {
+                List<TeamMember> currentMembers = teamMemberRepository.findByTeamId(teamId);
+                long filled = currentMembers.stream()
+                        .filter(m -> roleMatches(matchingSlot.getRoleName(), m.getAssignedRole()))
+                        .count();
+                if (filled >= matchingSlot.getSlotCount()) {
+                    throw new ResponseStatusException(
+                            HttpStatus.CONFLICT,
+                            "This role is no longer available.");
+                }
+            }
+        }
+
         Optional<TeamJoinRequest> existingRequest = teamJoinRequestRepository.findByTeamIdAndUserId(teamId, userId);
 
+        TeamJoinRequest saved;
         if (existingRequest.isPresent()) {
             TeamJoinRequest req = existingRequest.get();
             if (req.getStatus() == TeamJoinRequest.RequestStatus.PENDING) {
@@ -486,15 +575,30 @@ public class TeamService {
             req.setCustomRole(customRole != null ? customRole.trim() : null);
             req.setCreatedAt(LocalDateTime.now());
             req.setUpdatedAt(LocalDateTime.now());
-            TeamJoinRequest saved = teamJoinRequestRepository.save(req);
-            return toJoinRequestResponse(saved);
+            saved = teamJoinRequestRepository.save(req);
+        } else {
+            TeamJoinRequest request = new TeamJoinRequest(
+                    team, user, TeamJoinRequest.RequestStatus.PENDING,
+                    requestedRole != null ? requestedRole.trim() : null,
+                    customRole != null ? customRole.trim() : null);
+            saved = teamJoinRequestRepository.save(request);
         }
 
-        TeamJoinRequest request = new TeamJoinRequest(
-                team, user, TeamJoinRequest.RequestStatus.PENDING,
-                requestedRole != null ? requestedRole.trim() : null,
-                customRole != null ? customRole.trim() : null);
-        TeamJoinRequest saved = teamJoinRequestRepository.save(request);
+        if (emailNotificationService != null) {
+            try {
+                String roleForEmail = requestedRole != null ? requestedRole : customRole;
+                emailNotificationService.sendJoinRequestSubmittedEmail(
+                        user.getEmail(), user.getName(), team.getName(), roleForEmail);
+                if (team.getLeader() != null) {
+                    emailNotificationService.sendJoinRequestReceivedEmail(
+                            team.getLeader().getEmail(), team.getLeader().getName(),
+                            user.getName(), user.getEmail(), user.getCollege(), user.getBranch(), user.getYear(),
+                            team.getName(), roleForEmail);
+                }
+            } catch (Exception e) {
+                // Safety: Email failure MUST NOT break the main database operation
+            }
+        }
 
         return toJoinRequestResponse(saved);
     }
@@ -621,6 +725,18 @@ public class TeamService {
         request.setStatus(TeamJoinRequest.RequestStatus.ACCEPTED);
         request.setUpdatedAt(LocalDateTime.now());
         teamJoinRequestRepository.save(request);
+
+        if (emailNotificationService != null) {
+            try {
+                User applicant = request.getUser();
+                if (applicant != null) {
+                    emailNotificationService.sendJoinRequestAcceptedEmail(
+                            applicant.getEmail(), applicant.getName(), team.getName(), effectiveRole, team.getDescription());
+                }
+            } catch (Exception e) {
+                // Safety: Email failure MUST NOT break the main database operation
+            }
+        }
     }
 
     @Transactional
@@ -722,11 +838,36 @@ public class TeamService {
                     "Student is already a member of this team");
         }
 
+        if (team.getJoinDeadline() != null && LocalDateTime.now().isAfter(team.getJoinDeadline())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Team join/invite deadline has expired");
+        }
+
         long currentMemberCount = teamMemberRepository.countByTeamId(teamId);
         if (team.getMaxMembers() != null && currentMemberCount >= team.getMaxMembers()) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Team is full");
+        }
+
+        if (invitedRole != null && !invitedRole.isBlank() && team.getRoleSlots() != null && !team.getRoleSlots().isEmpty()) {
+            TeamRoleSlot matchingSlot = team.getRoleSlots().stream()
+                    .filter(slot -> roleMatches(slot.getRoleName(), invitedRole.trim()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (matchingSlot != null) {
+                List<TeamMember> currentMembers = teamMemberRepository.findByTeamId(teamId);
+                long filled = currentMembers.stream()
+                        .filter(m -> roleMatches(matchingSlot.getRoleName(), m.getAssignedRole()))
+                        .count();
+                if (filled >= matchingSlot.getSlotCount()) {
+                    throw new ResponseStatusException(
+                            HttpStatus.CONFLICT,
+                            "This role is no longer available.");
+                }
+            }
         }
 
         Optional<TeamInvitation> existingOpt = teamInvitationRepository.findByTeamIdAndInvitedUserId(teamId, targetUserId);

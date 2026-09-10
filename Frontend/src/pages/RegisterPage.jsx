@@ -7,6 +7,7 @@ import Button from '../components/common/Button';
 import ThemeToggle from '../components/common/ThemeToggle';
 import { YEAR_OPTIONS } from '../utils/constants';
 import authApi from '../services/authApi';
+import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { extractErrorMessage } from '../utils/helpers';
 
@@ -28,6 +29,7 @@ export const RegisterPage = () => {
   const [generalError, setGeneralError] = useState('');
 
   const navigate = useNavigate();
+  const { login } = useAuth();
   const { success: toastSuccess } = useToast();
 
   const handleChange = (e) => {
@@ -93,7 +95,7 @@ export const RegisterPage = () => {
     }
   };
 
-  // Step 3: Verify OTP & Create Account
+  // Step 3: Verify OTP & Create Account & Auto Login
   const handleVerifyAndRegister = async (e) => {
     e.preventDefault();
     if (!formData.otp.trim()) {
@@ -108,11 +110,17 @@ export const RegisterPage = () => {
       // 1. Verify OTP with backend
       await authApi.verifyOtp(formData.email, formData.otp);
 
-      // 2. Complete registration on backend
-      await authApi.register(formData);
+      // 2. Complete registration on backend (returns LoginResponse with JWT)
+      const response = await authApi.register(formData);
 
-      toastSuccess('Account created successfully! Please sign in.');
-      navigate('/login');
+      if (response && response.token) {
+        login(response.token, response);
+        toastSuccess('Account created successfully! Welcome to SanGam.');
+        navigate('/dashboard', { replace: true });
+      } else {
+        toastSuccess('Account created successfully! Please sign in.');
+        navigate('/login');
+      }
     } catch (err) {
       const msg = extractErrorMessage(
         err,

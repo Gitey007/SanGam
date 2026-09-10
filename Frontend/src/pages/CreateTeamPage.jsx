@@ -45,6 +45,7 @@ export const CreateTeamPage = () => {
     hackathonName: "",
     hackathonUrl: "",
     hackathonDeadline: "",
+    joinDeadline: "",
     githubRepositoryUrl: "",
     documentationUrl: "",
     leaderRole: "",
@@ -196,6 +197,7 @@ export const CreateTeamPage = () => {
         hackathonName: formData.hackathonName.trim() || undefined,
         hackathonUrl: formData.hackathonUrl.trim() || undefined,
         hackathonDeadline: formData.hackathonDeadline.trim() || undefined,
+        joinDeadline: formData.joinDeadline ? formData.joinDeadline : undefined,
         githubRepositoryUrl: formData.githubRepositoryUrl.trim() || undefined,
         documentationUrl: formData.documentationUrl.trim() || undefined,
         requiredSkills: skills,
@@ -321,6 +323,17 @@ export const CreateTeamPage = () => {
                   {errors.description}
                 </p>
               )}
+            </div>
+
+            <div>
+              <Input
+                label="Join / Invite Deadline (Optional)"
+                name="joinDeadline"
+                type="datetime-local"
+                value={formData.joinDeadline}
+                onChange={handleChange}
+                helperText="New join requests and invitations will be accepted until this date/time."
+              />
             </div>
           </div>
 

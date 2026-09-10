@@ -114,8 +114,10 @@ export const TeamsPage = () => {
     return isLeader || isMember;
   });
 
+  const [limit, setLimit] = useState(10); // 10 | 20 | 30 | 'ALL'
   const pendingInvitations = invitations.filter((i) => i.status === 'PENDING');
   const displayedTeams = tab === 'my' ? myTeams : teams;
+  const limitedTeams = limit === 'ALL' ? displayedTeams : displayedTeams.slice(0, Number(limit));
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -140,47 +142,70 @@ export const TeamsPage = () => {
         </Link>
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-1 bg-slate-100/90 dark:bg-slate-800/90 p-1 rounded-lg w-fit border border-slate-200/60 dark:border-slate-700/60">
-        <button
-          type="button"
-          onClick={() => handleTabChange('all')}
-          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-            tab === 'all'
-              ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-subtle font-semibold'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          All Teams ({teams.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => handleTabChange('my')}
-          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-            tab === 'my'
-              ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-subtle font-semibold'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          My Teams ({myTeams.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => handleTabChange('invitations')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-            tab === 'invitations'
-              ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-subtle font-semibold'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <Mail className="w-3.5 h-3.5" />
-          <span>Invitations</span>
-          {pendingInvitations.length > 0 && (
-            <span className="ml-0.5 px-1.5 py-0.2 text-[10px] font-bold rounded-full bg-brand-600 text-white">
-              {pendingInvitations.length}
-            </span>
-          )}
-        </button>
+      {/* Tabs & Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-1 bg-slate-100/90 dark:bg-slate-800/90 p-1 rounded-lg w-fit border border-slate-200/60 dark:border-slate-700/60">
+          <button
+            type="button"
+            onClick={() => handleTabChange('all')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+              tab === 'all'
+                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-subtle font-semibold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            All Teams ({teams.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTabChange('my')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+              tab === 'my'
+                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-subtle font-semibold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            My Teams ({myTeams.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTabChange('invitations')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+              tab === 'invitations'
+                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-subtle font-semibold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Mail className="w-3.5 h-3.5" />
+            <span>Invitations</span>
+            {pendingInvitations.length > 0 && (
+              <span className="ml-0.5 px-1.5 py-0.2 text-[10px] font-bold rounded-full bg-brand-600 text-white">
+                {pendingInvitations.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {tab !== 'invitations' && (
+          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 self-start sm:self-auto">
+            <span>Show:</span>
+            <select
+              value={limit}
+              onChange={(e) => setLimit(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+              className="h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={30}>30</option>
+              <option value="ALL">All</option>
+            </select>
+            {displayedTeams.length > 0 && (
+              <span className="text-slate-400 dark:text-slate-500 text-[11px] ml-1">
+                ({limitedTeams.length} of {displayedTeams.length})
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Main Tab Content */}
@@ -325,7 +350,7 @@ export const TeamsPage = () => {
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {displayedTeams.map((team) => (
+            {limitedTeams.map((team) => (
               <TeamCard key={team.id} team={team} />
             ))}
           </div>

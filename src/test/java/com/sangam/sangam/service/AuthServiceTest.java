@@ -142,18 +142,19 @@ class AuthServiceTest {
         when(emailOtpService.consumeVerifiedEmail("student@college.edu")).thenReturn(true);
         when(passwordEncoder.encode("password123")).thenReturn("encodedPasswordHash");
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(jwtService.generateToken(any())).thenReturn("mockJwtToken");
 
-        User registeredUser = authService.register(request);
+        LoginResponse registeredResponse = authService.register(request);
 
-        assertNotNull(registeredUser);
-        assertEquals("Test Student", registeredUser.getName());
-        assertEquals("student@college.edu", registeredUser.getEmail());
-        assertEquals("encodedPasswordHash", registeredUser.getPasswordHash());
-        assertTrue(registeredUser.getEmailVerified());
+        assertNotNull(registeredResponse);
+        assertEquals("mockJwtToken", registeredResponse.getToken());
+        assertEquals("Test Student", registeredResponse.getName());
+        assertEquals("student@college.edu", registeredResponse.getEmail());
 
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(userCaptor.capture());
         assertTrue(userCaptor.getValue().getEmailVerified());
+        assertEquals("encodedPasswordHash", userCaptor.getValue().getPasswordHash());
     }
 
     @Test
@@ -166,12 +167,13 @@ class AuthServiceTest {
         when(emailOtpService.verifyOtp("student@college.edu", "654321")).thenReturn(true);
         when(passwordEncoder.encode("password123")).thenReturn("encodedPasswordHash");
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(jwtService.generateToken(any())).thenReturn("mockJwtToken");
 
-        User registeredUser = authService.register(request);
+        LoginResponse registeredResponse = authService.register(request);
 
-        assertNotNull(registeredUser);
-        assertEquals("student@college.edu", registeredUser.getEmail());
-        assertTrue(registeredUser.getEmailVerified());
+        assertNotNull(registeredResponse);
+        assertEquals("mockJwtToken", registeredResponse.getToken());
+        assertEquals("student@college.edu", registeredResponse.getEmail());
         verify(userRepository).save(any(User.class));
     }
 
@@ -185,9 +187,10 @@ class AuthServiceTest {
         when(emailOtpService.consumeVerifiedEmail("student@college.edu")).thenReturn(true, false);
         when(passwordEncoder.encode(anyString())).thenReturn("encodedHash");
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(jwtService.generateToken(any())).thenReturn("mockJwtToken");
 
         // First registration succeeds
-        User user1 = authService.register(request);
+        LoginResponse user1 = authService.register(request);
         assertNotNull(user1);
 
         // Second registration attempt fails because verified state was consumed

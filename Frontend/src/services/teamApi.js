@@ -59,6 +59,7 @@ export const teamApi = {
       hackathonName: teamData.hackathonName,
       hackathonUrl: teamData.hackathonUrl,
       hackathonDeadline: teamData.hackathonDeadline,
+      joinDeadline: teamData.joinDeadline,
       githubRepositoryUrl: teamData.githubRepositoryUrl,
       documentationUrl: teamData.documentationUrl,
       requiredSkills: teamData.requiredSkills,
@@ -66,6 +67,14 @@ export const teamApi = {
       roleSlots: teamData.roleSlots,
     });
 
+    return response.data;
+  },
+
+  async extendDeadline(teamId, joinDeadline) {
+    if (!teamId) throw new Error('Team ID is required');
+    const response = await api.put(`/api/teams/${teamId}/deadline`, {
+      joinDeadline,
+    });
     return response.data;
   },
 

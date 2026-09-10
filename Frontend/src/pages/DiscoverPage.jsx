@@ -122,6 +122,9 @@ export const DiscoverPage = () => {
     setDebouncedSkill(clickedSkill);
   };
 
+  const [limit, setLimit] = useState(9); // 9 | 10 | 20 | 30 | 'ALL'
+  const displayedStudents = limit === 'ALL' ? filteredStudents : filteredStudents.slice(0, Number(limit));
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Header */}
@@ -138,10 +141,24 @@ export const DiscoverPage = () => {
           </p>
         </div>
 
-        {/* Real-time Result Badge */}
+        {/* Real-time Result Badge & Limit Selector */}
         {!isLoading && !error && (
-          <div className="text-xs font-medium text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-lg shadow-subtle self-start sm:self-auto">
-            Showing <span className="text-slate-900 dark:text-slate-100 font-semibold">{filteredStudents.length}</span> students
+          <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-lg shadow-subtle self-start sm:self-auto">
+            <span>Show:</span>
+            <select
+              value={limit}
+              onChange={(e) => setLimit(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+              className="h-6 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            >
+              <option value={9}>9</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={30}>30</option>
+              <option value="ALL">All</option>
+            </select>
+            <span className="text-slate-400 dark:text-slate-500 text-[11px]">
+              ({displayedStudents.length} of {filteredStudents.length})
+            </span>
           </div>
         )}
       </div>
@@ -163,7 +180,7 @@ export const DiscoverPage = () => {
       {/* Content States */}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {[1, 2, 3, 4, 5, 6].map((idx) => (
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((idx) => (
             <StudentCardSkeleton key={idx} />
           ))}
         </div>
@@ -185,14 +202,28 @@ export const DiscoverPage = () => {
           onAction={handleResetFilters}
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredStudents.map((student) => (
-            <StudentCard
-              key={student.id}
-              student={student}
-              onSkillClick={handleSkillBadgeClick}
-            />
-          ))}
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {displayedStudents.map((student) => (
+              <StudentCard
+                key={student.id}
+                student={student}
+                onSkillClick={handleSkillBadgeClick}
+              />
+            ))}
+          </div>
+
+          {filteredStudents.length > displayedStudents.length && limit !== 'ALL' && (
+            <div className="text-center pt-2">
+              <button
+                type="button"
+                onClick={() => setLimit('ALL')}
+                className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-subtle transition-all"
+              >
+                View All ({filteredStudents.length} Students) →
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

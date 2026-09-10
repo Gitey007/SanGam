@@ -17,4 +17,6 @@ public interface TeamMemberRepository
     void deleteByTeamIdAndUserId(Long teamId, Long userId);
 
     void deleteByTeamId(Long teamId);
+
+    void deleteByUserId(Long userId);
 }

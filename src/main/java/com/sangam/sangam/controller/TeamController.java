@@ -1,6 +1,9 @@
 package com.sangam.sangam.controller;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -63,6 +66,40 @@ public class TeamController {
         return ResponseEntity.ok(response);
     }
 
+    @PutMapping("/{id}/deadline")
+    public ResponseEntity<TeamResponse> extendDeadline(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body,
+            Authentication authentication) {
+
+        if (authentication == null || authentication.getName() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
+
+        String deadlineStr = body != null ? (String) body.get("joinDeadline") : null;
+        if (deadlineStr == null || deadlineStr.isBlank()) {
+            deadlineStr = body != null ? (String) body.get("deadline") : null;
+        }
+
+        if (deadlineStr == null || deadlineStr.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Deadline date is required");
+        }
+
+        LocalDateTime deadline;
+        try {
+            if (deadlineStr.contains("T")) {
+                deadline = LocalDateTime.parse(deadlineStr);
+            } else {
+                deadline = LocalDate.parse(deadlineStr).atTime(23, 59, 59);
+            }
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid date format. Expected YYYY-MM-DD or ISO-8601 DateTime");
+        }
+
+        TeamResponse response = teamService.extendDeadline(id, deadline, authentication.getName());
+        return ResponseEntity.ok(response);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteTeam(
             @PathVariable Long id,
@@ -103,12 +140,19 @@ public class TeamController {
             @RequestParam(required = false) Long leaderId,
             Authentication authentication) {
 
-        Long effectiveLeaderId = leaderId;
-        if (effectiveLeaderId == null && authentication != null) {
+        Long effectiveLeaderId = null;
+        if (authentication != null && authentication.getName() != null) {
             User user = userRepository.findByEmail(authentication.getName().trim().toLowerCase()).orElse(null);
             if (user != null) {
                 effectiveLeaderId = user.getId();
             }
+        }
+        if (effectiveLeaderId == null) {
+            effectiveLeaderId = leaderId;
+        }
+
+        if (effectiveLeaderId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
         }
 
         teamService.removeMember(
@@ -126,16 +170,19 @@ public class TeamController {
             @RequestParam(required = false) Long userId,
             Authentication authentication) {
 
-        Long effectiveUserId = userId;
-        if (effectiveUserId == null && authentication != null) {
+        Long effectiveUserId = null;
+        if (authentication != null && authentication.getName() != null) {
             User user = userRepository.findByEmail(authentication.getName().trim().toLowerCase()).orElse(null);
             if (user != null) {
                 effectiveUserId = user.getId();
             }
         }
+        if (effectiveUserId == null) {
+            effectiveUserId = userId;
+        }
 
         if (effectiveUserId == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User ID is required");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
         }
 
         teamService.leaveTeam(teamId, effectiveUserId);
@@ -153,19 +200,22 @@ public class TeamController {
             @RequestBody(required = false) RoleActionRequest body,
             Authentication authentication) {
 
-        Long effectiveUserId = userId;
-        if (effectiveUserId == null && body != null && body.getUserId() != null) {
-            effectiveUserId = body.getUserId();
-        }
-        if (effectiveUserId == null && authentication != null) {
+        Long effectiveUserId = null;
+        if (authentication != null && authentication.getName() != null) {
             User user = userRepository.findByEmail(authentication.getName().trim().toLowerCase()).orElse(null);
             if (user != null) {
                 effectiveUserId = user.getId();
             }
         }
+        if (effectiveUserId == null) {
+            effectiveUserId = userId;
+            if (effectiveUserId == null && body != null && body.getUserId() != null) {
+                effectiveUserId = body.getUserId();
+            }
+        }
 
         if (effectiveUserId == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User ID is required");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
         }
 
         String effectiveRole = (requestedRole != null && !requestedRole.isBlank())
@@ -188,12 +238,19 @@ public class TeamController {
             @RequestParam(required = false) Long leaderId,
             Authentication authentication) {
 
-        Long effectiveLeaderId = leaderId;
-        if (effectiveLeaderId == null && authentication != null) {
+        Long effectiveLeaderId = null;
+        if (authentication != null && authentication.getName() != null) {
             User user = userRepository.findByEmail(authentication.getName().trim().toLowerCase()).orElse(null);
             if (user != null) {
                 effectiveLeaderId = user.getId();
             }
+        }
+        if (effectiveLeaderId == null) {
+            effectiveLeaderId = leaderId;
+        }
+
+        if (effectiveLeaderId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
         }
 
         return ResponseEntity.ok(
@@ -211,15 +268,22 @@ public class TeamController {
             @RequestBody(required = false) RoleActionRequest body,
             Authentication authentication) {
 
-        Long effectiveLeaderId = leaderId;
-        if (effectiveLeaderId == null && body != null && body.getLeaderId() != null) {
-            effectiveLeaderId = body.getLeaderId();
-        }
-        if (effectiveLeaderId == null && authentication != null) {
+        Long effectiveLeaderId = null;
+        if (authentication != null && authentication.getName() != null) {
             User user = userRepository.findByEmail(authentication.getName().trim().toLowerCase()).orElse(null);
             if (user != null) {
                 effectiveLeaderId = user.getId();
             }
+        }
+        if (effectiveLeaderId == null) {
+            effectiveLeaderId = leaderId;
+            if (effectiveLeaderId == null && body != null && body.getLeaderId() != null) {
+                effectiveLeaderId = body.getLeaderId();
+            }
+        }
+
+        if (effectiveLeaderId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
         }
 
         String effectiveRole = (selectedRole != null && !selectedRole.isBlank())
@@ -248,12 +312,19 @@ public class TeamController {
             @RequestParam(required = false) Long leaderId,
             Authentication authentication) {
 
-        Long effectiveLeaderId = leaderId;
-        if (effectiveLeaderId == null && authentication != null) {
+        Long effectiveLeaderId = null;
+        if (authentication != null && authentication.getName() != null) {
             User user = userRepository.findByEmail(authentication.getName().trim().toLowerCase()).orElse(null);
             if (user != null) {
                 effectiveLeaderId = user.getId();
             }
+        }
+        if (effectiveLeaderId == null) {
+            effectiveLeaderId = leaderId;
+        }
+
+        if (effectiveLeaderId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
         }
 
         teamService.rejectJoinRequest(teamId, requestId, effectiveLeaderId);

@@ -149,6 +149,27 @@ export const userApi = {
     const response = await api.delete(`/api/users/${userId}/projects/${projectId}`);
     return response.data;
   },
+
+  /**
+   * Request OTP for account deletion
+   * POST /api/users/delete-account/send-otp
+   */
+  async requestDeleteAccountOtp() {
+    const response = await api.post('/api/users/delete-account/send-otp');
+    return response.data;
+  },
+
+  /**
+   * Verify OTP and delete account
+   * POST /api/users/delete-account/verify-and-delete
+   */
+  async verifyAndDeleteAccount(otp) {
+    if (!otp) throw new Error('OTP is required');
+    const response = await api.post('/api/users/delete-account/verify-and-delete', {
+      otp: otp.trim(),
+    });
+    return response.data;
+  },
 };
 
 export default userApi;
