@@ -130,37 +130,42 @@ export const TeamDetailsPage = () => {
     return r1.trim().toLowerCase() === r2.trim().toLowerCase();
   };
 
+  const currentUserId = user?.id || user?.userId;
+
   /**
    * Fetch pending join requests (leader only)
    */
   const fetchJoinRequests = useCallback(async () => {
-    if (!id || !user?.id) return;
+    const uid = user?.id || user?.userId;
+    if (!id || !uid) return;
     try {
-      const reqs = await teamApi.getJoinRequests(id, user.id);
+      const reqs = await teamApi.getJoinRequests(id, uid);
       setJoinRequests(Array.isArray(reqs) ? reqs : []);
     } catch (err) {
-      console.error('Failed to load join requests:', err);
+      console.warn('Failed to load join requests:', err);
     }
-  }, [id, user?.id]);
+  }, [id, user?.id, user?.userId]);
 
   /**
    * Fetch sent invitations (leader only)
    */
   const fetchSentInvitations = useCallback(async () => {
-    if (!id || !user?.id) return;
+    const uid = user?.id || user?.userId;
+    if (!id || !uid) return;
     try {
       const invs = await teamApi.getTeamInvitations(id);
       setSentInvitations(Array.isArray(invs) ? invs : []);
     } catch (err) {
-      console.error('Failed to load sent invitations:', err);
+      console.warn('Failed to load sent invitations:', err);
     }
-  }, [id, user?.id]);
+  }, [id, user?.id, user?.userId]);
 
   /**
    * Fetch student's own invitations to check pending invitation for this team
    */
   const fetchMyPendingInvitation = useCallback(async () => {
-    if (!id || !user?.id) return;
+    const uid = user?.id || user?.userId;
+    if (!id || !uid) return;
     try {
       const myInvs = await teamApi.getMyTeamInvitations('PENDING');
       if (Array.isArray(myInvs)) {
@@ -170,12 +175,12 @@ export const TeamDetailsPage = () => {
         setMyPendingInvitation(found || null);
       }
     } catch (err) {
-      console.error('Failed to load my invitations:', err);
+      console.warn('Failed to load my invitations:', err);
     }
-  }, [id, user?.id]);
+  }, [id, user?.id, user?.userId]);
 
   /**
-   * Fetch team details + members + user state in parallel
+   * Fetch team details + members + user state safely
    */
   const fetchTeamDetails = useCallback(async () => {
     if (!id) {
@@ -188,18 +193,44 @@ export const TeamDetailsPage = () => {
     setError(null);
 
     try {
-      // Parallelize team info, members, and student pending invitations check
-      const [teamData, membersData, myInvs] = await Promise.all([
-        teamApi.getTeamById(id),
-        teamApi.getTeamMembers(id),
-        user?.id ? teamApi.getMyTeamInvitations('PENDING').catch(() => []) : Promise.resolve([]),
+      // 1. Fetch core team details (MANDATORY)
+      const teamData = await teamApi.getTeamById(id);
+      if (!teamData || !teamData.id) {
+        throw new Error('Team not found');
+      }
+      setTeam(teamData);
+
+      const uid = user?.id || user?.userId;
+
+      // 2. Fetch members and pending student invitations safely
+      const [membersData, myInvs] = await Promise.all([
+        teamApi.getTeamMembers(id).catch((err) => {
+          console.warn('Failed to load team members:', err);
+          return [];
+        }),
+        uid
+          ? teamApi.getMyTeamInvitations('PENDING').catch((err) => {
+              console.warn('Failed to load user invitations:', err);
+              return [];
+            })
+          : Promise.resolve([]),
       ]);
 
-      setTeam(teamData);
-      setMembers(Array.isArray(membersData) ? membersData : []);
+      let resolvedMembers = Array.isArray(membersData) ? membersData : [];
+      if (resolvedMembers.length === 0 && teamData.leaderId) {
+        resolvedMembers = [
+          {
+            userId: teamData.leaderId,
+            name: teamData.leaderName || 'Team Leader',
+            role: 'LEADER',
+            assignedRole: 'Leader',
+          },
+        ];
+      }
+      setMembers(resolvedMembers);
 
-      const currentUserIsMember = membersData?.some(
-        (member) => String(member.userId) === String(user?.id)
+      const currentUserIsMember = resolvedMembers.some(
+        (member) => String(member.userId) === String(uid)
       );
 
       if (currentUserIsMember) {
@@ -212,21 +243,29 @@ export const TeamDetailsPage = () => {
         setMyPendingInvitation(found || null);
       }
 
-      // If user is leader, also fetch pending join requests and sent invitations concurrently
-      if (
-        teamData?.leaderId &&
-        user?.id &&
-        String(teamData.leaderId) === String(user.id)
-      ) {
+      // 3. If user is leader, safely load pending join requests and sent invitations
+      const isCurrentLeader = Boolean(
+        teamData.leaderId &&
+        uid &&
+        String(teamData.leaderId) === String(uid)
+      );
+
+      if (isCurrentLeader) {
         try {
           const [reqs, invs] = await Promise.all([
-            teamApi.getJoinRequests(id, user.id).catch(() => []),
-            teamApi.getTeamInvitations(id).catch(() => []),
+            teamApi.getJoinRequests(id, uid).catch((err) => {
+              console.warn('Failed to load join requests:', err);
+              return [];
+            }),
+            teamApi.getTeamInvitations(id).catch((err) => {
+              console.warn('Failed to load team invitations:', err);
+              return [];
+            }),
           ]);
           setJoinRequests(Array.isArray(reqs) ? reqs : []);
           setSentInvitations(Array.isArray(invs) ? invs : []);
         } catch (leaderErr) {
-          console.error('Failed to load leader management data:', leaderErr);
+          console.warn('Failed to load leader management data:', leaderErr);
         }
       }
     } catch (err) {
@@ -240,7 +279,7 @@ export const TeamDetailsPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [id, user?.id]);
+  }, [id, user?.id, user?.userId]);
 
   useEffect(() => {
     fetchTeamDetails();
@@ -250,11 +289,13 @@ export const TeamDetailsPage = () => {
    * Check membership and leadership
    */
   const isMember = members.some(
-    (member) => String(member.userId) === String(user?.id)
+    (member) => String(member.userId) === String(currentUserId)
   );
 
   const isLeader = Boolean(
-    team?.leaderId && user?.id && String(team.leaderId) === String(user.id)
+    team?.leaderId &&
+      currentUserId &&
+      String(team.leaderId) === String(currentUserId)
   );
 
   const maxMembers = team?.maxMembers || 0;
@@ -311,13 +352,14 @@ export const TeamDetailsPage = () => {
    */
   const handleConfirmJoinRequest = async (e) => {
     e?.preventDefault();
-    if (!user?.id) return;
+    const uid = user?.id || user?.userId;
+    if (!uid) return;
 
     setIsJoining(true);
     try {
       await teamApi.sendJoinRequest(
         id,
-        user.id,
+        uid,
         selectedJoinRole,
         joinCustomRole.trim() || null
       );
@@ -432,11 +474,12 @@ export const TeamDetailsPage = () => {
    * Leader directly accepts join request
    */
   const handleAcceptRequest = async (requestId) => {
-    if (!user?.id) return;
+    const uid = user?.id || user?.userId;
+    if (!uid) return;
     setActionLoading((prev) => ({ ...prev, [requestId]: 'accept' }));
 
     try {
-      await teamApi.acceptJoinRequest(id, requestId, user.id);
+      await teamApi.acceptJoinRequest(id, requestId, uid);
       success('Join request accepted successfully!');
       await fetchTeamDetails();
     } catch (err) {
@@ -465,7 +508,8 @@ export const TeamDetailsPage = () => {
    */
   const handleConfirmReassignAccept = async (e) => {
     e?.preventDefault();
-    if (!reassignModalRequest || !user?.id) return;
+    const uid = user?.id || user?.userId;
+    if (!reassignModalRequest || !uid) return;
 
     const reqId = reassignModalRequest.requestId;
     setActionLoading((prev) => ({ ...prev, [reqId]: 'accept-reassign' }));
@@ -474,7 +518,7 @@ export const TeamDetailsPage = () => {
       await teamApi.acceptJoinRequest(
         id,
         reqId,
-        user.id,
+        uid,
         selectedReassignRole,
         reassignCustomRole.trim() || null
       );
@@ -495,9 +539,10 @@ export const TeamDetailsPage = () => {
   const handleOpenReplaceModal = (request) => {
     setReplaceModalRequest(request);
     const requestedRole = request.requestedRole;
+    const uid = user?.id || user?.userId;
     // Find members occupying this requested role (excluding leader)
     const matching = members.filter((m) => {
-      if (m.role === 'LEADER' || String(m.userId) === String(user?.id)) return false;
+      if (m.role === 'LEADER' || String(m.userId) === String(uid)) return false;
       return roleMatches(m.assignedRole, requestedRole);
     });
 
@@ -524,7 +569,8 @@ export const TeamDetailsPage = () => {
    * Leader confirms transactional Member Replacement + Acceptance
    */
   const handleConfirmReplaceMemberAndAccept = async () => {
-    if (!replaceModalRequest || !selectedMemberToReplace || !user?.id) return;
+    const uid = user?.id || user?.userId;
+    if (!replaceModalRequest || !selectedMemberToReplace || !uid) return;
 
     setIsReplacingMember(true);
     const reqId = replaceModalRequest.requestId;
@@ -533,7 +579,7 @@ export const TeamDetailsPage = () => {
       await teamApi.acceptJoinRequest(
         id,
         reqId,
-        user.id,
+        uid,
         replaceModalRequest.requestedRole,
         replaceModalRequest.customRole,
         selectedMemberToReplace.userId
@@ -559,11 +605,12 @@ export const TeamDetailsPage = () => {
    * Leader rejects join request
    */
   const handleRejectRequest = async (requestId) => {
-    if (!user?.id) return;
+    const uid = user?.id || user?.userId;
+    if (!uid) return;
     setActionLoading((prev) => ({ ...prev, [requestId]: 'reject' }));
 
     try {
-      await teamApi.rejectJoinRequest(id, requestId, user.id);
+      await teamApi.rejectJoinRequest(id, requestId, uid);
       success('Join request rejected.');
       await fetchJoinRequests();
     } catch (err) {
@@ -636,7 +683,8 @@ export const TeamDetailsPage = () => {
    * Leader deletes team
    */
   const handleDeleteTeam = async () => {
-    if (!id || !user?.id) return;
+    const uid = user?.id || user?.userId;
+    if (!id || !uid) return;
     setIsDeleting(true);
     try {
       await teamApi.deleteTeam(id);
@@ -662,12 +710,13 @@ export const TeamDetailsPage = () => {
    * Confirm remove member
    */
   const handleConfirmRemoveMember = async () => {
-    if (!memberToRemove || !user?.id) return;
+    const uid = user?.id || user?.userId;
+    if (!memberToRemove || !uid) return;
     const memberUserId = memberToRemove.userId;
     setActionLoading((prev) => ({ ...prev, [`member-${memberUserId}`]: true }));
 
     try {
-      await teamApi.removeMember(id, memberUserId, user.id);
+      await teamApi.removeMember(id, memberUserId, uid);
       success('Member removed successfully.');
       setMemberToRemove(null);
       await fetchTeamDetails();
@@ -686,11 +735,12 @@ export const TeamDetailsPage = () => {
    * Confirm leave team
    */
   const handleConfirmLeaveTeam = async () => {
-    if (!user?.id) return;
+    const uid = user?.id || user?.userId;
+    if (!uid) return;
     setIsLeaving(true);
 
     try {
-      await teamApi.leaveTeam(id, user.id);
+      await teamApi.leaveTeam(id, uid);
       success('Left team successfully.');
       navigate('/teams');
     } catch (err) {

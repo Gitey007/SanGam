@@ -428,8 +428,10 @@ public class TeamService {
         return teamMemberRepository.findByTeamId(teamId)
                 .stream()
                 .map(member -> {
-                    User user = userRepository.findById(member.getUserId())
-                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                    User user = userRepository.findById(member.getUserId()).orElse(null);
+                    if (user == null) {
+                        return null;
+                    }
 
                     return new TeamMemberResponse(
                             user.getId(),
@@ -442,6 +444,7 @@ public class TeamService {
                             member.getAssignedRole(),
                             member.getCustomRole());
                 })
+                .filter(java.util.Objects::nonNull)
                 .toList();
     }
 
@@ -804,7 +807,11 @@ public class TeamService {
 
     @Transactional
     public TeamInvitationResponse inviteStudent(Long teamId, Long targetUserId, String authenticatedEmail, String invitedRole, String customRole) {
-        User inviter = userRepository.findByEmail(authenticatedEmail)
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
+
+        User inviter = userRepository.findByEmail(authenticatedEmail.trim().toLowerCase())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.UNAUTHORIZED,
                         "User not authenticated"));
@@ -903,8 +910,12 @@ public class TeamService {
 
     @Transactional
     public void acceptInvitation(Long invitationId, String authenticatedEmail, String selectedRole, String customRole) {
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
+
         // 1. Authenticate student
-        User currentUser = userRepository.findByEmail(authenticatedEmail)
+        User currentUser = userRepository.findByEmail(authenticatedEmail.trim().toLowerCase())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.UNAUTHORIZED,
                         "User not authenticated"));
@@ -1000,7 +1011,11 @@ public class TeamService {
 
     @Transactional
     public void rejectInvitation(Long invitationId, String authenticatedEmail) {
-        User currentUser = userRepository.findByEmail(authenticatedEmail)
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
+
+        User currentUser = userRepository.findByEmail(authenticatedEmail.trim().toLowerCase())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.UNAUTHORIZED,
                         "User not authenticated"));
@@ -1029,7 +1044,11 @@ public class TeamService {
 
     @Transactional(readOnly = true)
     public List<TeamInvitationResponse> getMyInvitations(String authenticatedEmail, TeamInvitation.InvitationStatus status) {
-        User currentUser = userRepository.findByEmail(authenticatedEmail)
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
+
+        User currentUser = userRepository.findByEmail(authenticatedEmail.trim().toLowerCase())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.UNAUTHORIZED,
                         "User not authenticated"));
@@ -1048,7 +1067,11 @@ public class TeamService {
 
     @Transactional(readOnly = true)
     public List<TeamInvitationResponse> getTeamInvitations(Long teamId, String authenticatedEmail) {
-        User currentUser = userRepository.findByEmail(authenticatedEmail)
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
+
+        User currentUser = userRepository.findByEmail(authenticatedEmail.trim().toLowerCase())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.UNAUTHORIZED,
                         "User not authenticated"));
