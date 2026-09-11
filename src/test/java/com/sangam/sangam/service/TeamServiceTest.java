@@ -1470,12 +1470,12 @@ class TeamServiceTest {
     }
 
     @Nested
-    @DisplayName("Role Openings and Deduplication Tests (Specs 1-6 & Cases 1-5)")
+    @DisplayName("Role Openings and Deduplication Tests (Specs 1-13)")
     class RoleOpeningsAndDeduplicationTests {
 
         @Test
-        @DisplayName("Case 1: Team 2/6, Role A (0/2), Role B (0/1) -> A: 2 openings, B: 1 opening (NOT 4 openings each)")
-        void testCase1TeamTwoOfSixRoleSpecificOpenings() {
+        @DisplayName("Case 1: Team 2/6, Backend (0/2), Frontend (0/1), Researcher (0/1) -> Backend=2, Frontend=1, Researcher=1 (NOT 12, 10, 6, or 4)")
+        void testTeamTwoOfSixExactRoleCapacities() {
             Team teamX = new Team();
             teamX.setId(901L);
             teamX.setName("Team-X");
@@ -1484,9 +1484,10 @@ class TeamServiceTest {
 
             TeamRoleSlot slotA = new TeamRoleSlot("Backend Developer", 2);
             TeamRoleSlot slotB = new TeamRoleSlot("Frontend Developer", 1);
-            teamX.setRoleSlots(List.of(slotA, slotB));
+            TeamRoleSlot slotC = new TeamRoleSlot("Researcher", 1);
+            teamX.setRoleSlots(List.of(slotA, slotB, slotC));
 
-            // 2 members in team, neither assigned to Backend or Frontend
+            // 2 members in team, assigned to unrelated roles
             TeamMember m1 = new TeamMember();
             m1.setTeamId(901L);
             m1.setUserId(1L);
@@ -1507,7 +1508,7 @@ class TeamServiceTest {
             assertEquals(2, response.getMemberCount());
             assertEquals((byte) 6, response.getMaxMembers());
 
-            // Backend Developer: 0 filled, 2 total -> 2 available (NOT 4 team remaining capacity)
+            // Backend Developer: 0 filled, 2 total -> 2 available (NOT 12, NOT 4)
             TeamRoleSlotDto backend = response.getRoleSlots().stream()
                     .filter(s -> s.getRoleName().equals("Backend Developer"))
                     .findFirst().orElseThrow();
@@ -1515,21 +1516,29 @@ class TeamServiceTest {
             assertEquals(0, backend.getFilledSlots());
             assertEquals(2, backend.getAvailableSlots());
 
-            // Frontend Developer: 0 filled, 1 total -> 1 available (NOT 4 team remaining capacity)
+            // Frontend Developer: 0 filled, 1 total -> 1 available (NOT 10, NOT 4)
             TeamRoleSlotDto frontend = response.getRoleSlots().stream()
                     .filter(s -> s.getRoleName().equals("Frontend Developer"))
                     .findFirst().orElseThrow();
             assertEquals(1, frontend.getSlotCount());
             assertEquals(0, frontend.getFilledSlots());
             assertEquals(1, frontend.getAvailableSlots());
+
+            // Researcher: 0 filled, 1 total -> 1 available (NOT 6, NOT 4)
+            TeamRoleSlotDto researcher = response.getRoleSlots().stream()
+                    .filter(s -> s.getRoleName().equals("Researcher"))
+                    .findFirst().orElseThrow();
+            assertEquals(1, researcher.getSlotCount());
+            assertEquals(0, researcher.getFilledSlots());
+            assertEquals(1, researcher.getAvailableSlots());
         }
 
         @Test
-        @DisplayName("Case 2: Team 4/6, Role A (2/2), Role B (1/2), Role C (0/1) -> A: 0, B: 1, C: 1 opening")
-        void testCase2PartialTeamWithFilledAndOpenRoles() {
+        @DisplayName("Case 2: Team 5/6, Backend (2/2), Frontend (1/2), Researcher (1/1) -> Frontend=1 opening only")
+        void testTeamFiveOfSixOnlyShowsAvailableRole() {
             Team teamY = new Team();
             teamY.setId(902L);
-            teamY.setName("Team-Y");
+            teamY.setName("CodeCrafters");
             teamY.setLeader(leader);
             teamY.setMaxMembers((byte) 6);
 
@@ -1556,16 +1565,21 @@ class TeamServiceTest {
             TeamMember m4 = new TeamMember();
             m4.setTeamId(902L);
             m4.setUserId(4L);
-            m4.setAssignedRole("Data Analyst");
+            m4.setAssignedRole("Researcher");
 
-            when(teamMemberRepository.findByTeamId(902L)).thenReturn(List.of(m1, m2, m3, m4));
+            TeamMember m5 = new TeamMember();
+            m5.setTeamId(902L);
+            m5.setUserId(5L);
+            m5.setAssignedRole("Project Manager");
+
+            when(teamMemberRepository.findByTeamId(902L)).thenReturn(List.of(m1, m2, m3, m4, m5));
 
             TeamResponse response = teamService.toTeamResponse(teamY);
 
-            assertEquals(4, response.getMemberCount());
+            assertEquals(5, response.getMemberCount());
             assertEquals((byte) 6, response.getMaxMembers());
 
-            // Role A (Backend): 2 filled of 2 -> 0 available
+            // Backend: 2 filled of 2 -> 0 available
             TeamRoleSlotDto backend = response.getRoleSlots().stream()
                     .filter(s -> s.getRoleName().equals("Backend Developer"))
                     .findFirst().orElseThrow();
@@ -1573,7 +1587,7 @@ class TeamServiceTest {
             assertEquals(2, backend.getFilledSlots());
             assertEquals(0, backend.getAvailableSlots());
 
-            // Role B (Frontend): 1 filled of 2 -> 1 available
+            // Frontend: 1 filled of 2 -> 1 available
             TeamRoleSlotDto frontend = response.getRoleSlots().stream()
                     .filter(s -> s.getRoleName().equals("Frontend Developer"))
                     .findFirst().orElseThrow();
@@ -1581,18 +1595,62 @@ class TeamServiceTest {
             assertEquals(1, frontend.getFilledSlots());
             assertEquals(1, frontend.getAvailableSlots());
 
-            // Role C (Researcher): 0 filled of 1 -> 1 available
+            // Researcher: 1 filled of 1 -> 0 available
             TeamRoleSlotDto researcher = response.getRoleSlots().stream()
                     .filter(s -> s.getRoleName().equals("Researcher"))
                     .findFirst().orElseThrow();
             assertEquals(1, researcher.getSlotCount());
-            assertEquals(0, researcher.getFilledSlots());
+            assertEquals(1, researcher.getFilledSlots());
+            assertEquals(0, researcher.getAvailableSlots());
+        }
+
+        @Test
+        @DisplayName("Case 3: Cartesian product prevention: duplicate role representations are not multiplied into 12, 10, 6")
+        void testCartesianProductDuplicateEntriesAreNotMultiplied() {
+            Team dupTeam = new Team();
+            dupTeam.setId(903L);
+            dupTeam.setName("Team-X");
+            dupTeam.setLeader(leader);
+            dupTeam.setMaxMembers((byte) 6);
+
+            // Simulate 6 duplicate instances of Backend (2 slots) and 6 duplicate instances of Frontend (1 slot)
+            List<TeamRoleSlot> multipliedSlots = new ArrayList<>();
+            for (int i = 0; i < 6; i++) {
+                multipliedSlots.add(new TeamRoleSlot("Backend Developer", 2));
+                multipliedSlots.add(new TeamRoleSlot("Frontend Developer", 1));
+                multipliedSlots.add(new TeamRoleSlot("Researcher", 1));
+            }
+            dupTeam.setRoleSlots(multipliedSlots);
+
+            when(teamMemberRepository.findByTeamId(903L)).thenReturn(List.of());
+
+            TeamResponse response = teamService.toTeamResponse(dupTeam);
+
+            // Backend Developer must be exactly 2 slots (NOT 2 * 6 = 12)
+            TeamRoleSlotDto backend = response.getRoleSlots().stream()
+                    .filter(s -> s.getRoleName().equals("Backend Developer"))
+                    .findFirst().orElseThrow();
+            assertEquals(2, backend.getSlotCount());
+            assertEquals(2, backend.getAvailableSlots());
+
+            // Frontend Developer must be exactly 1 slot (NOT 1 * 6 = 6)
+            TeamRoleSlotDto frontend = response.getRoleSlots().stream()
+                    .filter(s -> s.getRoleName().equals("Frontend Developer"))
+                    .findFirst().orElseThrow();
+            assertEquals(1, frontend.getSlotCount());
+            assertEquals(1, frontend.getAvailableSlots());
+
+            // Researcher must be exactly 1 slot (NOT 1 * 6 = 6)
+            TeamRoleSlotDto researcher = response.getRoleSlots().stream()
+                    .filter(s -> s.getRoleName().equals("Researcher"))
+                    .findFirst().orElseThrow();
+            assertEquals(1, researcher.getSlotCount());
             assertEquals(1, researcher.getAvailableSlots());
         }
 
         @Test
-        @DisplayName("Case 3: Full team (6/6) shows zero available openings across all roles")
-        void testCase3FullTeamShowsZeroAvailableOpenings() {
+        @DisplayName("Case 4: Full team (6/6) shows zero available openings across all roles")
+        void testFullTeamShowsZeroAvailableOpenings() {
             Team fullTeam = new Team();
             fullTeam.setId(700L);
             fullTeam.setName("Full Squad");
@@ -1627,19 +1685,17 @@ class TeamServiceTest {
         }
 
         @Test
-        @DisplayName("Case 4: Duplicate roles in team definition are deduplicated and aggregated")
-        void testCase4DuplicateRolesAreAggregatedAndDeduplicated() {
+        @DisplayName("Case 5: Duplicate roles in team definition are deduplicated")
+        void testDuplicateRolesAreAggregatedAndDeduplicated() {
             Team dupTeam = new Team();
             dupTeam.setId(800L);
             dupTeam.setName("AI Visionaries");
             dupTeam.setLeader(leader);
             dupTeam.setMaxMembers((byte) 5);
 
-            // 3 separate Blockchain slots defined
-            TeamRoleSlot slot1 = new TeamRoleSlot("Blockchain", 1);
-            TeamRoleSlot slot2 = new TeamRoleSlot("Blockchain", 1);
-            TeamRoleSlot slot3 = new TeamRoleSlot("Blockchain", 1);
-            dupTeam.setRoleSlots(List.of(slot1, slot2, slot3));
+            TeamRoleSlot slot1 = new TeamRoleSlot("Blockchain", 2);
+            TeamRoleSlot slot2 = new TeamRoleSlot("Blockchain", 2);
+            dupTeam.setRoleSlots(List.of(slot1, slot2));
 
             TeamMember m1 = new TeamMember();
             m1.setTeamId(800L);
@@ -1655,14 +1711,14 @@ class TeamServiceTest {
             assertEquals(1, response.getRoleSlots().size());
             TeamRoleSlotDto blockchainSlot = response.getRoleSlots().get(0);
             assertEquals("Blockchain", blockchainSlot.getRoleName());
-            assertEquals(3, blockchainSlot.getSlotCount());
+            assertEquals(2, blockchainSlot.getSlotCount());
             assertEquals(1, blockchainSlot.getFilledSlots());
-            assertEquals(2, blockchainSlot.getAvailableSlots());
+            assertEquals(1, blockchainSlot.getAvailableSlots());
         }
 
         @Test
-        @DisplayName("Case 5: Team has capacity but no role has capacity -> 0 role openings (do not fabricate)")
-        void testCase5TeamHasCapacityButNoRoleHasCapacity() {
+        @DisplayName("Case 6: Team has capacity but no role has capacity -> 0 role openings (do not fabricate)")
+        void testTeamHasCapacityButNoRoleHasCapacity() {
             Team teamZ = new Team();
             teamZ.setId(905L);
             teamZ.setName("Team-Z");

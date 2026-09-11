@@ -361,13 +361,7 @@ public class TeamService {
                 String key = roleName.toLowerCase();
                 int slotCount = slot.getSlotCount() != null ? slot.getSlotCount() : 1;
 
-                if (aggregatedSlots.containsKey(key)) {
-                    TeamRoleSlotDto existing = aggregatedSlots.get(key);
-                    int newTotal = existing.getSlotCount() + slotCount;
-                    int filled = existing.getFilledSlots();
-                    int available = (teamRemainingCapacity == 0) ? 0 : Math.max(0, newTotal - filled);
-                    aggregatedSlots.put(key, new TeamRoleSlotDto(existing.getRoleName(), newTotal, filled, available));
-                } else {
+                if (!aggregatedSlots.containsKey(key)) {
                     int filled = 0;
                     for (TeamMember m : members) {
                         if (roleMatches(roleName, m.getAssignedRole())) {

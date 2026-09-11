@@ -39,6 +39,7 @@ export const TeamCard = ({ team }) => {
 
   // Calculate role openings strictly using role capacity: (role.maxSlots - role.filledMembers)
   // NEVER use (team.maxMembers - currentMemberCount) as the opening count for individual roles
+  // NEVER multiply or sum duplicate role representations
   const aggregatedRoles = React.useMemo(() => {
     if (isTeamFull) {
       return [];
@@ -51,22 +52,20 @@ export const TeamCard = ({ team }) => {
         const roleName = slot.roleName.trim();
         const key = roleName.toLowerCase();
 
-        // Use availableSlots strictly from role capacity (slotCount - filledSlots)
-        let available = slot.availableSlots;
-        if (available === undefined) {
-          const total = slot.slotCount != null ? Number(slot.slotCount) : 1;
-          const filled = slot.filledSlots != null ? Number(slot.filledSlots) : 0;
-          available = Math.max(0, total - filled);
-        }
-
-        if (roleMap.has(key)) {
-          const existing = roleMap.get(key);
-          existing.availableSlots += available;
-        } else {
-          roleMap.set(key, {
-            roleName,
-            availableSlots: available,
-          });
+        // Deduplicate: If we already have this role, do not double-count or multiply its openings
+        if (!roleMap.has(key)) {
+          let available = slot.availableSlots;
+          if (available === undefined) {
+            const total = slot.slotCount != null ? Number(slot.slotCount) : 1;
+            const filled = slot.filledSlots != null ? Number(slot.filledSlots) : 0;
+            available = Math.max(0, total - filled);
+          }
+          if (available > 0) {
+            roleMap.set(key, {
+              roleName,
+              availableSlots: available,
+            });
+          }
         }
       }
     } else if (Array.isArray(team.requiredRoles) && team.requiredRoles.length > 0) {
