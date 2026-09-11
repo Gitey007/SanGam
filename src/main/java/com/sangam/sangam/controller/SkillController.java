@@ -29,7 +29,7 @@ public class SkillController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Skill> getSkillById(
+    public ResponseEntity<SkillResponse> getSkillById(
             @PathVariable Long id
     ) {
         return ResponseEntity.ok(skillService.getSkillById(id));

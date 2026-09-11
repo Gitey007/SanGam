@@ -36,8 +36,12 @@ public class SkillService {
                 .toList();
     }
 
-    public Skill getSkillById(Long id) {
+    public SkillResponse getSkillById(Long id) {
         return skillRepository.findById(id)
+                .map(skill -> new SkillResponse(
+                        skill.getId(),
+                        skill.getName()
+                ))
                 .orElseThrow(() ->
                         new RuntimeException("Skill not found")
                 );
