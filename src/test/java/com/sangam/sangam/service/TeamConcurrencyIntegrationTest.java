@@ -325,4 +325,87 @@ class TeamConcurrencyIntegrationTest {
         List<TeamMember> finalMembers = teamMemberRepository.findByTeamId(teamId);
         assertEquals(5, finalMembers.size(), "Team member count must be exactly 5, never 6");
     }
+
+    @Test
+    @DisplayName("7. DUPLICATE JOIN REQUEST RACE: Concurrent sendJoinRequest calls for same (team, user) -> exactly 1 succeeds, 1 receives 409 Conflict, DB has exactly 1 row")
+    void testConcurrentDuplicateJoinRequestRace() throws Exception {
+        // Setup: Team and applicant user
+        User leader = createUser("Join Leader", "joinleader@college.edu");
+        User applicant = createUser("Applicant Student", "applicant@college.edu");
+
+        Team team = new Team();
+        team.setName("Join Request Race Team");
+        team.setDescription("Testing concurrent duplicate join request prevention");
+        team.setLeader(leader);
+        team.setMaxMembers((byte) 4);
+        team = teamRepository.save(team);
+
+        final Long teamId = team.getId();
+        final Long applicantId = applicant.getId();
+
+        int threadCount = 2;
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(threadCount);
+
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger conflictCount = new AtomicInteger(0);
+        List<Throwable> errors = new ArrayList<>();
+
+        // Thread 1: Send join request
+        executor.submit(() -> {
+            try {
+                startLatch.await();
+                teamService.sendJoinRequest(teamId, applicantId, "Developer", null);
+                successCount.incrementAndGet();
+            } catch (ResponseStatusException e) {
+                if (e.getStatusCode() == HttpStatus.CONFLICT) {
+                    conflictCount.incrementAndGet();
+                } else {
+                    synchronized (errors) { errors.add(e); }
+                }
+            } catch (Throwable t) {
+                synchronized (errors) { errors.add(t); }
+            } finally {
+                doneLatch.countDown();
+            }
+        });
+
+        // Thread 2: Send simultaneous duplicate join request
+        executor.submit(() -> {
+            try {
+                startLatch.await();
+                teamService.sendJoinRequest(teamId, applicantId, "Developer", null);
+                successCount.incrementAndGet();
+            } catch (ResponseStatusException e) {
+                if (e.getStatusCode() == HttpStatus.CONFLICT) {
+                    conflictCount.incrementAndGet();
+                } else {
+                    synchronized (errors) { errors.add(e); }
+                }
+            } catch (Throwable t) {
+                synchronized (errors) { errors.add(t); }
+            } finally {
+                doneLatch.countDown();
+            }
+        });
+
+        // Release threads simultaneously
+        startLatch.countDown();
+        boolean finished = doneLatch.await(10, TimeUnit.SECONDS);
+        executor.shutdown();
+
+        assertTrue(finished, "Concurrent operations timed out");
+        assertTrue(errors.isEmpty(), "Unexpected errors: " + errors);
+
+        // Verification: Exactly 1 must succeed and 1 must receive HTTP 409 Conflict
+        assertEquals(1, successCount.get(), "Expected exactly 1 join request submission to succeed");
+        assertEquals(1, conflictCount.get(), "Expected exactly 1 duplicate request to fail with HTTP 409 Conflict");
+
+        // Verify database: Exactly 1 row in team_join_requests for this user and team
+        List<TeamJoinRequest> requests = teamJoinRequestRepository.findByUserId(applicantId);
+        assertEquals(1, requests.size(), "Database must contain exactly 1 join request row for this user and team");
+        assertEquals(teamId, requests.get(0).getTeam().getId());
+        assertEquals(TeamJoinRequest.RequestStatus.PENDING, requests.get(0).getStatus());
+    }
 }

@@ -13,8 +13,15 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
+import jakarta.persistence.UniqueConstraint;
+
 @Entity
-@Table(name = "team_join_requests")
+@Table(
+        name = "team_join_requests",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_team_join_requests_team_user", columnNames = {"team_id", "user_id"})
+        }
+)
 public class TeamJoinRequest {
 
     @Id

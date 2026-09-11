@@ -93,3 +93,15 @@ ALTER TABLE team_invitations ADD COLUMN IF NOT EXISTS custom_role VARCHAR(150);
 -- Expands VARCHAR(255) to TEXT to support long bios and team descriptions without data truncation.
 ALTER TABLE users MODIFY COLUMN bio TEXT;
 ALTER TABLE teams MODIFY COLUMN description TEXT;
+
+-- 13. Safe deduplication & DB-level UNIQUE constraint on team_join_requests (team_id, user_id)
+-- Purge older duplicate join requests keeping only the newest record before applying unique constraint
+DELETE t1 FROM team_join_requests t1
+INNER JOIN team_join_requests t2 
+WHERE t1.id < t2.id 
+  AND t1.team_id = t2.team_id 
+  AND t1.user_id = t2.user_id;
+
+-- Apply unique constraint on (team_id, user_id)
+ALTER TABLE team_join_requests ADD CONSTRAINT uk_team_join_requests_team_user UNIQUE (team_id, user_id);
+

@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -599,25 +600,31 @@ public class TeamService {
         Optional<TeamJoinRequest> existingRequest = teamJoinRequestRepository.findByTeamIdAndUserId(teamId, userId);
 
         TeamJoinRequest saved;
-        if (existingRequest.isPresent()) {
-            TeamJoinRequest req = existingRequest.get();
-            if (req.getStatus() == TeamJoinRequest.RequestStatus.PENDING) {
-                throw new ResponseStatusException(
-                        HttpStatus.CONFLICT,
-                        "User already has a pending join request for this team");
+        try {
+            if (existingRequest.isPresent()) {
+                TeamJoinRequest req = existingRequest.get();
+                if (req.getStatus() == TeamJoinRequest.RequestStatus.PENDING) {
+                    throw new ResponseStatusException(
+                            HttpStatus.CONFLICT,
+                            "User already has a pending join request for this team");
+                }
+                req.setStatus(TeamJoinRequest.RequestStatus.PENDING);
+                req.setRequestedRole(requestedRole != null ? requestedRole.trim() : null);
+                req.setCustomRole(customRole != null ? customRole.trim() : null);
+                req.setCreatedAt(LocalDateTime.now());
+                req.setUpdatedAt(LocalDateTime.now());
+                saved = teamJoinRequestRepository.save(req);
+            } else {
+                TeamJoinRequest request = new TeamJoinRequest(
+                        team, user, TeamJoinRequest.RequestStatus.PENDING,
+                        requestedRole != null ? requestedRole.trim() : null,
+                        customRole != null ? customRole.trim() : null);
+                saved = teamJoinRequestRepository.save(request);
             }
-            req.setStatus(TeamJoinRequest.RequestStatus.PENDING);
-            req.setRequestedRole(requestedRole != null ? requestedRole.trim() : null);
-            req.setCustomRole(customRole != null ? customRole.trim() : null);
-            req.setCreatedAt(LocalDateTime.now());
-            req.setUpdatedAt(LocalDateTime.now());
-            saved = teamJoinRequestRepository.save(req);
-        } else {
-            TeamJoinRequest request = new TeamJoinRequest(
-                    team, user, TeamJoinRequest.RequestStatus.PENDING,
-                    requestedRole != null ? requestedRole.trim() : null,
-                    customRole != null ? customRole.trim() : null);
-            saved = teamJoinRequestRepository.save(request);
+        } catch (DataIntegrityViolationException ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "User already has a pending join request for this team");
         }
 
         if (notificationService != null && team.getLeader() != null) {
