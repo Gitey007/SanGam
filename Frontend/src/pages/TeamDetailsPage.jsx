@@ -314,6 +314,11 @@ export const TeamDetailsPage = () => {
   const roleSlotsList = team?.roleSlots || [];
   const openRoles = roleSlotsList.filter((r) => r.availableSlots > 0);
 
+  // Active pending invitations sent by leader
+  const pendingSentInvitations = sentInvitations.filter(
+    (inv) => inv?.status === 'PENDING'
+  );
+
   /**
    * Candidate clicks "Join Request" -> opens role selection modal
    */
@@ -1337,18 +1342,13 @@ export const TeamDetailsPage = () => {
                   <div className="flex items-center gap-2">
                     <Badge
                       variant={
-                        sentInvitations.filter((i) => i.status === 'PENDING')
-                          .length > 0
+                        pendingSentInvitations.length > 0
                           ? 'brand'
                           : 'neutral'
                       }
                       size="sm"
                     >
-                      {
-                        sentInvitations.filter((i) => i.status === 'PENDING')
-                          .length
-                      }{' '}
-                      pending
+                      {pendingSentInvitations.length} pending
                     </Badge>
                     <Button
                       variant="outline"
@@ -1362,16 +1362,15 @@ export const TeamDetailsPage = () => {
                   </div>
                 </div>
 
-                {sentInvitations.length === 0 ? (
+                {pendingSentInvitations.length === 0 ? (
                   <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-center">
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      No invitations sent yet. Click "Invite Student" to invite
-                      teammates.
+                      No pending invitations
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-2.5">
-                    {sentInvitations.map((inv) => (
+                    {pendingSentInvitations.map((inv) => (
                       <div
                         key={inv.invitationId}
                         className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50"
@@ -1405,34 +1404,11 @@ export const TeamDetailsPage = () => {
 
                         <div className="flex items-center gap-2 self-end sm:self-auto">
                           <Badge
-                            variant={
-                              inv.status === 'ACCEPTED'
-                                ? 'success'
-                                : inv.status === 'REJECTED'
-                                ? 'neutral'
-                                : 'brand'
-                            }
+                            variant="brand"
                             size="sm"
                           >
-                            {inv.status === 'PENDING'
-                              ? 'Pending Response'
-                              : inv.status === 'ACCEPTED'
-                              ? 'Accepted'
-                              : 'Declined'}
+                            Pending Response
                           </Badge>
-                          {inv.status === 'REJECTED' && (
-                            <Button
-                              variant="outline"
-                              size="xs"
-                              onClick={() =>
-                                handleSendInvitation(inv.invitedUserId)
-                              }
-                              isLoading={invitingUserId === inv.invitedUserId}
-                              disabled={isTeamFull}
-                            >
-                              Re-invite
-                            </Button>
-                          )}
                         </div>
                       </div>
                     ))}
