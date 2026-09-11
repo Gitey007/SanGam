@@ -16,9 +16,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import com.sangam.sangam.dto.CreateTeamRequest;
 import com.sangam.sangam.dto.TeamResponse;
+import com.sangam.sangam.dto.TeamRoleSlotDto;
 import com.sangam.sangam.dto.UserProfileResponse;
 import com.sangam.sangam.entity.Skill;
 import com.sangam.sangam.entity.Team;
+import com.sangam.sangam.entity.TeamMember;
 import com.sangam.sangam.entity.User;
 import com.sangam.sangam.repository.SkillRepository;
 import com.sangam.sangam.repository.TeamInvitationRepository;
@@ -133,5 +135,94 @@ class TeamLazyLoadingIntegrationTest {
         assertNotNull(users);
         assertFalse(users.isEmpty());
         assertEquals(2, users.get(0).getLookingFor().size());
+    }
+
+    @Test
+    @DisplayName("getAllTeams loads multiple teams and bulk-fetches members and role slots correctly with open-in-view=false")
+    void testGetAllTeamsBulkLoadingWithMultipleTeamsAndMembers() {
+        // 1. Create users
+        User leader1 = new User();
+        leader1.setName("Leader One");
+        leader1.setEmail("leader1@college.edu");
+        leader1.setPasswordHash("hashed_pass");
+        leader1.setCollege("Stanford");
+        leader1.setBranch("CSE");
+        leader1.setYear((byte) 4);
+        userRepository.save(leader1);
+
+        User leader2 = new User();
+        leader2.setName("Leader Two");
+        leader2.setEmail("leader2@college.edu");
+        leader2.setPasswordHash("hashed_pass");
+        leader2.setCollege("Stanford");
+        leader2.setBranch("ECE");
+        leader2.setYear((byte) 3);
+        userRepository.save(leader2);
+
+        User memberUser = new User();
+        memberUser.setName("Bob Member");
+        memberUser.setEmail("bob@college.edu");
+        memberUser.setPasswordHash("hashed_pass");
+        memberUser.setCollege("Stanford");
+        memberUser.setBranch("CSE");
+        memberUser.setYear((byte) 2);
+        userRepository.save(memberUser);
+
+        // 2. Create Team 1
+        CreateTeamRequest req1 = new CreateTeamRequest();
+        req1.setName("Alpha Team");
+        req1.setDescription("Alpha Description");
+        req1.setMaxMembers((byte) 4);
+        req1.setRequiredRoles(Set.of("Backend Dev", "Frontend Dev"));
+        req1.setRequiredSkills(Set.of("Java", "React"));
+        Team team1 = teamService.createTeam(req1, leader1.getEmail());
+
+        // 3. Create Team 2
+        CreateTeamRequest req2 = new CreateTeamRequest();
+        req2.setName("Beta Team");
+        req2.setDescription("Beta Description");
+        req2.setMaxMembers((byte) 3);
+        req2.setRequiredRoles(Set.of("DevOps"));
+        req2.setRequiredSkills(Set.of("Docker"));
+        Team team2 = teamService.createTeam(req2, leader2.getEmail());
+
+        // 4. Add memberUser to Team 1 as Backend Dev
+        TeamMember tm = new TeamMember();
+        tm.setTeamId(team1.getId());
+        tm.setUserId(memberUser.getId());
+        tm.setRole(TeamMember.Role.MEMBER);
+        tm.setAssignedRole("Backend Dev");
+        tm.setJoinedAt(java.time.LocalDateTime.now());
+        teamMemberRepository.save(tm);
+
+        // 5. Test getAllTeams bulk fetch
+        List<TeamResponse> teams = teamService.getAllTeams();
+        assertNotNull(teams);
+        assertEquals(2, teams.size());
+
+        TeamResponse alpha = teams.stream().filter(t -> t.getId().equals(team1.getId())).findFirst().orElseThrow();
+        assertEquals("Alpha Team", alpha.getName());
+        assertEquals("Leader One", alpha.getLeaderName());
+        assertEquals(2, alpha.getMemberCount()); // leader + bob
+        assertEquals(2, alpha.getAvailableCapacity()); // 4 - 2 = 2
+        assertEquals("OPEN", alpha.getStatus());
+        assertEquals(2, alpha.getRequiredSkills().size());
+        assertEquals(2, alpha.getRoleSlots().size());
+
+        TeamRoleSlotDto backendSlot = alpha.getRoleSlots().stream()
+                .filter(s -> "Backend Dev".equalsIgnoreCase(s.getRoleName()))
+                .findFirst().orElseThrow();
+        assertEquals(1, backendSlot.getSlotCount());
+        assertEquals(1, backendSlot.getFilledSlots());
+        assertEquals(0, backendSlot.getAvailableSlots());
+
+        TeamResponse beta = teams.stream().filter(t -> t.getId().equals(team2.getId())).findFirst().orElseThrow();
+        assertEquals("Beta Team", beta.getName());
+        assertEquals("Leader Two", beta.getLeaderName());
+        assertEquals(1, beta.getMemberCount()); // leader only
+        assertEquals(2, beta.getAvailableCapacity()); // 3 - 1 = 2
+        assertEquals("OPEN", beta.getStatus());
+        assertEquals(1, beta.getRequiredSkills().size());
+        assertEquals(1, beta.getRoleSlots().size());
     }
 }
