@@ -408,4 +408,88 @@ class TeamConcurrencyIntegrationTest {
         assertEquals(teamId, requests.get(0).getTeam().getId());
         assertEquals(TeamJoinRequest.RequestStatus.PENDING, requests.get(0).getStatus());
     }
+
+    @Test
+    @DisplayName("8. DUPLICATE INVITATION RACE: Concurrent inviteStudent calls for same (team, invitedUser) -> exactly 1 succeeds, 1 receives 409 Conflict, DB has exactly 1 row")
+    void testConcurrentDuplicateInvitationRace() throws Exception {
+        // Setup: Team and target student
+        User leader = createUser("Invite Leader", "inviteleader@college.edu");
+        User invitee = createUser("Invited Student", "invitee@college.edu");
+
+        Team team = new Team();
+        team.setName("Invitation Race Team");
+        team.setDescription("Testing concurrent duplicate invitation prevention");
+        team.setLeader(leader);
+        team.setMaxMembers((byte) 4);
+        team = teamRepository.save(team);
+
+        final Long teamId = team.getId();
+        final Long inviteeId = invitee.getId();
+        final String leaderEmail = leader.getEmail();
+
+        int threadCount = 2;
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(threadCount);
+
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger conflictCount = new AtomicInteger(0);
+        List<Throwable> errors = new ArrayList<>();
+
+        // Thread 1: Send invitation
+        executor.submit(() -> {
+            try {
+                startLatch.await();
+                teamService.inviteStudent(teamId, inviteeId, leaderEmail, "Designer", null);
+                successCount.incrementAndGet();
+            } catch (ResponseStatusException e) {
+                if (e.getStatusCode() == HttpStatus.CONFLICT) {
+                    conflictCount.incrementAndGet();
+                } else {
+                    synchronized (errors) { errors.add(e); }
+                }
+            } catch (Throwable t) {
+                synchronized (errors) { errors.add(t); }
+            } finally {
+                doneLatch.countDown();
+            }
+        });
+
+        // Thread 2: Send simultaneous duplicate invitation
+        executor.submit(() -> {
+            try {
+                startLatch.await();
+                teamService.inviteStudent(teamId, inviteeId, leaderEmail, "Designer", null);
+                successCount.incrementAndGet();
+            } catch (ResponseStatusException e) {
+                if (e.getStatusCode() == HttpStatus.CONFLICT) {
+                    conflictCount.incrementAndGet();
+                } else {
+                    synchronized (errors) { errors.add(e); }
+                }
+            } catch (Throwable t) {
+                synchronized (errors) { errors.add(t); }
+            } finally {
+                doneLatch.countDown();
+            }
+        });
+
+        // Release threads simultaneously
+        startLatch.countDown();
+        boolean finished = doneLatch.await(10, TimeUnit.SECONDS);
+        executor.shutdown();
+
+        assertTrue(finished, "Concurrent operations timed out");
+        assertTrue(errors.isEmpty(), "Unexpected errors: " + errors);
+
+        // Verification: Exactly 1 must succeed and 1 must receive HTTP 409 Conflict
+        assertEquals(1, successCount.get(), "Expected exactly 1 invitation dispatch to succeed");
+        assertEquals(1, conflictCount.get(), "Expected exactly 1 duplicate invitation to fail with HTTP 409 Conflict");
+
+        // Verify database: Exactly 1 row in team_invitations for this user and team
+        List<TeamInvitation> invitations = teamInvitationRepository.findByInvitedUserId(inviteeId);
+        assertEquals(1, invitations.size(), "Database must contain exactly 1 invitation row for this user and team");
+        assertEquals(teamId, invitations.get(0).getTeam().getId());
+        assertEquals(TeamInvitation.InvitationStatus.PENDING, invitations.get(0).getStatus());
+    }
 }

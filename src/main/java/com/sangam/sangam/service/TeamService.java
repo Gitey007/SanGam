@@ -965,21 +965,44 @@ public class TeamService {
             }
         }
 
-        Optional<TeamInvitation> existingOpt = teamInvitationRepository.findByTeamIdAndInvitedUserId(teamId, targetUserId);
-        if (existingOpt.isPresent()) {
-            TeamInvitation existing = existingOpt.get();
-            if (existing.getStatus() == TeamInvitation.InvitationStatus.PENDING) {
-                throw new ResponseStatusException(
-                        HttpStatus.CONFLICT,
-                        "A pending invitation already exists for this student");
+        try {
+            Optional<TeamInvitation> existingOpt = teamInvitationRepository.findByTeamIdAndInvitedUserId(teamId, targetUserId);
+            if (existingOpt.isPresent()) {
+                TeamInvitation existing = existingOpt.get();
+                if (existing.getStatus() == TeamInvitation.InvitationStatus.PENDING) {
+                    throw new ResponseStatusException(
+                            HttpStatus.CONFLICT,
+                            "A pending invitation already exists for this student");
+                }
+                existing.setStatus(TeamInvitation.InvitationStatus.PENDING);
+                existing.setInvitedBy(inviter);
+                existing.setInvitedRole(invitedRole != null ? invitedRole.trim() : null);
+                existing.setCustomRole(customRole != null ? customRole.trim() : null);
+                existing.setCreatedAt(LocalDateTime.now());
+                existing.setUpdatedAt(LocalDateTime.now());
+                TeamInvitation saved = teamInvitationRepository.save(existing);
+                if (notificationService != null) {
+                    try {
+                        notificationService.createNotification(
+                                targetUser,
+                                "Team Invitation",
+                                inviter.getName() + " invited you to join " + team.getName() + (invitedRole != null ? " as " + invitedRole : "") + ".",
+                                "INVITATION_RECEIVED",
+                                team.getId(),
+                                team.getName());
+                    } catch (Exception e) {
+                        // Safety: Notification failure must not break main flow
+                    }
+                }
+                return toInvitationResponse(saved);
             }
-            existing.setStatus(TeamInvitation.InvitationStatus.PENDING);
-            existing.setInvitedBy(inviter);
-            existing.setInvitedRole(invitedRole != null ? invitedRole.trim() : null);
-            existing.setCustomRole(customRole != null ? customRole.trim() : null);
-            existing.setCreatedAt(LocalDateTime.now());
-            existing.setUpdatedAt(LocalDateTime.now());
-            TeamInvitation saved = teamInvitationRepository.save(existing);
+
+            TeamInvitation invitation = new TeamInvitation(
+                    team, targetUser, inviter, TeamInvitation.InvitationStatus.PENDING,
+                    invitedRole != null ? invitedRole.trim() : null,
+                    customRole != null ? customRole.trim() : null);
+            TeamInvitation saved = teamInvitationRepository.save(invitation);
+
             if (notificationService != null) {
                 try {
                     notificationService.createNotification(
@@ -993,30 +1016,13 @@ public class TeamService {
                     // Safety: Notification failure must not break main flow
                 }
             }
+
             return toInvitationResponse(saved);
+        } catch (DataIntegrityViolationException ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "A pending invitation already exists for this student");
         }
-
-        TeamInvitation invitation = new TeamInvitation(
-                team, targetUser, inviter, TeamInvitation.InvitationStatus.PENDING,
-                invitedRole != null ? invitedRole.trim() : null,
-                customRole != null ? customRole.trim() : null);
-        TeamInvitation saved = teamInvitationRepository.save(invitation);
-
-        if (notificationService != null) {
-            try {
-                notificationService.createNotification(
-                        targetUser,
-                        "Team Invitation",
-                        inviter.getName() + " invited you to join " + team.getName() + (invitedRole != null ? " as " + invitedRole : "") + ".",
-                        "INVITATION_RECEIVED",
-                        team.getId(),
-                        team.getName());
-            } catch (Exception e) {
-                // Safety: Notification failure must not break main flow
-            }
-        }
-
-        return toInvitationResponse(saved);
     }
 
     @Transactional

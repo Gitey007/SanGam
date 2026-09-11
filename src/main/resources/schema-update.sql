@@ -105,3 +105,15 @@ WHERE t1.id < t2.id
 -- Apply unique constraint on (team_id, user_id)
 ALTER TABLE team_join_requests ADD CONSTRAINT uk_team_join_requests_team_user UNIQUE (team_id, user_id);
 
+-- 14. Safe deduplication & DB-level UNIQUE constraint on team_invitations (team_id, invited_user_id)
+-- Purge older duplicate invitations keeping only the newest record before applying unique constraint
+DELETE t1 FROM team_invitations t1
+INNER JOIN team_invitations t2 
+WHERE t1.id < t2.id 
+  AND t1.team_id = t2.team_id 
+  AND t1.invited_user_id = t2.invited_user_id;
+
+-- Apply unique constraint on (team_id, invited_user_id)
+ALTER TABLE team_invitations ADD CONSTRAINT uk_team_invitations_team_user UNIQUE (team_id, invited_user_id);
+
+
