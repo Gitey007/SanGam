@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 public class TeamJoinRequestResponse {
 
     private Long requestId;
+    private Long teamId;
+    private String teamName;
     private Long userId;
     private String userName;
     private String status;
@@ -47,12 +49,50 @@ public class TeamJoinRequestResponse {
         this.createdAt = createdAt;
     }
 
+    public TeamJoinRequestResponse(
+            Long requestId,
+            Long teamId,
+            String teamName,
+            Long userId,
+            String userName,
+            String status,
+            String requestedRole,
+            String customRole,
+            LocalDateTime createdAt) {
+
+        this.requestId = requestId;
+        this.teamId = teamId;
+        this.teamName = teamName;
+        this.userId = userId;
+        this.userName = userName;
+        this.status = status;
+        this.requestedRole = requestedRole;
+        this.customRole = customRole;
+        this.createdAt = createdAt;
+    }
+
     public Long getRequestId() {
         return requestId;
     }
 
     public void setRequestId(Long requestId) {
         this.requestId = requestId;
+    }
+
+    public Long getTeamId() {
+        return teamId;
+    }
+
+    public void setTeamId(Long teamId) {
+        this.teamId = teamId;
+    }
+
+    public String getTeamName() {
+        return teamName;
+    }
+
+    public void setTeamName(String teamName) {
+        this.teamName = teamName;
     }
 
     public Long getUserId() {

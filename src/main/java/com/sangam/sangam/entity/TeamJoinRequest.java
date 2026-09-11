@@ -49,7 +49,9 @@ public class TeamJoinRequest {
         PENDING,
         ACCEPTED,
         REJECTED,
-        CANCELLED
+        CANCELLED,
+        REVOKED,
+        EXPIRED
     }
 
     public TeamJoinRequest() {

@@ -53,7 +53,9 @@ public class TeamInvitation {
         PENDING,
         ACCEPTED,
         REJECTED,
-        CANCELLED
+        CANCELLED,
+        REVOKED,
+        EXPIRED
     }
 
     public TeamInvitation() {

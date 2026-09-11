@@ -241,6 +241,33 @@ export const teamApi = {
     const response = await api.delete(`/api/teams/${teamId}`);
     return response.data;
   },
+
+  async getMyJoinRequests() {
+    const response = await api.get('/api/teams/my-join-requests');
+    return response.data;
+  },
+
+  async getNotifications() {
+    const response = await api.get('/api/notifications');
+    return response.data;
+  },
+
+  async markNotificationAsRead(notificationId) {
+    if (!notificationId) throw new Error('Notification ID is required');
+    const response = await api.post(`/api/notifications/${notificationId}/read`);
+    return response.data;
+  },
+
+  async deleteNotification(notificationId) {
+    if (!notificationId) throw new Error('Notification ID is required');
+    const response = await api.delete(`/api/notifications/${notificationId}`);
+    return response.data;
+  },
+
+  async clearAllNotifications() {
+    const response = await api.delete('/api/notifications');
+    return response.data;
+  },
 };
 
 export default teamApi;

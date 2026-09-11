@@ -82,8 +82,8 @@ export const TeamDetailsPage = () => {
   const [selectedJoinRole, setSelectedJoinRole] = useState('');
   const [joinCustomRole, setJoinCustomRole] = useState('');
 
-  // Student "Accept as Another Role" Modal state (when invited role is full)
-  const [isStudentAcceptAnotherModalOpen, setIsStudentAcceptAnotherModalOpen] = useState(false);
+  // Student "Request Another Role" Modal state
+  const [isStudentRequestAnotherModalOpen, setIsStudentRequestAnotherModalOpen] = useState(false);
   const [selectedStudentAnotherRole, setSelectedStudentAnotherRole] = useState('');
   const [studentAnotherCustomRole, setStudentAnotherCustomRole] = useState('');
 
@@ -314,6 +314,15 @@ export const TeamDetailsPage = () => {
   const roleSlotsList = team?.roleSlots || [];
   const openRoles = roleSlotsList.filter((r) => r.availableSlots > 0);
 
+  const invitedRoleSlot = myPendingInvitation
+    ? roleSlotsList.find((s) => roleMatches(s.roleName, myPendingInvitation.invitedRole))
+    : null;
+  const isInvitedRoleFull = Boolean(
+    myPendingInvitation &&
+    invitedRoleSlot &&
+    invitedRoleSlot.availableSlots <= 0
+  );
+
   // Active pending invitations sent by leader
   const pendingSentInvitations = sentInvitations.filter(
     (inv) => inv?.status === 'PENDING'
@@ -395,19 +404,17 @@ export const TeamDetailsPage = () => {
   const handleStudentAcceptInvitation = async () => {
     if (!myPendingInvitation) return;
 
+    if (isTeamFull) {
+      toastError('This team has reached its maximum capacity. This invitation is no longer available.');
+      return;
+    }
+
     const invitedRole = myPendingInvitation.invitedRole;
     const matchingSlot = roleSlotsList.find((s) => roleMatches(s.roleName, invitedRole));
     const isInvitedRoleFull = matchingSlot && matchingSlot.availableSlots <= 0;
 
     if (isInvitedRoleFull) {
-      // Invited role is full -> open alternative role selection
-      if (openRoles.length > 0) {
-        setSelectedStudentAnotherRole(openRoles[0].roleName);
-      } else {
-        setSelectedStudentAnotherRole('');
-      }
-      setStudentAnotherCustomRole('');
-      setIsStudentAcceptAnotherModalOpen(true);
+      toastError(`Your invited role (${invitedRole || 'specified role'}) is no longer available.`);
       return;
     }
 
@@ -421,39 +428,46 @@ export const TeamDetailsPage = () => {
     } catch (err) {
       const msg = extractErrorMessage(err, 'Failed to accept invitation.');
       toastError(msg);
-      if (err.response?.status === 409) {
-        // Role became full concurrently -> prompt alternative role selection
-        if (openRoles.length > 0) {
-          setSelectedStudentAnotherRole(openRoles[0].roleName);
-        }
-        setStudentAnotherCustomRole('');
-        setIsStudentAcceptAnotherModalOpen(true);
-      }
     } finally {
       setActionLoading((prev) => ({ ...prev, 'my-invitation': null }));
     }
   };
 
   /**
-   * Student confirms "Accept as Another Role" for full invited role
+   * Open "Request Another Role" modal for invited student
    */
-  const handleConfirmStudentAcceptAnotherRole = async (e) => {
-    e?.preventDefault();
-    if (!myPendingInvitation || !selectedStudentAnotherRole) return;
+  const handleStudentOpenRequestAnotherModal = () => {
+    if (openRoles.length > 0) {
+      setSelectedStudentAnotherRole(openRoles[0].roleName);
+    } else {
+      setSelectedStudentAnotherRole('');
+    }
+    setStudentAnotherCustomRole('');
+    setIsStudentRequestAnotherModalOpen(true);
+  };
 
-    setActionLoading((prev) => ({ ...prev, 'my-invitation': 'accept-another' }));
+  /**
+   * Student confirms "Request Another Role" -> creates a fresh normal Join Request
+   */
+  const handleConfirmStudentRequestAnotherRole = async (e) => {
+    e?.preventDefault();
+    const uid = user?.id || user?.userId;
+    if (!uid || !selectedStudentAnotherRole) return;
+
+    setActionLoading((prev) => ({ ...prev, 'my-invitation': 'request-another' }));
     try {
-      await teamApi.acceptTeamInvitation(
-        myPendingInvitation.invitationId,
+      await teamApi.sendJoinRequest(
+        id,
+        uid,
         selectedStudentAnotherRole,
         studentAnotherCustomRole.trim() || null
       );
-      success(`Invitation accepted as ${selectedStudentAnotherRole}!`);
-      setIsStudentAcceptAnotherModalOpen(false);
+      success(`Join request submitted as ${selectedStudentAnotherRole}! The team leader will review your request.`);
+      setIsStudentRequestAnotherModalOpen(false);
       setMyPendingInvitation(null);
       await fetchTeamDetails();
     } catch (err) {
-      const msg = extractErrorMessage(err, 'Failed to accept invitation with selected role.');
+      const msg = extractErrorMessage(err, 'Failed to submit join request.');
       toastError(msg);
     } finally {
       setActionLoading((prev) => ({ ...prev, 'my-invitation': null }));
@@ -970,45 +984,104 @@ export const TeamDetailsPage = () => {
         {/* Priority 2: Student Invitation Banner */}
         {!isMember && !isLeader && myPendingInvitation && (
           <div className="mx-6 md:mx-8 mt-6 p-4 rounded-xl bg-brand-50/80 dark:bg-brand-950/40 border border-brand-200 dark:border-brand-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-                <span className="text-xs font-bold text-brand-900 dark:text-brand-200">
-                  You have been invited to join this squad!
-                </span>
-              </div>
-              <p className="text-xs text-brand-800 dark:text-brand-300">
-                Invited for role:{' '}
-                <span className="font-semibold underline">
-                  {myPendingInvitation.invitedRole || 'General Member'}
-                </span>
-                {myPendingInvitation.customRole && (
-                  <span className="ml-1 font-medium">
-                    ({myPendingInvitation.customRole})
-                  </span>
-                )}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-              <Button
-                variant="primary"
-                size="sm"
-                leftIcon={Check}
-                onClick={handleStudentAcceptInvitation}
-                isLoading={actionLoading['my-invitation'] === 'accept'}
-              >
-                Accept Invitation
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={X}
-                onClick={handleStudentDeclineInvitation}
-                isLoading={actionLoading['my-invitation'] === 'decline'}
-              >
-                Decline
-              </Button>
-            </div>
+            {isTeamFull ? (
+              <>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    <span className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                      Team Capacity Reached
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-800 dark:text-amber-300">
+                    This team has reached its maximum capacity. This invitation is no longer available.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setMyPendingInvitation(null)}
+                  >
+                    OK
+                  </Button>
+                </div>
+              </>
+            ) : isInvitedRoleFull ? (
+              <>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    <span className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                      Invited Role Full
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-800 dark:text-amber-300">
+                    Your invited role ({myPendingInvitation.invitedRole || 'specified role'}) is no longer available.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setMyPendingInvitation(null)}
+                  >
+                    OK
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+                    <span className="text-xs font-bold text-brand-900 dark:text-brand-200">
+                      You have been invited to join this squad!
+                    </span>
+                  </div>
+                  <p className="text-xs text-brand-800 dark:text-brand-300">
+                    Invited for role:{' '}
+                    <span className="font-semibold underline">
+                      {myPendingInvitation.invitedRole || 'General Member'}
+                    </span>
+                    {myPendingInvitation.customRole && (
+                      <span className="ml-1 font-medium">
+                        ({myPendingInvitation.customRole})
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={Check}
+                    onClick={handleStudentAcceptInvitation}
+                    isLoading={actionLoading['my-invitation'] === 'accept'}
+                  >
+                    Accept Invitation
+                  </Button>
+                  {openRoles.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleStudentOpenRequestAnotherModal}
+                    >
+                      Request Another Role
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={X}
+                    onClick={handleStudentDeclineInvitation}
+                    isLoading={actionLoading['my-invitation'] === 'decline'}
+                  >
+                    Decline
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -1671,14 +1744,12 @@ export const TeamDetailsPage = () => {
         </form>
       </Modal>
 
-      {/* Student "Accept as Another Role" Modal (Part 5, 6) */}
+      {/* Student "Request Another Role" Modal */}
       <Modal
-        isOpen={isStudentAcceptAnotherModalOpen}
-        onClose={() => setIsStudentAcceptAnotherModalOpen(false)}
-        title="Accept as Another Role"
-        description={`The role you were invited for (${
-          myPendingInvitation?.invitedRole || 'your invited role'
-        }) is currently full. Choose another available role with open slots:`}
+        isOpen={isStudentRequestAnotherModalOpen}
+        onClose={() => setIsStudentRequestAnotherModalOpen(false)}
+        title="Request Another Role"
+        description={`Submit a new join request for an available role on ${team?.name || 'this team'}:`}
         maxWidth="max-w-md"
         footer={
           <>
@@ -1686,8 +1757,8 @@ export const TeamDetailsPage = () => {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setIsStudentAcceptAnotherModalOpen(false)}
-              disabled={actionLoading['my-invitation'] === 'accept-another'}
+              onClick={() => setIsStudentRequestAnotherModalOpen(false)}
+              disabled={actionLoading['my-invitation'] === 'request-another'}
             >
               Cancel
             </Button>
@@ -1695,16 +1766,16 @@ export const TeamDetailsPage = () => {
               type="button"
               variant="primary"
               size="sm"
-              onClick={handleConfirmStudentAcceptAnotherRole}
-              isLoading={actionLoading['my-invitation'] === 'accept-another'}
+              onClick={handleConfirmStudentRequestAnotherRole}
+              isLoading={actionLoading['my-invitation'] === 'request-another'}
               disabled={!selectedStudentAnotherRole || openRoles.length === 0}
             >
-              Accept Invitation
+              Submit Request
             </Button>
           </>
         }
       >
-        <form onSubmit={handleConfirmStudentAcceptAnotherRole} className="space-y-4">
+        <form onSubmit={handleConfirmStudentRequestAnotherRole} className="space-y-4">
           {openRoles.length === 0 ? (
             <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300">
               There are no available open role slots remaining on this team at this time.
