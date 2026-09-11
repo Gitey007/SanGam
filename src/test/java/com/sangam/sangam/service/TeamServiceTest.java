@@ -1346,5 +1346,202 @@ class TeamServiceTest {
             assertEquals(103L, sorted.get(2).getId()); // Expired
         }
     }
+
+    @Nested
+    @DisplayName("Cancellation and Decline Tests (Specs 7-15, 19-22)")
+    class CancellationAndDeclineTests {
+
+        private TeamJoinRequest pendingRequest;
+        private TeamInvitation pendingInvitation;
+
+        @BeforeEach
+        void init() {
+            pendingRequest = new TeamJoinRequest(team, student, TeamJoinRequest.RequestStatus.PENDING, "Backend Developer", null);
+            pendingRequest.setId(500L);
+
+            pendingInvitation = new TeamInvitation(team, student, leader, TeamInvitation.InvitationStatus.PENDING, "Backend Developer", null);
+            pendingInvitation.setId(600L);
+        }
+
+        @Test
+        @DisplayName("Student successfully cancels own pending join request")
+        void testStudentCancelsOwnPendingJoinRequest() {
+            when(userRepository.findByEmail(student.getEmail())).thenReturn(Optional.of(student));
+            when(teamJoinRequestRepository.findById(500L)).thenReturn(Optional.of(pendingRequest));
+
+            teamService.cancelJoinRequest(team.getId(), 500L, student.getEmail());
+
+            assertEquals(TeamJoinRequest.RequestStatus.CANCELLED, pendingRequest.getStatus());
+            verify(teamJoinRequestRepository).save(pendingRequest);
+        }
+
+        @Test
+        @DisplayName("Student cancelling other user's join request is forbidden (403)")
+        void testStudentCannotCancelOtherUserJoinRequest() {
+            when(userRepository.findByEmail(otherStudent.getEmail())).thenReturn(Optional.of(otherStudent));
+            when(teamJoinRequestRepository.findById(500L)).thenReturn(Optional.of(pendingRequest));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.cancelJoinRequest(team.getId(), 500L, otherStudent.getEmail()));
+
+            assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+            assertEquals(TeamJoinRequest.RequestStatus.PENDING, pendingRequest.getStatus());
+        }
+
+        @Test
+        @DisplayName("Cannot cancel non-pending join request (400 Bad Request)")
+        void testCannotCancelNonPendingJoinRequest() {
+            pendingRequest.setStatus(TeamJoinRequest.RequestStatus.ACCEPTED);
+            when(userRepository.findByEmail(student.getEmail())).thenReturn(Optional.of(student));
+            when(teamJoinRequestRepository.findById(500L)).thenReturn(Optional.of(pendingRequest));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.cancelJoinRequest(team.getId(), 500L, student.getEmail()));
+
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        }
+
+        @Test
+        @DisplayName("Student can submit fresh join request after cancelling previous request")
+        void testStudentCanSubmitFreshJoinRequestAfterCancellation() {
+            pendingRequest.setStatus(TeamJoinRequest.RequestStatus.CANCELLED);
+            when(teamRepository.findById(team.getId())).thenReturn(Optional.of(team));
+            when(userRepository.findById(student.getId())).thenReturn(Optional.of(student));
+            when(teamJoinRequestRepository.findByTeamIdAndUserId(team.getId(), student.getId()))
+                    .thenReturn(Optional.of(pendingRequest));
+            when(teamJoinRequestRepository.save(any(TeamJoinRequest.class))).thenAnswer(i -> i.getArgument(0));
+
+            teamService.sendJoinRequest(team.getId(), student.getId(), "Frontend Developer", null);
+
+            assertEquals(TeamJoinRequest.RequestStatus.PENDING, pendingRequest.getStatus());
+            assertEquals("Frontend Developer", pendingRequest.getRequestedRole());
+            verify(teamJoinRequestRepository).save(pendingRequest);
+        }
+
+        @Test
+        @DisplayName("Leader successfully cancels sent pending invitation")
+        void testLeaderCancelsSentPendingInvitation() {
+            when(userRepository.findByEmail(leader.getEmail())).thenReturn(Optional.of(leader));
+            when(teamInvitationRepository.findById(600L)).thenReturn(Optional.of(pendingInvitation));
+
+            teamService.cancelSentInvitation(team.getId(), 600L, leader.getEmail());
+
+            assertEquals(TeamInvitation.InvitationStatus.CANCELLED, pendingInvitation.getStatus());
+            verify(teamInvitationRepository).save(pendingInvitation);
+        }
+
+        @Test
+        @DisplayName("Non-leader cannot cancel sent invitation (403 Forbidden)")
+        void testNonLeaderCannotCancelSentInvitation() {
+            when(userRepository.findByEmail(student.getEmail())).thenReturn(Optional.of(student));
+            when(teamInvitationRepository.findById(600L)).thenReturn(Optional.of(pendingInvitation));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.cancelSentInvitation(team.getId(), 600L, student.getEmail()));
+
+            assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+            assertEquals(TeamInvitation.InvitationStatus.PENDING, pendingInvitation.getStatus());
+        }
+
+        @Test
+        @DisplayName("Student cannot accept cancelled invitation (400 Bad Request)")
+        void testStudentCannotAcceptCancelledInvitation() {
+            pendingInvitation.setStatus(TeamInvitation.InvitationStatus.CANCELLED);
+            when(userRepository.findByEmail(student.getEmail())).thenReturn(Optional.of(student));
+            when(teamInvitationRepository.findById(600L)).thenReturn(Optional.of(pendingInvitation));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.acceptInvitation(600L, student.getEmail()));
+
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        }
+
+        @Test
+        @DisplayName("Student declining invitation sets status to REJECTED")
+        void testStudentDecliningInvitationSetsRejected() {
+            when(userRepository.findByEmail(student.getEmail())).thenReturn(Optional.of(student));
+            when(teamInvitationRepository.findById(600L)).thenReturn(Optional.of(pendingInvitation));
+
+            teamService.rejectInvitation(600L, student.getEmail());
+
+            assertEquals(TeamInvitation.InvitationStatus.REJECTED, pendingInvitation.getStatus());
+            verify(teamInvitationRepository).save(pendingInvitation);
+        }
+    }
+
+    @Nested
+    @DisplayName("Role Openings and Deduplication Tests (Specs 1-6)")
+    class RoleOpeningsAndDeduplicationTests {
+
+        @Test
+        @DisplayName("Full team shows zero available openings across all roles")
+        void testFullTeamShowsZeroAvailableOpenings() {
+            Team fullTeam = new Team();
+            fullTeam.setId(700L);
+            fullTeam.setName("Full Squad");
+            fullTeam.setLeader(leader);
+            fullTeam.setMaxMembers((byte) 2);
+
+            TeamRoleSlot slot1 = new TeamRoleSlot("Backend Developer", 1);
+            TeamRoleSlot slot2 = new TeamRoleSlot("Frontend Developer", 1);
+            fullTeam.setRoleSlots(List.of(slot1, slot2));
+
+            TeamMember m1 = new TeamMember();
+            m1.setTeamId(700L);
+            m1.setUserId(1L);
+            m1.setRole(TeamMember.Role.LEADER);
+            m1.setAssignedRole("Backend Developer");
+
+            TeamMember m2 = new TeamMember();
+            m2.setTeamId(700L);
+            m2.setUserId(2L);
+            m2.setRole(TeamMember.Role.MEMBER);
+            m2.setAssignedRole("Frontend Developer");
+
+            when(teamMemberRepository.findByTeamId(700L)).thenReturn(List.of(m1, m2));
+
+            TeamResponse response = teamService.toTeamResponse(fullTeam);
+
+            assertEquals("FULL", response.getStatus());
+            assertEquals(2, response.getMemberCount());
+            for (TeamRoleSlotDto dto : response.getRoleSlots()) {
+                assertEquals(0, dto.getAvailableSlots());
+            }
+        }
+
+        @Test
+        @DisplayName("Duplicate roles in team definition are deduplicated and aggregated")
+        void testDuplicateRolesAreAggregatedAndDeduplicated() {
+            Team dupTeam = new Team();
+            dupTeam.setId(800L);
+            dupTeam.setName("AI Visionaries");
+            dupTeam.setLeader(leader);
+            dupTeam.setMaxMembers((byte) 5);
+
+            // 3 separate Blockchain slots defined
+            TeamRoleSlot slot1 = new TeamRoleSlot("Blockchain", 1);
+            TeamRoleSlot slot2 = new TeamRoleSlot("Blockchain", 1);
+            TeamRoleSlot slot3 = new TeamRoleSlot("Blockchain", 1);
+            dupTeam.setRoleSlots(List.of(slot1, slot2, slot3));
+
+            TeamMember m1 = new TeamMember();
+            m1.setTeamId(800L);
+            m1.setUserId(1L);
+            m1.setRole(TeamMember.Role.LEADER);
+            m1.setAssignedRole("Blockchain");
+
+            when(teamMemberRepository.findByTeamId(800L)).thenReturn(List.of(m1));
+
+            TeamResponse response = teamService.toTeamResponse(dupTeam);
+
+            // Should have only 1 unique role slot for "Blockchain"
+            assertEquals(1, response.getRoleSlots().size());
+            TeamRoleSlotDto blockchainSlot = response.getRoleSlots().get(0);
+            assertEquals("Blockchain", blockchainSlot.getRoleName());
+            assertEquals(3, blockchainSlot.getSlotCount());
+            assertEquals(1, blockchainSlot.getFilledSlots());
+            assertEquals(2, blockchainSlot.getAvailableSlots());
+        }
+    }
 }
 

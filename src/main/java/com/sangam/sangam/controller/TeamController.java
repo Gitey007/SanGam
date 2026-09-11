@@ -428,4 +428,40 @@ public class TeamController {
         return ResponseEntity.ok(
                 teamService.getMyJoinRequests(authentication != null ? authentication.getName() : null));
     }
+
+    @DeleteMapping({"/{teamId}/join-requests/{requestId}", "/join-requests/{requestId}"})
+    public ResponseEntity<String> cancelJoinRequest(
+            @PathVariable(required = false) Long teamId,
+            @PathVariable Long requestId,
+            Authentication authentication) {
+        teamService.cancelJoinRequest(teamId, requestId, authentication != null ? authentication.getName() : null);
+        return ResponseEntity.ok("Join request cancelled successfully");
+    }
+
+    @PostMapping({"/{teamId}/join-requests/{requestId}/cancel", "/join-requests/{requestId}/cancel"})
+    public ResponseEntity<String> cancelJoinRequestPost(
+            @PathVariable(required = false) Long teamId,
+            @PathVariable Long requestId,
+            Authentication authentication) {
+        teamService.cancelJoinRequest(teamId, requestId, authentication != null ? authentication.getName() : null);
+        return ResponseEntity.ok("Join request cancelled successfully");
+    }
+
+    @DeleteMapping({"/{teamId}/invitations/{invitationId}", "/invitations/{invitationId}"})
+    public ResponseEntity<String> cancelSentInvitation(
+            @PathVariable(required = false) Long teamId,
+            @PathVariable Long invitationId,
+            Authentication authentication) {
+        teamService.cancelSentInvitation(teamId, invitationId, authentication != null ? authentication.getName() : null);
+        return ResponseEntity.ok("Invitation cancelled successfully");
+    }
+
+    @PostMapping({"/{teamId}/invitations/{invitationId}/cancel", "/invitations/{invitationId}/cancel"})
+    public ResponseEntity<String> cancelSentInvitationPost(
+            @PathVariable(required = false) Long teamId,
+            @PathVariable Long invitationId,
+            Authentication authentication) {
+        teamService.cancelSentInvitation(teamId, invitationId, authentication != null ? authentication.getName() : null);
+        return ResponseEntity.ok("Invitation cancelled successfully");
+    }
 }
