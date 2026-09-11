@@ -164,4 +164,42 @@ class UserProfileIntegrationTest {
         assertEquals(1, reloaded.getProjects().size());
         assertEquals("SanGam Platform", reloaded.getProjects().get(0).getTitle());
     }
+
+    @Test
+    @DisplayName("Multiple skills + multiple lookingFor preferences load cleanly without Cartesian duplication or data inflation")
+    void testUserMultipleSkillsAndLookingForPreferencesDoNotDuplicateOrCartesianExplode() {
+        // 1. Create a user with multiple lookingFor preferences
+        User user = new User();
+        user.setName("Dev Cartesian");
+        user.setEmail("cartesian.dev@college.edu");
+        user.setPasswordHash("hashed_pass");
+        user.setCollege("IIT Delhi");
+        user.setBranch("EE");
+        user.setYear((byte) 2);
+        user.setLookingFor(Set.of("Hackathon Teammates", "Open Source", "Research Collaborators", "Startup Co-founders"));
+        User savedUser = userRepository.save(user);
+
+        // 2. Add 5 distinct skills
+        userService.addSkillToUser(savedUser.getId(), "Java", "cartesian.dev@college.edu");
+        userService.addSkillToUser(savedUser.getId(), "Spring Boot", "cartesian.dev@college.edu");
+        userService.addSkillToUser(savedUser.getId(), "PostgreSQL", "cartesian.dev@college.edu");
+        userService.addSkillToUser(savedUser.getId(), "Docker", "cartesian.dev@college.edu");
+        userService.addSkillToUser(savedUser.getId(), "Kubernetes", "cartesian.dev@college.edu");
+
+        // 3. Verify single profile fetch (findWithSkillsById)
+        UserProfileResponse profile = userService.getUserProfile(savedUser.getId());
+        assertNotNull(profile);
+        assertEquals(5, profile.getSkills().size(), "Skills count must be exactly 5 without Cartesian multiplication");
+        assertEquals(4, profile.getLookingFor().size(), "LookingFor count must be exactly 4 without Cartesian multiplication");
+        assertTrue(profile.getSkills().containsAll(Set.of("Java", "Spring Boot", "PostgreSQL", "Docker", "Kubernetes")));
+        assertTrue(profile.getLookingFor().containsAll(Set.of("Hackathon Teammates", "Open Source", "Research Collaborators", "Startup Co-founders")));
+
+        // 4. Verify bulk users list fetch (findAllWithSkills)
+        var allUsers = userService.getAllUsers();
+        UserProfileResponse listedUser = allUsers.stream()
+                .filter(u -> u.getId().equals(savedUser.getId()))
+                .findFirst().orElseThrow();
+        assertEquals(5, listedUser.getSkills().size(), "Listed user skills count must be exactly 5");
+        assertEquals(4, listedUser.getLookingFor().size(), "Listed user lookingFor count must be exactly 4");
+    }
 }

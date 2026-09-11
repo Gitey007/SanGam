@@ -15,11 +15,11 @@ import jakarta.persistence.LockModeType;
 
 public interface TeamRepository extends JpaRepository<Team, Long> {
 
-    @EntityGraph(attributePaths = {"leader", "requiredSkills", "roleSlots"})
+    @EntityGraph(attributePaths = {"leader", "requiredSkills"})
     @Query("SELECT DISTINCT t FROM Team t")
     List<Team> findAllWithDetails();
 
-    @EntityGraph(attributePaths = {"leader", "requiredSkills", "roleSlots"})
+    @EntityGraph(attributePaths = {"leader", "requiredSkills"})
     @Query("SELECT t FROM Team t WHERE t.id = :id")
     Optional<Team> findWithDetailsById(@Param("id") Long id);
 
@@ -28,11 +28,11 @@ public interface TeamRepository extends JpaRepository<Team, Long> {
     Optional<Team> findByIdForUpdate(@Param("id") Long id);
 
     @Override
-    @EntityGraph(attributePaths = {"leader", "requiredSkills", "roleSlots"})
+    @EntityGraph(attributePaths = {"leader", "requiredSkills"})
     Optional<Team> findById(Long id);
 
     @Override
-    @EntityGraph(attributePaths = {"leader", "requiredSkills", "roleSlots"})
+    @EntityGraph(attributePaths = {"leader", "requiredSkills"})
     List<Team> findAll();
 
     boolean existsByLeaderId(Long leaderId);

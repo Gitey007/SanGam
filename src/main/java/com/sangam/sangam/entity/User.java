@@ -64,6 +64,7 @@ public class User {
     @jakarta.persistence.ElementCollection
     @jakarta.persistence.CollectionTable(name = "user_looking_for", joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "preference", length = 50)
+    @org.hibernate.annotations.BatchSize(size = 50)
     private Set<String> lookingFor = new HashSet<>();
 
     @jakarta.persistence.OneToMany(mappedBy = "user", cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
@@ -83,6 +84,7 @@ public class User {
 
     @ManyToMany
     @JoinTable(name = "user_skills", joinColumns = @JoinColumn(name = "user_id"), inverseJoinColumns = @JoinColumn(name = "skill_id"))
+    @org.hibernate.annotations.BatchSize(size = 50)
     private Set<Skill> skills = new HashSet<>();
 
     // Getters and Setters
