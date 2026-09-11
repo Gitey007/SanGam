@@ -35,13 +35,39 @@ export const DashboardPage = () => {
   const [isLoadingTeams, setIsLoadingTeams] = useState(true);
   const [actionLoading, setActionLoading] = useState({});
 
+  const sortTeams = (teamList) => {
+    return [...teamList].sort((a, b) => {
+      const aExpired = Boolean(
+        a.isExpired ||
+          a.expired ||
+          (a.joinDeadline && new Date(a.joinDeadline) < new Date())
+      );
+      const bExpired = Boolean(
+        b.isExpired ||
+          b.expired ||
+          (b.joinDeadline && new Date(b.joinDeadline) < new Date())
+      );
+
+      if (aExpired !== bExpired) {
+        return aExpired ? 1 : -1;
+      }
+
+      const aMembersCount = a.currentMemberCount || a.members?.length || 0;
+      const bMembersCount = b.currentMemberCount || b.members?.length || 0;
+      const aCapacity = (a.maxMembers || 0) - aMembersCount;
+      const bCapacity = (b.maxMembers || 0) - bMembersCount;
+      return bCapacity - aCapacity;
+    });
+  };
+
   const fetchDashboardData = useCallback(async () => {
     try {
       const [teamsData, invsData] = await Promise.all([
         teamApi.getTeams().catch(() => []),
         teamApi.getMyTeamInvitations('PENDING').catch(() => []),
       ]);
-      setTeams(Array.isArray(teamsData) ? teamsData.slice(0, 3) : []);
+      const sorted = sortTeams(Array.isArray(teamsData) ? teamsData : []);
+      setTeams(sorted.slice(0, 3));
       setPendingInvitations(Array.isArray(invsData) ? invsData : []);
     } catch (err) {
       console.error('Error fetching dashboard data:', err);

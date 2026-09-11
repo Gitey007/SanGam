@@ -60,8 +60,12 @@ class TeamConcurrencyIntegrationTest {
     @Autowired
     private TeamInvitationRepository teamInvitationRepository;
 
+    @Autowired
+    private com.sangam.sangam.repository.NotificationRepository notificationRepository;
+
     @BeforeEach
     void cleanDatabase() {
+        notificationRepository.deleteAll();
         teamInvitationRepository.deleteAll();
         teamJoinRequestRepository.deleteAll();
         teamMemberRepository.deleteAll();

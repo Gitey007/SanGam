@@ -416,4 +416,16 @@ public class TeamController {
         return ResponseEntity.ok(
                 teamService.getTeamInvitations(teamId, authentication != null ? authentication.getName() : null));
     }
+
+    @GetMapping("/my-join-requests")
+    public ResponseEntity<List<TeamJoinRequestResponse>> getMyJoinRequests(Authentication authentication) {
+        return ResponseEntity.ok(
+                teamService.getMyJoinRequests(authentication != null ? authentication.getName() : null));
+    }
+
+    @GetMapping("/join-requests/my")
+    public ResponseEntity<List<TeamJoinRequestResponse>> getMyJoinRequestsAlias(Authentication authentication) {
+        return ResponseEntity.ok(
+                teamService.getMyJoinRequests(authentication != null ? authentication.getName() : null));
+    }
 }

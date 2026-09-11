@@ -47,6 +47,7 @@ public class TeamService {
     private final TeamInvitationRepository teamInvitationRepository;
     private final SkillRepository skillRepository;
     private final EmailNotificationService emailNotificationService;
+    private final NotificationService notificationService;
 
     @Autowired
     public TeamService(
@@ -56,7 +57,8 @@ public class TeamService {
             TeamJoinRequestRepository teamJoinRequestRepository,
             TeamInvitationRepository teamInvitationRepository,
             SkillRepository skillRepository,
-            @Autowired(required = false) EmailNotificationService emailNotificationService) {
+            @Autowired(required = false) EmailNotificationService emailNotificationService,
+            @Autowired(required = false) NotificationService notificationService) {
 
         this.teamRepository = teamRepository;
         this.userRepository = userRepository;
@@ -65,6 +67,18 @@ public class TeamService {
         this.teamInvitationRepository = teamInvitationRepository;
         this.skillRepository = skillRepository;
         this.emailNotificationService = emailNotificationService;
+        this.notificationService = notificationService;
+    }
+
+    public TeamService(
+            TeamRepository teamRepository,
+            UserRepository userRepository,
+            TeamMemberRepository teamMemberRepository,
+            TeamJoinRequestRepository teamJoinRequestRepository,
+            TeamInvitationRepository teamInvitationRepository,
+            SkillRepository skillRepository,
+            EmailNotificationService emailNotificationService) {
+        this(teamRepository, userRepository, teamMemberRepository, teamJoinRequestRepository, teamInvitationRepository, skillRepository, emailNotificationService, null);
     }
 
     public TeamService(
@@ -74,7 +88,7 @@ public class TeamService {
             TeamJoinRequestRepository teamJoinRequestRepository,
             TeamInvitationRepository teamInvitationRepository,
             SkillRepository skillRepository) {
-        this(teamRepository, userRepository, teamMemberRepository, teamJoinRequestRepository, teamInvitationRepository, skillRepository, null);
+        this(teamRepository, userRepository, teamMemberRepository, teamJoinRequestRepository, teamInvitationRepository, skillRepository, null, null);
     }
 
     public static boolean isOtherRole(String roleName) {
@@ -498,6 +512,8 @@ public class TeamService {
     public TeamJoinRequestResponse toJoinRequestResponse(TeamJoinRequest request) {
         return new TeamJoinRequestResponse(
                 request.getId(),
+                request.getTeam() != null ? request.getTeam().getId() : null,
+                request.getTeam() != null ? request.getTeam().getName() : null,
                 request.getUser().getId(),
                 request.getUser().getName(),
                 request.getStatus().name(),
@@ -585,6 +601,20 @@ public class TeamService {
                     requestedRole != null ? requestedRole.trim() : null,
                     customRole != null ? customRole.trim() : null);
             saved = teamJoinRequestRepository.save(request);
+        }
+
+        if (notificationService != null && team.getLeader() != null) {
+            try {
+                notificationService.createNotification(
+                        team.getLeader(),
+                        "New Join Request",
+                        user.getName() + " requested to join " + team.getName() + (requestedRole != null ? " as " + requestedRole : "") + ".",
+                        "REQUEST_RECEIVED",
+                        team.getId(),
+                        team.getName());
+            } catch (Exception e) {
+                // Safety: Notification failure must not break main flow
+            }
         }
 
         if (emailNotificationService != null) {
@@ -729,6 +759,26 @@ public class TeamService {
         request.setUpdatedAt(LocalDateTime.now());
         teamJoinRequestRepository.save(request);
 
+        // 8. If team reached maximum capacity, revoke remaining pending invitations and join requests
+        long newMemberCount = teamMemberRepository.countByTeamId(team.getId());
+        if (team.getMaxMembers() != null && newMemberCount >= team.getMaxMembers()) {
+            revokeRemainingPendingRequestsAndInvitations(team);
+        }
+
+        if (notificationService != null && request.getUser() != null) {
+            try {
+                notificationService.createNotification(
+                        request.getUser(),
+                        "Join Request Accepted",
+                        "You have been accepted into " + team.getName() + " as " + (effectiveRole != null ? effectiveRole : "Member") + "!",
+                        "REQUEST_ACCEPTED",
+                        team.getId(),
+                        team.getName());
+            } catch (Exception e) {
+                // Safety: Notification failure must not break main flow
+            }
+        }
+
         if (emailNotificationService != null) {
             try {
                 User applicant = request.getUser();
@@ -785,6 +835,20 @@ public class TeamService {
         request.setStatus(TeamJoinRequest.RequestStatus.REJECTED);
         request.setUpdatedAt(LocalDateTime.now());
         teamJoinRequestRepository.save(request);
+
+        if (notificationService != null && request.getUser() != null) {
+            try {
+                notificationService.createNotification(
+                        request.getUser(),
+                        "Join Request Declined",
+                        "Your request to join " + team.getName() + " was declined.",
+                        "REQUEST_REJECTED",
+                        team.getId(),
+                        team.getName());
+            } catch (Exception e) {
+                // Safety: Notification failure must not break main flow
+            }
+        }
     }
 
     public TeamInvitationResponse toInvitationResponse(TeamInvitation invitation) {
@@ -892,6 +956,19 @@ public class TeamService {
             existing.setCreatedAt(LocalDateTime.now());
             existing.setUpdatedAt(LocalDateTime.now());
             TeamInvitation saved = teamInvitationRepository.save(existing);
+            if (notificationService != null) {
+                try {
+                    notificationService.createNotification(
+                            targetUser,
+                            "Team Invitation",
+                            inviter.getName() + " invited you to join " + team.getName() + (invitedRole != null ? " as " + invitedRole : "") + ".",
+                            "INVITATION_RECEIVED",
+                            team.getId(),
+                            team.getName());
+                } catch (Exception e) {
+                    // Safety: Notification failure must not break main flow
+                }
+            }
             return toInvitationResponse(saved);
         }
 
@@ -900,6 +977,21 @@ public class TeamService {
                 invitedRole != null ? invitedRole.trim() : null,
                 customRole != null ? customRole.trim() : null);
         TeamInvitation saved = teamInvitationRepository.save(invitation);
+
+        if (notificationService != null) {
+            try {
+                notificationService.createNotification(
+                        targetUser,
+                        "Team Invitation",
+                        inviter.getName() + " invited you to join " + team.getName() + (invitedRole != null ? " as " + invitedRole : "") + ".",
+                        "INVITATION_RECEIVED",
+                        team.getId(),
+                        team.getName());
+            } catch (Exception e) {
+                // Safety: Notification failure must not break main flow
+            }
+        }
+
         return toInvitationResponse(saved);
     }
 
@@ -1002,6 +1094,26 @@ public class TeamService {
         invitation.setStatus(TeamInvitation.InvitationStatus.ACCEPTED);
         invitation.setUpdatedAt(LocalDateTime.now());
         teamInvitationRepository.save(invitation);
+
+        // 7. If team reached maximum capacity, revoke remaining pending invitations and join requests
+        long newMemberCount = teamMemberRepository.countByTeamId(team.getId());
+        if (team.getMaxMembers() != null && newMemberCount >= team.getMaxMembers()) {
+            revokeRemainingPendingRequestsAndInvitations(team);
+        }
+
+        if (notificationService != null && team.getLeader() != null) {
+            try {
+                notificationService.createNotification(
+                        team.getLeader(),
+                        "Invitation Accepted",
+                        currentUser.getName() + " accepted your invitation to join " + team.getName() + (effectiveRole != null ? " as " + effectiveRole : "") + ".",
+                        "INVITATION_ACCEPTED",
+                        team.getId(),
+                        team.getName());
+            } catch (Exception e) {
+                // Safety: Notification failure must not break main flow
+            }
+        }
     }
 
     @Transactional
@@ -1040,6 +1152,91 @@ public class TeamService {
         invitation.setStatus(TeamInvitation.InvitationStatus.REJECTED);
         invitation.setUpdatedAt(LocalDateTime.now());
         teamInvitationRepository.save(invitation);
+
+        Team team = invitation.getTeam();
+        if (notificationService != null && team != null && team.getLeader() != null) {
+            try {
+                notificationService.createNotification(
+                        team.getLeader(),
+                        "Invitation Declined",
+                        currentUser.getName() + " declined the invitation to join " + team.getName() + ".",
+                        "INVITATION_DECLINED",
+                        team.getId(),
+                        team.getName());
+            } catch (Exception e) {
+                // Safety: Notification failure must not break main flow
+            }
+        }
+    }
+
+    private void revokeRemainingPendingRequestsAndInvitations(Team team) {
+        if (team == null || team.getId() == null) return;
+        Long teamId = team.getId();
+
+        // 1. Revoke pending invitations
+        List<TeamInvitation> pendingInvs = teamInvitationRepository.findByTeamId(teamId).stream()
+                .filter(i -> i.getStatus() == TeamInvitation.InvitationStatus.PENDING)
+                .toList();
+
+        for (TeamInvitation inv : pendingInvs) {
+            inv.setStatus(TeamInvitation.InvitationStatus.REVOKED);
+            inv.setUpdatedAt(LocalDateTime.now());
+            teamInvitationRepository.save(inv);
+
+            if (notificationService != null && inv.getInvitedUser() != null) {
+                try {
+                    notificationService.createNotification(
+                            inv.getInvitedUser(),
+                            "Invitation Unavailable",
+                            "This team has reached its maximum capacity. This invitation is no longer available.",
+                            "INVITATION_REVOKED",
+                            teamId,
+                            team.getName());
+                } catch (Exception e) {
+                    // Safety
+                }
+            }
+        }
+
+        // 2. Revoke pending join requests
+        List<TeamJoinRequest> pendingReqs = teamJoinRequestRepository.findByTeamIdAndStatus(teamId, TeamJoinRequest.RequestStatus.PENDING);
+
+        for (TeamJoinRequest req : pendingReqs) {
+            req.setStatus(TeamJoinRequest.RequestStatus.REVOKED);
+            req.setUpdatedAt(LocalDateTime.now());
+            teamJoinRequestRepository.save(req);
+
+            if (notificationService != null && req.getUser() != null) {
+                try {
+                    notificationService.createNotification(
+                            req.getUser(),
+                            "Join Request Unavailable",
+                            "This team has reached its maximum capacity. Your join request is no longer available.",
+                            "REQUEST_REVOKED",
+                            teamId,
+                            team.getName());
+                } catch (Exception e) {
+                    // Safety
+                }
+            }
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<TeamJoinRequestResponse> getMyJoinRequests(String authenticatedEmail) {
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
+
+        User currentUser = userRepository.findByEmail(authenticatedEmail.trim().toLowerCase())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "User not authenticated"));
+
+        return teamJoinRequestRepository.findByUserIdAndStatus(currentUser.getId(), TeamJoinRequest.RequestStatus.PENDING)
+                .stream()
+                .map(this::toJoinRequestResponse)
+                .toList();
     }
 
     @Transactional(readOnly = true)

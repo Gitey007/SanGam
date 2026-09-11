@@ -42,6 +42,7 @@ public class UserService {
     private final TeamMemberRepository teamMemberRepository;
     private final TeamJoinRequestRepository teamJoinRequestRepository;
     private final TeamInvitationRepository teamInvitationRepository;
+    private final com.sangam.sangam.repository.NotificationRepository notificationRepository;
 
     @Autowired
     public UserService(
@@ -53,7 +54,8 @@ public class UserService {
             @Autowired(required = false) TeamRepository teamRepository,
             @Autowired(required = false) TeamMemberRepository teamMemberRepository,
             @Autowired(required = false) TeamJoinRequestRepository teamJoinRequestRepository,
-            @Autowired(required = false) TeamInvitationRepository teamInvitationRepository) {
+            @Autowired(required = false) TeamInvitationRepository teamInvitationRepository,
+            @Autowired(required = false) com.sangam.sangam.repository.NotificationRepository notificationRepository) {
         this.userRepository = userRepository;
         this.skillRepository = skillRepository;
         this.userAchievementRepository = userAchievementRepository;
@@ -63,6 +65,20 @@ public class UserService {
         this.teamMemberRepository = teamMemberRepository;
         this.teamJoinRequestRepository = teamJoinRequestRepository;
         this.teamInvitationRepository = teamInvitationRepository;
+        this.notificationRepository = notificationRepository;
+    }
+
+    public UserService(
+            UserRepository userRepository,
+            SkillRepository skillRepository,
+            UserAchievementRepository userAchievementRepository,
+            UserProjectRepository userProjectRepository,
+            EmailOtpService emailOtpService,
+            TeamRepository teamRepository,
+            TeamMemberRepository teamMemberRepository,
+            TeamJoinRequestRepository teamJoinRequestRepository,
+            TeamInvitationRepository teamInvitationRepository) {
+        this(userRepository, skillRepository, userAchievementRepository, userProjectRepository, emailOtpService, teamRepository, teamMemberRepository, teamJoinRequestRepository, teamInvitationRepository, null);
     }
 
     public UserService(
@@ -70,7 +86,7 @@ public class UserService {
             SkillRepository skillRepository,
             UserAchievementRepository userAchievementRepository,
             UserProjectRepository userProjectRepository) {
-        this(userRepository, skillRepository, userAchievementRepository, userProjectRepository, null, null, null, null, null);
+        this(userRepository, skillRepository, userAchievementRepository, userProjectRepository, null, null, null, null, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -486,11 +502,11 @@ public class UserService {
 
         Long userId = user.getId();
 
-        // Foreign Key Safety Check: If user is leader of any team, reject deletion with clear business message
+        // Foreign Key Safety Check: If user is leader of any team (active or expired), reject deletion with clear business message
         if (teamRepository != null && teamRepository.existsByLeaderId(userId)) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Cannot delete account while you are the leader of active team(s). Please transfer leadership or delete your team(s) first.");
+                    "Cannot delete account while you are the leader of a team. Please delete the team or transfer leadership first.");
         }
 
         // Clean up all user relations safely
@@ -509,6 +525,9 @@ public class UserService {
         }
         if (userProjectRepository != null) {
             userProjectRepository.deleteByUserId(userId);
+        }
+        if (notificationRepository != null) {
+            notificationRepository.deleteByUserId(userId);
         }
 
         user.getSkills().clear();

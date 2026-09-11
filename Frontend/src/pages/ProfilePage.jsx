@@ -25,6 +25,7 @@ import { ProfileSkeleton } from '../components/common/Skeleton';
 import ErrorState from '../components/common/ErrorState';
 import Badge from '../components/common/Badge';
 import Button from '../components/common/Button';
+import ConfirmModal from '../components/common/ConfirmModal';
 import { POPULAR_SKILLS } from '../utils/constants';
 import { extractErrorMessage } from '../utils/helpers';
 
@@ -46,6 +47,8 @@ export const ProfilePage = () => {
   const [editingAchievement, setEditingAchievement] = useState(null);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState(null);
+  const [isDeletingItem, setIsDeletingItem] = useState(false);
 
   // Skill management inline state
   const [newSkillInput, setNewSkillInput] = useState('');
@@ -125,34 +128,55 @@ export const ProfilePage = () => {
   };
 
   // Achievement Actions
-  const handleDeleteAchievement = async (achievementId) => {
-    if (!window.confirm('Are you sure you want to delete this achievement?')) return;
-    try {
-      await userApi.deleteAchievement(targetId, achievementId);
-      success('Achievement deleted');
-      setProfile((prev) => ({
-        ...prev,
-        achievements: (prev.achievements || []).filter((a) => a.id !== achievementId),
-      }));
-    } catch (err) {
-      const msg = extractErrorMessage(err, 'Failed to delete achievement.');
-      toastError(msg);
-    }
+  const handleDeleteAchievementClick = (achievement) => {
+    setDeleteConfirmItem({
+      type: 'achievement',
+      id: achievement.id,
+      title: achievement.title || 'this achievement',
+    });
   };
 
   // Project Actions
-  const handleDeleteProject = async (projectId) => {
-    if (!window.confirm('Are you sure you want to delete this project?')) return;
+  const handleDeleteProjectClick = (project) => {
+    setDeleteConfirmItem({
+      type: 'project',
+      id: project.id,
+      title: project.name || 'this project',
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmItem) return;
+    setIsDeletingItem(true);
     try {
-      await userApi.deleteProject(targetId, projectId);
-      success('Project deleted');
-      setProfile((prev) => ({
-        ...prev,
-        projects: (prev.projects || []).filter((p) => p.id !== projectId),
-      }));
+      if (deleteConfirmItem.type === 'achievement') {
+        await userApi.deleteAchievement(targetId, deleteConfirmItem.id);
+        success('Achievement deleted');
+        setProfile((prev) => ({
+          ...prev,
+          achievements: (prev.achievements || []).filter(
+            (a) => a.id !== deleteConfirmItem.id
+          ),
+        }));
+      } else if (deleteConfirmItem.type === 'project') {
+        await userApi.deleteProject(targetId, deleteConfirmItem.id);
+        success('Project deleted');
+        setProfile((prev) => ({
+          ...prev,
+          projects: (prev.projects || []).filter(
+            (p) => p.id !== deleteConfirmItem.id
+          ),
+        }));
+      }
+      setDeleteConfirmItem(null);
     } catch (err) {
-      const msg = extractErrorMessage(err, 'Failed to delete project.');
+      const msg = extractErrorMessage(
+        err,
+        `Failed to delete ${deleteConfirmItem.type}.`
+      );
       toastError(msg);
+    } finally {
+      setIsDeletingItem(false);
     }
   };
 
@@ -357,7 +381,7 @@ export const ProfilePage = () => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDeleteProject(project.id)}
+                            onClick={() => handleDeleteProjectClick(project)}
                             className="p-1 rounded text-slate-400 hover:text-red-600 dark:hover:text-rose-400 hover:bg-red-50 dark:hover:bg-rose-950/40 transition-colors"
                             title="Delete project"
                           >
@@ -510,7 +534,7 @@ export const ProfilePage = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDeleteAchievement(ach.id)}
+                        onClick={() => handleDeleteAchievementClick(ach)}
                         className="p-1.5 rounded text-slate-400 hover:text-red-600 dark:hover:text-rose-400 hover:bg-red-50 dark:hover:bg-rose-950/40 transition-colors"
                         title="Delete achievement"
                       >
@@ -566,6 +590,22 @@ export const ProfilePage = () => {
           onSaved={fetchProfile}
         />
       )}
+
+      {/* Confirm Delete Modal */}
+      <ConfirmModal
+        isOpen={Boolean(deleteConfirmItem)}
+        onClose={() => setDeleteConfirmItem(null)}
+        onConfirm={handleConfirmDelete}
+        title={
+          deleteConfirmItem?.type === 'achievement'
+            ? 'Delete Achievement'
+            : 'Delete Project'
+        }
+        message={`Are you sure you want to permanently delete "${deleteConfirmItem?.title}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeletingItem}
+      />
     </div>
   );
 };

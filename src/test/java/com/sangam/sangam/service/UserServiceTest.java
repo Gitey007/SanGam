@@ -446,37 +446,67 @@ class UserServiceTest {
         assertTrue(ex.getReason().contains("Invalid or expired OTP"));
     }
 
-    // 15. deleteAccount - user is team leader
+    // 15. deleteAccount - active team leader blocked
     @Test
-    void testDeleteAccount_UserIsLeader_ThrowsBadRequest() {
-        User user = createUser(1L, "Delete Leader", "leader@college.edu", "IIT", "CS", (byte) 2);
-        when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(user));
-        when(emailOtpService.verifyOtp("leader@college.edu", "654321")).thenReturn(true);
+    void testDeleteAccount_ActiveTeamLeader_Blocked() {
+        User user = createUser(1L, "Active Leader", "leader.active@college.edu", "IIT", "CS", (byte) 2);
+        when(userRepository.findByEmail("leader.active@college.edu")).thenReturn(Optional.of(user));
+        when(emailOtpService.verifyOtp("leader.active@college.edu", "654321")).thenReturn(true);
         when(teamRepository.existsByLeaderId(1L)).thenReturn(true);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                userService.deleteAccount("654321", "leader@college.edu"));
+                userService.deleteAccount("654321", "leader.active@college.edu"));
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
-        assertTrue(ex.getReason().contains("Cannot delete account while you are the leader"));
+        assertEquals("Cannot delete account while you are the leader of a team. Please delete the team or transfer leadership first.", ex.getReason());
     }
 
-    // 16. deleteAccount - non-leader success
+    // 16. deleteAccount - expired team leader blocked
     @Test
-    void testDeleteAccount_Success() {
-        User user = createUser(1L, "Delete Member", "member@college.edu", "IIT", "CS", (byte) 2);
+    void testDeleteAccount_ExpiredTeamLeader_Blocked() {
+        User user = createUser(2L, "Expired Leader", "leader.expired@college.edu", "IIT", "CS", (byte) 4);
+        when(userRepository.findByEmail("leader.expired@college.edu")).thenReturn(Optional.of(user));
+        when(emailOtpService.verifyOtp("leader.expired@college.edu", "654321")).thenReturn(true);
+        when(teamRepository.existsByLeaderId(2L)).thenReturn(true);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                userService.deleteAccount("654321", "leader.expired@college.edu"));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertEquals("Cannot delete account while you are the leader of a team. Please delete the team or transfer leadership first.", ex.getReason());
+    }
+
+    // 17. deleteAccount - multiple teams leader blocked
+    @Test
+    void testDeleteAccount_MultipleTeamsLeader_Blocked() {
+        User user = createUser(3L, "Multi Leader", "leader.multi@college.edu", "IIT", "CS", (byte) 3);
+        when(userRepository.findByEmail("leader.multi@college.edu")).thenReturn(Optional.of(user));
+        when(emailOtpService.verifyOtp("leader.multi@college.edu", "654321")).thenReturn(true);
+        when(teamRepository.existsByLeaderId(3L)).thenReturn(true);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                userService.deleteAccount("654321", "leader.multi@college.edu"));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertEquals("Cannot delete account while you are the leader of a team. Please delete the team or transfer leadership first.", ex.getReason());
+    }
+
+    // 18. deleteAccount - non-leader allowed
+    @Test
+    void testDeleteAccount_NonLeader_Allowed() {
+        User user = createUser(4L, "Regular Member", "member@college.edu", "IIT", "CS", (byte) 2);
         when(userRepository.findByEmail("member@college.edu")).thenReturn(Optional.of(user));
         when(emailOtpService.verifyOtp("member@college.edu", "654321")).thenReturn(true);
-        when(teamRepository.existsByLeaderId(1L)).thenReturn(false);
+        when(teamRepository.existsByLeaderId(4L)).thenReturn(false);
 
         userService.deleteAccount("654321", "member@college.edu");
 
-        verify(teamMemberRepository).deleteByUserId(1L);
-        verify(teamJoinRequestRepository).deleteByUserId(1L);
-        verify(teamInvitationRepository).deleteByInvitedUserId(1L);
-        verify(teamInvitationRepository).deleteByInvitedById(1L);
-        verify(userAchievementRepository).deleteByUserId(1L);
-        verify(userProjectRepository).deleteByUserId(1L);
+        verify(teamMemberRepository).deleteByUserId(4L);
+        verify(teamJoinRequestRepository).deleteByUserId(4L);
+        verify(teamInvitationRepository).deleteByInvitedUserId(4L);
+        verify(teamInvitationRepository).deleteByInvitedById(4L);
+        verify(userAchievementRepository).deleteByUserId(4L);
+        verify(userProjectRepository).deleteByUserId(4L);
         verify(userRepository).delete(user);
         verify(emailOtpService).clearVerifiedEmail("member@college.edu");
     }
