@@ -98,6 +98,9 @@ export const TeamDetailsPage = () => {
   const [isConfirmReplaceModalOpen, setIsConfirmReplaceModalOpen] = useState(false);
   const [isReplacingMember, setIsReplacingMember] = useState(false);
 
+  // Direct Remove Member Modal state (Leader only)
+  const [memberToRemove, setMemberToRemove] = useState(null);
+
   // Invite modal state
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [studentsList, setStudentsList] = useState([]);
