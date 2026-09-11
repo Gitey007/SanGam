@@ -1474,7 +1474,7 @@ class TeamServiceTest {
     class RoleOpeningsAndDeduplicationTests {
 
         @Test
-        @DisplayName("Team 2/6: Backend (0/2), Frontend (0/1), Researcher (0/1) -> Backend=2, Frontend=1, Researcher=1 (NOT 12, 10, 6, or 4)")
+        @DisplayName("Case 1: Team 2/6, Backend (0/2), Frontend (0/1), Researcher (0/1) -> Backend=2, Frontend=1, Researcher=1 (NOT 12, 10, 6, or 4)")
         void testTeamTwoOfSixExactRoleCapacities() {
             Team teamX = new Team();
             teamX.setId(901L);
@@ -1534,7 +1534,7 @@ class TeamServiceTest {
         }
 
         @Test
-        @DisplayName("Team 5/6: Backend (2/2), Frontend (1/2), Researcher (1/1) -> Frontend=1 opening only")
+        @DisplayName("Case 2: Team 5/6, Backend (2/2), Frontend (1/2), Researcher (1/1) -> Frontend=1 opening only")
         void testTeamFiveOfSixOnlyShowsAvailableRole() {
             Team teamY = new Team();
             teamY.setId(902L);
@@ -1605,7 +1605,7 @@ class TeamServiceTest {
         }
 
         @Test
-        @DisplayName("Cartesian product prevention: duplicate role representations are not multiplied into 12, 10, 6")
+        @DisplayName("Case 3: Cartesian product prevention: duplicate role representations are not multiplied into 12, 10, 6")
         void testCartesianProductDuplicateEntriesAreNotMultiplied() {
             Team dupTeam = new Team();
             dupTeam.setId(903L);
@@ -1649,7 +1649,7 @@ class TeamServiceTest {
         }
 
         @Test
-        @DisplayName("Full team (6/6) shows zero available openings across all roles")
+        @DisplayName("Case 4: Full team (6/6) shows zero available openings across all roles")
         void testFullTeamShowsZeroAvailableOpenings() {
             Team fullTeam = new Team();
             fullTeam.setId(700L);
@@ -1685,7 +1685,39 @@ class TeamServiceTest {
         }
 
         @Test
-        @DisplayName("Case 5: Team has capacity but no role has capacity -> 0 role openings (do not fabricate)")
+        @DisplayName("Case 5: Duplicate roles in team definition are deduplicated")
+        void testDuplicateRolesAreAggregatedAndDeduplicated() {
+            Team dupTeam = new Team();
+            dupTeam.setId(800L);
+            dupTeam.setName("AI Visionaries");
+            dupTeam.setLeader(leader);
+            dupTeam.setMaxMembers((byte) 5);
+
+            TeamRoleSlot slot1 = new TeamRoleSlot("Blockchain", 2);
+            TeamRoleSlot slot2 = new TeamRoleSlot("Blockchain", 2);
+            dupTeam.setRoleSlots(List.of(slot1, slot2));
+
+            TeamMember m1 = new TeamMember();
+            m1.setTeamId(800L);
+            m1.setUserId(1L);
+            m1.setRole(TeamMember.Role.LEADER);
+            m1.setAssignedRole("Blockchain");
+
+            when(teamMemberRepository.findByTeamId(800L)).thenReturn(List.of(m1));
+
+            TeamResponse response = teamService.toTeamResponse(dupTeam);
+
+            // Should have only 1 unique role slot for "Blockchain"
+            assertEquals(1, response.getRoleSlots().size());
+            TeamRoleSlotDto blockchainSlot = response.getRoleSlots().get(0);
+            assertEquals("Blockchain", blockchainSlot.getRoleName());
+            assertEquals(2, blockchainSlot.getSlotCount());
+            assertEquals(1, blockchainSlot.getFilledSlots());
+            assertEquals(1, blockchainSlot.getAvailableSlots());
+        }
+
+        @Test
+        @DisplayName("Case 6: Team has capacity but no role has capacity -> 0 role openings (do not fabricate)")
         void testTeamHasCapacityButNoRoleHasCapacity() {
             Team teamZ = new Team();
             teamZ.setId(905L);
