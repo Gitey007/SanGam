@@ -36,11 +36,11 @@ export const TeamCard = ({ team }) => {
     : [];
 
   const isTeamFull = memberCount >= maxMembers || status === 'FULL';
-  const remainingTeamSlots = Math.max(0, maxMembers - memberCount);
 
-  // Deduplicate and aggregate role slots (ensuring normalized role names, only showing available capacity, and capping by team capacity)
+  // Calculate role openings strictly using role capacity: (role.maxSlots - role.filledMembers)
+  // NEVER use (team.maxMembers - currentMemberCount) as the opening count for individual roles
   const aggregatedRoles = React.useMemo(() => {
-    if (isTeamFull || remainingTeamSlots === 0) {
+    if (isTeamFull) {
       return [];
     }
     const roleMap = new Map();
@@ -51,10 +51,11 @@ export const TeamCard = ({ team }) => {
         const roleName = slot.roleName.trim();
         const key = roleName.toLowerCase();
 
+        // Use availableSlots strictly from role capacity (slotCount - filledSlots)
         let available = slot.availableSlots;
         if (available === undefined) {
-          const total = slot.slotCount || 1;
-          const filled = slot.filledSlots || 0;
+          const total = slot.slotCount != null ? Number(slot.slotCount) : 1;
+          const filled = slot.filledSlots != null ? Number(slot.filledSlots) : 0;
           available = Math.max(0, total - filled);
         }
 
@@ -74,21 +75,25 @@ export const TeamCard = ({ team }) => {
         const roleName = r.trim();
         const key = roleName.toLowerCase();
         if (!roleMap.has(key)) {
-          roleMap.set(key, {
-            roleName,
-            availableSlots: 1,
-          });
+          const membersList = Array.isArray(team.members) ? team.members : [];
+          const filled = membersList.filter((m) => {
+            const assigned = m.assignedRole || m.role;
+            return assigned && assigned.toLowerCase() === key;
+          }).length;
+          const available = Math.max(0, 1 - filled);
+          if (available > 0) {
+            roleMap.set(key, {
+              roleName,
+              availableSlots: available,
+            });
+          }
         }
       }
     }
 
-    return Array.from(roleMap.values())
-      .map((r) => ({
-        ...r,
-        availableSlots: Math.min(r.availableSlots, remainingTeamSlots),
-      }))
-      .filter((r) => r.availableSlots > 0);
-  }, [team.roleSlots, team.requiredRoles, isTeamFull, remainingTeamSlots]);
+    // Only return roles that actually have available capacity (> 0), omitting full roles
+    return Array.from(roleMap.values()).filter((r) => r.availableSlots > 0);
+  }, [team.roleSlots, team.requiredRoles, team.members, isTeamFull]);
 
   const getStatusBadge = () => {
     if (isExpired) {
