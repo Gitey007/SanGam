@@ -35,16 +35,60 @@ export const TeamCard = ({ team }) => {
     ? Array.from(team.requiredSkills)
     : [];
 
-  const roleSlots = Array.isArray(team.roleSlots) ? team.roleSlots : [];
-  const openRoleSlots = roleSlots.filter(
-    (slot) => slot.availableSlots === undefined || slot.availableSlots > 0
-  );
+  const isTeamFull = memberCount >= maxMembers || status === 'FULL';
+  const remainingTeamSlots = Math.max(0, maxMembers - memberCount);
 
-  const legacyRoles = Array.isArray(team.requiredRoles)
-    ? team.requiredRoles
-    : team.requiredRoles
-    ? Array.from(team.requiredRoles)
-    : [];
+  // Deduplicate and aggregate role slots (ensuring normalized role names, only showing available capacity, and capping by team capacity)
+  const aggregatedRoles = React.useMemo(() => {
+    if (isTeamFull || remainingTeamSlots === 0) {
+      return [];
+    }
+    const roleMap = new Map();
+
+    if (Array.isArray(team.roleSlots) && team.roleSlots.length > 0) {
+      for (const slot of team.roleSlots) {
+        if (!slot || !slot.roleName || !slot.roleName.trim()) continue;
+        const roleName = slot.roleName.trim();
+        const key = roleName.toLowerCase();
+
+        let available = slot.availableSlots;
+        if (available === undefined) {
+          const total = slot.slotCount || 1;
+          const filled = slot.filledSlots || 0;
+          available = Math.max(0, total - filled);
+        }
+
+        if (roleMap.has(key)) {
+          const existing = roleMap.get(key);
+          existing.availableSlots += available;
+        } else {
+          roleMap.set(key, {
+            roleName,
+            availableSlots: available,
+          });
+        }
+      }
+    } else if (Array.isArray(team.requiredRoles) && team.requiredRoles.length > 0) {
+      for (const r of team.requiredRoles) {
+        if (!r || !r.trim()) continue;
+        const roleName = r.trim();
+        const key = roleName.toLowerCase();
+        if (!roleMap.has(key)) {
+          roleMap.set(key, {
+            roleName,
+            availableSlots: 1,
+          });
+        }
+      }
+    }
+
+    return Array.from(roleMap.values())
+      .map((r) => ({
+        ...r,
+        availableSlots: Math.min(r.availableSlots, remainingTeamSlots),
+      }))
+      .filter((r) => r.availableSlots > 0);
+  }, [team.roleSlots, team.requiredRoles, isTeamFull, remainingTeamSlots]);
 
   const getStatusBadge = () => {
     if (isExpired) {
@@ -54,7 +98,7 @@ export const TeamCard = ({ team }) => {
         </span>
       );
     }
-    if (status === 'FULL') {
+    if (isTeamFull) {
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 shrink-0">
           FULL ({memberCount}/{maxMembers})
@@ -144,54 +188,40 @@ export const TeamCard = ({ team }) => {
           </div>
         )}
 
-        {/* Looking for Roles / Openings (Part 17) */}
-        {openRoleSlots.length > 0 ? (
-          <div className="mb-3">
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
-              Looking for:
-            </span>
+        {/* Looking for Roles / Openings */}
+        <div className="mb-3">
+          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
+            Looking for:
+          </span>
+          {isTeamFull ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+              No open positions
+            </p>
+          ) : aggregatedRoles.length > 0 ? (
             <div className="flex flex-wrap gap-1">
-              {openRoleSlots.slice(0, 3).map((slot, idx) => {
-                const openings =
-                  slot.availableSlots !== undefined
-                    ? slot.availableSlots
-                    : slot.slotCount || 1;
-                return (
-                  <span
-                    key={`${slot.roleName}-${idx}`}
-                    className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 truncate"
-                  >
-                    <span>{slot.roleName}</span>
-                    <span className="text-slate-400 dark:text-slate-500 ml-1">
-                      — {openings} opening{openings > 1 ? 's' : ''}
-                    </span>
+              {aggregatedRoles.slice(0, 3).map((slot, idx) => (
+                <span
+                  key={`${slot.roleName}-${idx}`}
+                  className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 truncate"
+                >
+                  <span>{slot.roleName}</span>
+                  <span className="text-slate-400 dark:text-slate-500 ml-1 font-semibold">
+                    — {slot.availableSlots} opening{slot.availableSlots > 1 ? 's' : ''}
                   </span>
-                );
-              })}
-              {openRoleSlots.length > 3 && (
+                </span>
+              ))}
+              {aggregatedRoles.length > 3 && (
                 <span className="text-[10px] text-slate-400 dark:text-slate-500 self-center">
-                  +{openRoleSlots.length - 3} more
+                  +{aggregatedRoles.length - 3} more
                 </span>
               )}
             </div>
-          </div>
-        ) : legacyRoles.length > 0 ? (
-          <div className="mb-3">
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
-              Looking for:
-            </span>
-            <div className="flex flex-wrap gap-1">
-              {legacyRoles.slice(0, 3).map((role, idx) => (
-                <span
-                  key={`${role}-${idx}`}
-                  className="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
-                >
-                  {role}
-                </span>
-              ))}
-            </div>
-          </div>
-        ) : null}
+          ) : (
+            <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+              No open positions
+            </p>
+          )}
+        </div>
 
         {/* Required Skills */}
         {requiredSkills.length > 0 && (

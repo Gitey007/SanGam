@@ -247,6 +247,24 @@ export const teamApi = {
     return response.data;
   },
 
+  async cancelJoinRequest(teamId, requestId) {
+    if (!requestId) throw new Error('Request ID is required');
+    const url = teamId
+      ? `/api/teams/${teamId}/join-requests/${requestId}`
+      : `/api/teams/join-requests/${requestId}`;
+    const response = await api.delete(url);
+    return response.data;
+  },
+
+  async cancelTeamInvitation(teamId, invitationId) {
+    if (!invitationId) throw new Error('Invitation ID is required');
+    const url = teamId
+      ? `/api/teams/${teamId}/invitations/${invitationId}`
+      : `/api/teams/invitations/${invitationId}`;
+    const response = await api.delete(url);
+    return response.data;
+  },
+
   async getNotifications() {
     const response = await api.get('/api/notifications');
     return response.data;

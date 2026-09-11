@@ -110,6 +110,19 @@ export const TeamDetailsPage = () => {
   const [selectedInviteRole, setSelectedInviteRole] = useState('');
   const [inviteCustomRole, setInviteCustomRole] = useState('');
   const [invitingUserId, setInvitingUserId] = useState(null);
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
+
+  // Join Request Cancellation Modal (Student only - Spec 7, 8, 9)
+  const [isCancelJoinRequestModalOpen, setIsCancelJoinRequestModalOpen] = useState(false);
+  const [isCancellingJoinRequest, setIsCancellingJoinRequest] = useState(false);
+
+  // Sent Invitation Cancellation Modal (Leader only - Spec 10, 11, 12)
+  const [cancelInvitationTarget, setCancelInvitationTarget] = useState(null);
+  const [isCancellingInvitation, setIsCancellingInvitation] = useState(false);
+
+  // Decline Invitation Modal (Student only - Spec 13)
+  const [isDeclineInvitationModalOpen, setIsDeclineInvitationModalOpen] = useState(false);
+  const [isDecliningInvitation, setIsDecliningInvitation] = useState(false);
 
   /**
    * Helper to check if role is Other / Custom
@@ -504,20 +517,64 @@ export const TeamDetailsPage = () => {
   };
 
   /**
-   * Student declines invitation
+   * Student confirms declining invitation
    */
-  const handleStudentDeclineInvitation = async () => {
+  const handleConfirmDeclineInvitation = async () => {
     if (!myPendingInvitation) return;
-    setActionLoading((prev) => ({ ...prev, 'my-invitation': 'decline' }));
+    setIsDecliningInvitation(true);
     try {
       await teamApi.rejectTeamInvitation(myPendingInvitation.invitationId);
       success('Invitation declined.');
       setMyPendingInvitation(null);
+      setIsDeclineInvitationModalOpen(false);
+      await fetchTeamDetails();
     } catch (err) {
       const msg = extractErrorMessage(err, 'Failed to decline invitation.');
       toastError(msg);
     } finally {
-      setActionLoading((prev) => ({ ...prev, 'my-invitation': null }));
+      setIsDecliningInvitation(false);
+    }
+  };
+
+  /**
+   * Student confirms cancelling own join request
+   */
+  const handleConfirmCancelJoinRequest = async () => {
+    const reqId = myPendingJoinRequest?.requestId || myPendingJoinRequest?.id;
+    setIsCancellingJoinRequest(true);
+    try {
+      if (reqId) {
+        await teamApi.cancelJoinRequest(id, reqId);
+      }
+      success('Join request cancelled.');
+      setMyPendingJoinRequest(null);
+      setJoinRequestSent(false);
+      setIsCancelJoinRequestModalOpen(false);
+      await fetchTeamDetails();
+    } catch (err) {
+      const msg = extractErrorMessage(err, 'Failed to cancel join request.');
+      toastError(msg);
+    } finally {
+      setIsCancellingJoinRequest(false);
+    }
+  };
+
+  /**
+   * Leader confirms cancelling sent invitation
+   */
+  const handleConfirmCancelSentInvitation = async () => {
+    if (!cancelInvitationTarget) return;
+    setIsCancellingInvitation(true);
+    try {
+      await teamApi.cancelTeamInvitation(id, cancelInvitationTarget.invitationId);
+      success('Invitation cancelled.');
+      setCancelInvitationTarget(null);
+      await fetchSentInvitations();
+    } catch (err) {
+      const msg = extractErrorMessage(err, 'Failed to cancel invitation.');
+      toastError(msg);
+    } finally {
+      setIsCancellingInvitation(false);
     }
   };
 
@@ -974,8 +1031,8 @@ export const TeamDetailsPage = () => {
                     variant="outline"
                     size="sm"
                     leftIcon={X}
-                    onClick={handleStudentDeclineInvitation}
-                    isLoading={actionLoading['my-invitation'] === 'decline'}
+                    onClick={() => setIsDeclineInvitationModalOpen(true)}
+                    isLoading={isDecliningInvitation}
                     className="text-slate-600 dark:text-slate-300 hover:text-rose-600 hover:border-rose-200 dark:border-rose-800"
                   >
                     Decline
@@ -983,9 +1040,19 @@ export const TeamDetailsPage = () => {
                 </div>
               ) : (joinRequestSent || myPendingJoinRequest) ? (
                 /* Priority 3: Join Request Pending */
-                <Badge variant="amber" size="md">
-                  Request Pending
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="amber" size="md">
+                    Request Pending
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsCancelJoinRequestModalOpen(true)}
+                    className="text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 border-rose-200 dark:border-rose-800"
+                  >
+                    Cancel Request
+                  </Button>
+                </div>
               ) : isExpired ? (
                 <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
                   Join Deadline Expired
@@ -1103,8 +1170,8 @@ export const TeamDetailsPage = () => {
                     variant="outline"
                     size="sm"
                     leftIcon={X}
-                    onClick={handleStudentDeclineInvitation}
-                    isLoading={actionLoading['my-invitation'] === 'decline'}
+                    onClick={() => setIsDeclineInvitationModalOpen(true)}
+                    isLoading={isDecliningInvitation}
                   >
                     Decline
                   </Button>
@@ -1511,6 +1578,14 @@ export const TeamDetailsPage = () => {
                           >
                             Pending Response
                           </Badge>
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            onClick={() => setCancelInvitationTarget(inv)}
+                            className="text-rose-600 dark:text-rose-400 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-200 dark:border-rose-800"
+                          >
+                            Cancel Invitation
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -2335,6 +2410,47 @@ export const TeamDetailsPage = () => {
         confirmLabel="Leave Team"
         confirmVariant="danger"
         isLoading={isLeaving}
+      />
+
+      {/* Cancel Join Request Confirmation Modal (Spec 7, 8, 9) */}
+      <ConfirmModal
+        isOpen={isCancelJoinRequestModalOpen}
+        onClose={() => setIsCancelJoinRequestModalOpen(false)}
+        onConfirm={handleConfirmCancelJoinRequest}
+        title="Cancel Join Request"
+        message="Cancel this join request? You can submit a new request later if the team is still accepting members."
+        confirmLabel="Cancel Request"
+        cancelLabel="Keep Request"
+        confirmVariant="danger"
+        isLoading={isCancellingJoinRequest}
+      />
+
+      {/* Cancel Sent Invitation Confirmation Modal (Leader only - Spec 10, 11, 12) */}
+      {isLeader && (
+        <ConfirmModal
+          isOpen={Boolean(cancelInvitationTarget)}
+          onClose={() => setCancelInvitationTarget(null)}
+          onConfirm={handleConfirmCancelSentInvitation}
+          title="Cancel Invitation"
+          message="Cancel this invitation? The student will no longer be able to accept this invitation."
+          confirmLabel="Cancel Invitation"
+          cancelLabel="Keep"
+          confirmVariant="danger"
+          isLoading={isCancellingInvitation}
+        />
+      )}
+
+      {/* Decline Invitation Confirmation Modal (Spec 13) */}
+      <ConfirmModal
+        isOpen={isDeclineInvitationModalOpen}
+        onClose={() => setIsDeclineInvitationModalOpen(false)}
+        onConfirm={handleConfirmDeclineInvitation}
+        title="Decline Invitation"
+        message="Are you sure you want to decline this invitation to join the team?"
+        confirmLabel="Decline"
+        cancelLabel="Keep"
+        confirmVariant="danger"
+        isLoading={isDecliningInvitation}
       />
     </div>
   );

@@ -21,6 +21,7 @@ import Button from '../components/common/Button';
 import Avatar from '../components/common/Avatar';
 import Badge from '../components/common/Badge';
 import TeamCard from '../components/teams/TeamCard';
+import ConfirmModal from '../components/common/ConfirmModal';
 import { formatCollege, formatBranchYear, extractErrorMessage } from '../utils/helpers';
 import { POPULAR_SKILLS } from '../utils/constants';
 import teamApi from '../services/teamApi';
@@ -34,6 +35,7 @@ export const DashboardPage = () => {
   const [pendingInvitations, setPendingInvitations] = useState([]);
   const [isLoadingTeams, setIsLoadingTeams] = useState(true);
   const [actionLoading, setActionLoading] = useState({});
+  const [declineModal, setDeclineModal] = useState({ isOpen: false, invitationId: null, isLoading: false });
 
   const sortTeams = (teamList) => {
     return [...teamList].sort((a, b) => {
@@ -94,17 +96,19 @@ export const DashboardPage = () => {
     }
   };
 
-  const handleRejectInvitation = async (invitationId) => {
-    setActionLoading((prev) => ({ ...prev, [invitationId]: 'reject' }));
+  const handleConfirmDeclineInvitation = async () => {
+    const invitationId = declineModal.invitationId;
+    if (!invitationId) return;
+    setDeclineModal((prev) => ({ ...prev, isLoading: true }));
     try {
       await teamApi.rejectTeamInvitation(invitationId);
       success('Invitation declined.');
       setPendingInvitations((prev) => prev.filter((i) => i.invitationId !== invitationId));
+      setDeclineModal({ isOpen: false, invitationId: null, isLoading: false });
     } catch (err) {
       const msg = extractErrorMessage(err, 'Failed to decline invitation.');
       toastError(msg);
-    } finally {
-      setActionLoading((prev) => ({ ...prev, [invitationId]: null }));
+      setDeclineModal((prev) => ({ ...prev, isLoading: false }));
     }
   };
 
@@ -233,10 +237,9 @@ export const DashboardPage = () => {
                       variant="outline"
                       size="xs"
                       leftIcon={X}
-                      onClick={() => handleRejectInvitation(inv.invitationId)}
-                      isLoading={actionLoading[inv.invitationId] === 'reject'}
+                      onClick={() => setDeclineModal({ isOpen: true, invitationId: inv.invitationId, isLoading: false })}
                       disabled={Boolean(actionLoading[inv.invitationId])}
-                      className="text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-200 dark:hover:border-rose-800"
+                      className="text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-200 dark:border-rose-800"
                     >
                       Decline
                     </Button>
@@ -384,6 +387,19 @@ export const DashboardPage = () => {
           </div>
         )}
       </div>
+
+      {/* Decline Invitation ConfirmModal */}
+      <ConfirmModal
+        isOpen={declineModal.isOpen}
+        onClose={() => setDeclineModal({ isOpen: false, invitationId: null, isLoading: false })}
+        onConfirm={handleConfirmDeclineInvitation}
+        title="Decline Invitation"
+        message="Are you sure you want to decline this invitation to join the team?"
+        confirmLabel="Decline"
+        cancelLabel="Keep"
+        confirmVariant="danger"
+        isLoading={declineModal.isLoading}
+      />
     </div>
   );
 };

@@ -16,6 +16,7 @@ import Badge from '../components/common/Badge';
 import TeamCard from '../components/teams/TeamCard';
 import EmptyState from '../components/common/EmptyState';
 import ErrorState from '../components/common/ErrorState';
+import ConfirmModal from '../components/common/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import teamApi from '../services/teamApi';
@@ -35,6 +36,18 @@ export const TeamsPage = () => {
   const [isLoadingRequests, setIsLoadingRequests] = useState(true);
   const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState({});
+
+  const [cancelRequestModal, setCancelRequestModal] = useState({
+    isOpen: false,
+    request: null,
+    isLoading: false,
+  });
+
+  const [declineInvitationModal, setDeclineInvitationModal] = useState({
+    isOpen: false,
+    invitationId: null,
+    isLoading: false,
+  });
 
   const { user } = useAuth();
   const { success, error: toastError } = useToast();
@@ -139,17 +152,37 @@ export const TeamsPage = () => {
     }
   };
 
-  const handleRejectInvitation = async (invitationId) => {
-    setActionLoading((prev) => ({ ...prev, [invitationId]: 'reject' }));
+  const handleConfirmDeclineInvitation = async () => {
+    const invitationId = declineInvitationModal.invitationId;
+    if (!invitationId) return;
+
+    setDeclineInvitationModal((prev) => ({ ...prev, isLoading: true }));
     try {
       await teamApi.rejectTeamInvitation(invitationId);
       success('Team invitation declined.');
+      setDeclineInvitationModal({ isOpen: false, invitationId: null, isLoading: false });
       await fetchInvitations();
     } catch (err) {
       const msg = extractErrorMessage(err, 'Failed to decline invitation.');
       toastError(msg);
-    } finally {
-      setActionLoading((prev) => ({ ...prev, [invitationId]: null }));
+      setDeclineInvitationModal((prev) => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  const handleConfirmCancelRequest = async () => {
+    const req = cancelRequestModal.request;
+    if (!req) return;
+
+    setCancelRequestModal((prev) => ({ ...prev, isLoading: true }));
+    try {
+      await teamApi.cancelJoinRequest(req.teamId, req.requestId);
+      success('Join request cancelled.');
+      setCancelRequestModal({ isOpen: false, request: null, isLoading: false });
+      await fetchMyRequests();
+    } catch (err) {
+      const msg = extractErrorMessage(err, 'Failed to cancel join request.');
+      toastError(msg);
+      setCancelRequestModal((prev) => ({ ...prev, isLoading: false }));
     }
   };
 
@@ -379,9 +412,7 @@ export const TeamsPage = () => {
                     variant="outline"
                     size="sm"
                     leftIcon={X}
-                    onClick={() => handleRejectInvitation(inv.invitationId)}
-                    isLoading={actionLoading[inv.invitationId] === 'reject'}
-                    disabled={Boolean(actionLoading[inv.invitationId])}
+                    onClick={() => setDeclineInvitationModal({ isOpen: true, invitationId: inv.invitationId, isLoading: false })}
                     className="text-slate-600 dark:text-slate-300 hover:text-rose-600 hover:border-rose-200 dark:hover:border-rose-800"
                   >
                     Decline
@@ -461,6 +492,14 @@ export const TeamsPage = () => {
                 </div>
 
                 <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCancelRequestModal({ isOpen: true, request: req, isLoading: false })}
+                    className="text-rose-600 dark:text-rose-400 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-200 dark:border-rose-800"
+                  >
+                    Cancel Request
+                  </Button>
                   <Link to={`/teams/${req.teamId}`}>
                     <Button variant="outline" size="sm" rightIcon={ArrowRight}>
                       View Squad
@@ -508,6 +547,32 @@ export const TeamsPage = () => {
           </div>
         )
       )}
+
+      {/* Cancel Join Request ConfirmModal (Spec 7, 8, 9) */}
+      <ConfirmModal
+        isOpen={cancelRequestModal.isOpen}
+        onClose={() => setCancelRequestModal({ isOpen: false, request: null, isLoading: false })}
+        onConfirm={handleConfirmCancelRequest}
+        title="Cancel Join Request"
+        message="Cancel this join request? You can submit a new request later if the team is still accepting members."
+        confirmLabel="Cancel Request"
+        cancelLabel="Keep Request"
+        confirmVariant="danger"
+        isLoading={cancelRequestModal.isLoading}
+      />
+
+      {/* Decline Invitation ConfirmModal (Spec 13) */}
+      <ConfirmModal
+        isOpen={declineInvitationModal.isOpen}
+        onClose={() => setDeclineInvitationModal({ isOpen: false, invitationId: null, isLoading: false })}
+        onConfirm={handleConfirmDeclineInvitation}
+        title="Decline Invitation"
+        message="Are you sure you want to decline this invitation to join the team?"
+        confirmLabel="Decline"
+        cancelLabel="Keep"
+        confirmVariant="danger"
+        isLoading={declineInvitationModal.isLoading}
+      />
     </div>
   );
 };

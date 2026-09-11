@@ -4,7 +4,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -349,31 +351,52 @@ public class TeamService {
                 ? new HashSet<>(team.getRequiredRoles())
                 : Collections.emptySet();
 
-        List<TeamRoleSlotDto> roleSlotDtos = new ArrayList<>();
+        int teamRemainingCapacity = Math.max(0, max - memberCount);
+
+        Map<String, TeamRoleSlotDto> aggregatedSlots = new LinkedHashMap<>();
         if (team.getRoleSlots() != null && !team.getRoleSlots().isEmpty()) {
             for (TeamRoleSlot slot : team.getRoleSlots()) {
-                if (slot == null || slot.getRoleName() == null) continue;
-                int filled = 0;
-                for (TeamMember m : members) {
-                    if (roleMatches(slot.getRoleName(), m.getAssignedRole())) {
-                        filled++;
+                if (slot == null || slot.getRoleName() == null || slot.getRoleName().isBlank()) continue;
+                String roleName = slot.getRoleName().trim();
+                String key = roleName.toLowerCase();
+                int slotCount = slot.getSlotCount() != null ? slot.getSlotCount() : 1;
+
+                if (aggregatedSlots.containsKey(key)) {
+                    TeamRoleSlotDto existing = aggregatedSlots.get(key);
+                    int newTotal = existing.getSlotCount() + slotCount;
+                    int filled = existing.getFilledSlots();
+                    int available = (teamRemainingCapacity == 0) ? 0 : Math.min(teamRemainingCapacity, Math.max(0, newTotal - filled));
+                    aggregatedSlots.put(key, new TeamRoleSlotDto(existing.getRoleName(), newTotal, filled, available));
+                } else {
+                    int filled = 0;
+                    for (TeamMember m : members) {
+                        if (roleMatches(roleName, m.getAssignedRole())) {
+                            filled++;
+                        }
                     }
+                    int available = (teamRemainingCapacity == 0) ? 0 : Math.min(teamRemainingCapacity, Math.max(0, slotCount - filled));
+                    aggregatedSlots.put(key, new TeamRoleSlotDto(roleName, slotCount, filled, available));
                 }
-                int available = Math.max(0, slot.getSlotCount() - filled);
-                roleSlotDtos.add(new TeamRoleSlotDto(slot.getRoleName(), slot.getSlotCount(), filled, available));
             }
         } else if (team.getRequiredRoles() != null && !team.getRequiredRoles().isEmpty()) {
             for (String r : team.getRequiredRoles()) {
-                int filled = 0;
-                for (TeamMember m : members) {
-                    if (roleMatches(r, m.getAssignedRole())) {
-                        filled++;
+                if (r == null || r.isBlank()) continue;
+                String roleName = r.trim();
+                String key = roleName.toLowerCase();
+                if (!aggregatedSlots.containsKey(key)) {
+                    int filled = 0;
+                    for (TeamMember m : members) {
+                        if (roleMatches(roleName, m.getAssignedRole())) {
+                            filled++;
+                        }
                     }
+                    int available = (teamRemainingCapacity == 0) ? 0 : Math.min(teamRemainingCapacity, Math.max(0, 1 - filled));
+                    aggregatedSlots.put(key, new TeamRoleSlotDto(roleName, 1, filled, available));
                 }
-                int available = Math.max(0, 1 - filled);
-                roleSlotDtos.add(new TeamRoleSlotDto(r, 1, filled, available));
             }
         }
+
+        List<TeamRoleSlotDto> roleSlotDtos = new ArrayList<>(aggregatedSlots.values());
 
         boolean isExpired = team.getJoinDeadline() != null && LocalDateTime.now().isAfter(team.getJoinDeadline());
 
@@ -1312,5 +1335,98 @@ public class TeamService {
         }
 
         teamRepository.delete(team);
+    }
+
+    @Transactional
+    public void cancelJoinRequest(Long teamId, Long requestId, String authenticatedEmail) {
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
+
+        User currentUser = userRepository.findByEmail(authenticatedEmail.trim().toLowerCase())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "User not authenticated"));
+
+        TeamJoinRequest request = teamJoinRequestRepository.findById(requestId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Join request not found"));
+
+        if (!request.getUser().getId().equals(currentUser.getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "You are not authorized to cancel this join request");
+        }
+
+        if (teamId != null && !request.getTeam().getId().equals(teamId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Join request does not belong to the specified team");
+        }
+
+        if (request.getStatus() != TeamJoinRequest.RequestStatus.PENDING) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Only pending join requests can be cancelled");
+        }
+
+        request.setStatus(TeamJoinRequest.RequestStatus.CANCELLED);
+        request.setUpdatedAt(LocalDateTime.now());
+        teamJoinRequestRepository.save(request);
+    }
+
+    @Transactional
+    public void cancelSentInvitation(Long teamId, Long invitationId, String authenticatedEmail) {
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
+
+        User currentUser = userRepository.findByEmail(authenticatedEmail.trim().toLowerCase())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "User not authenticated"));
+
+        TeamInvitation invitation = teamInvitationRepository.findById(invitationId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Invitation not found"));
+
+        Team team = invitation.getTeam();
+        if (teamId != null && !team.getId().equals(teamId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Invitation does not belong to the specified team");
+        }
+
+        if (team.getLeader() == null || !team.getLeader().getId().equals(currentUser.getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Only the team leader can cancel sent invitations");
+        }
+
+        if (invitation.getStatus() != TeamInvitation.InvitationStatus.PENDING) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Only pending invitations can be cancelled");
+        }
+
+        invitation.setStatus(TeamInvitation.InvitationStatus.CANCELLED);
+        invitation.setUpdatedAt(LocalDateTime.now());
+        teamInvitationRepository.save(invitation);
+
+        if (notificationService != null && invitation.getInvitedUser() != null) {
+            try {
+                notificationService.createNotification(
+                        invitation.getInvitedUser(),
+                        "Invitation Cancelled",
+                        "Your invitation to " + team.getName() + " has been cancelled by the team leader.",
+                        "INVITATION_CANCELLED",
+                        team.getId(),
+                        team.getName());
+            } catch (Exception e) {
+                // Safety: Notification failure must not break main transaction
+            }
+        }
     }
 }
