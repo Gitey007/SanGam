@@ -9,10 +9,10 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-
 import jakarta.persistence.UniqueConstraint;
 
 @Entity
@@ -20,6 +20,10 @@ import jakarta.persistence.UniqueConstraint;
         name = "team_join_requests",
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_team_join_requests_team_user", columnNames = {"team_id", "user_id"})
+        },
+        indexes = {
+                @Index(name = "idx_team_join_requests_team_status", columnList = "team_id, status"),
+                @Index(name = "idx_team_join_requests_user_status", columnList = "user_id, status")
         }
 )
 public class TeamJoinRequest {

@@ -116,4 +116,20 @@ WHERE t1.id < t2.id
 -- Apply unique constraint on (team_id, invited_user_id)
 ALTER TABLE team_invitations ADD CONSTRAINT uk_team_invitations_team_user UNIQUE (team_id, invited_user_id);
 
+-- 15. Query Performance Indexes
+-- Notifications: Accelerates user notification inbox sorted by created_at descending
+CREATE INDEX idx_notifications_user_created ON notifications (user_id, created_at);
+
+-- Team Join Requests: Accelerates team leader inbox and user join request lookups by status
+CREATE INDEX idx_team_join_requests_team_status ON team_join_requests (team_id, status);
+CREATE INDEX idx_team_join_requests_user_status ON team_join_requests (user_id, status);
+
+-- Team Invitations: Accelerates student invitation inbox and leader invitation lookups by status
+CREATE INDEX idx_team_invitations_user_status ON team_invitations (invited_user_id, status);
+CREATE INDEX idx_team_invitations_team_status ON team_invitations (team_id, status);
+
+-- Users: Accelerates student peer discovery filtering by college and (college, year)
+CREATE INDEX idx_users_college_year ON users (college, year);
+
+
 
