@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -325,11 +326,26 @@ public class TeamService {
     }
 
     public TeamResponse toTeamResponse(Team team) {
+        if (team == null) {
+            return null;
+        }
         List<TeamMember> members = Collections.emptyList();
-        try {
-            members = teamMemberRepository.findByTeamId(team.getId());
-        } catch (Exception e) {
-            // fallback
+        if (team.getId() != null) {
+            try {
+                members = teamMemberRepository.findByTeamId(team.getId());
+            } catch (Exception e) {
+                // fallback
+            }
+        }
+        return toTeamResponse(team, members);
+    }
+
+    public TeamResponse toTeamResponse(Team team, List<TeamMember> members) {
+        if (team == null) {
+            return null;
+        }
+        if (members == null) {
+            members = Collections.emptyList();
         }
         int memberCount = members.size();
 
@@ -422,9 +438,35 @@ public class TeamService {
 
     @Transactional(readOnly = true)
     public List<TeamResponse> getAllTeams() {
-        return teamRepository.findAll()
-                .stream()
-                .map(this::toTeamResponse)
+        List<Team> teams = teamRepository.findAll();
+        if (teams == null || teams.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> teamIds = teams.stream()
+                .map(Team::getId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        Map<Long, List<TeamMember>> membersByTeamId = Collections.emptyMap();
+        if (!teamIds.isEmpty()) {
+            try {
+                List<TeamMember> members = teamMemberRepository.findByTeamIdIn(teamIds);
+                if (members != null) {
+                    membersByTeamId = members.stream()
+                            .filter(Objects::nonNull)
+                            .filter(m -> m.getTeamId() != null)
+                            .collect(Collectors.groupingBy(TeamMember::getTeamId));
+                }
+            } catch (Exception e) {
+                // fallback
+            }
+        }
+
+        final Map<Long, List<TeamMember>> finalMembersByTeamId = membersByTeamId;
+
+        return teams.stream()
+                .map(team -> toTeamResponse(team, finalMembersByTeamId.getOrDefault(team.getId(), Collections.emptyList())))
                 .sorted((a, b) -> {
                     boolean aExp = Boolean.TRUE.equals(a.getExpired());
                     boolean bExp = Boolean.TRUE.equals(b.getExpired());

@@ -12,6 +12,8 @@ public interface TeamMemberRepository
 
     List<TeamMember> findByTeamId(Long teamId);
 
+    List<TeamMember> findByTeamIdIn(java.util.Collection<Long> teamIds);
+
     long countByTeamId(Long teamId);
 
     void deleteByTeamIdAndUserId(Long teamId, Long userId);

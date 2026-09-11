@@ -1336,7 +1336,7 @@ class TeamServiceTest {
             expiredTeam.setJoinDeadline(LocalDateTime.now().minusDays(2));
 
             when(teamRepository.findAll()).thenReturn(List.of(expiredTeam, activeLessCapacity, activeMoreCapacity));
-            when(teamMemberRepository.findByTeamId(any())).thenReturn(java.util.Collections.emptyList());
+            when(teamMemberRepository.findByTeamIdIn(any())).thenReturn(java.util.Collections.emptyList());
 
             List<TeamResponse> sorted = teamService.getAllTeams();
 
@@ -1344,6 +1344,72 @@ class TeamServiceTest {
             assertEquals(101L, sorted.get(0).getId()); // Active with cap 5
             assertEquals(102L, sorted.get(1).getId()); // Active with cap 3
             assertEquals(103L, sorted.get(2).getId()); // Expired
+        }
+
+        @Test
+        @DisplayName("getAllTeams bulk loads members in 1 query and avoids N+1 queries")
+        void testGetAllTeamsBulkLoadsMembersWithoutNPlusOne() {
+            Team team1 = new Team();
+            team1.setId(201L);
+            team1.setName("Team One");
+            team1.setLeader(leader);
+            team1.setMaxMembers((byte) 4);
+            team1.setRoleSlots(Set.of(new TeamRoleSlot("Frontend", 2), new TeamRoleSlot("Backend", 1)));
+
+            Team team2 = new Team();
+            team2.setId(202L);
+            team2.setName("Team Two");
+            team2.setLeader(leader);
+            team2.setMaxMembers((byte) 3);
+            team2.setRoleSlots(Set.of(new TeamRoleSlot("DevOps", 1)));
+
+            TeamMember m1 = new TeamMember();
+            m1.setTeamId(201L);
+            m1.setUserId(1L);
+            m1.setRole(TeamMember.Role.LEADER);
+            m1.setAssignedRole("Frontend");
+
+            TeamMember m2 = new TeamMember();
+            m2.setTeamId(201L);
+            m2.setUserId(2L);
+            m2.setRole(TeamMember.Role.MEMBER);
+            m2.setAssignedRole("Frontend");
+
+            TeamMember m3 = new TeamMember();
+            m3.setTeamId(202L);
+            m3.setUserId(1L);
+            m3.setRole(TeamMember.Role.LEADER);
+            m3.setAssignedRole("DevOps");
+
+            when(teamRepository.findAll()).thenReturn(List.of(team1, team2));
+            when(teamMemberRepository.findByTeamIdIn(List.of(201L, 202L))).thenReturn(List.of(m1, m2, m3));
+
+            List<TeamResponse> result = teamService.getAllTeams();
+
+            assertEquals(2, result.size());
+
+            // Verify bulk query was called exactly once with all team IDs
+            verify(teamMemberRepository, org.mockito.Mockito.times(1)).findByTeamIdIn(List.of(201L, 202L));
+            // Verify N+1 method findByTeamId was NEVER called
+            verify(teamMemberRepository, never()).findByTeamId(any());
+
+            // Check Team 1 counts and role slots
+            TeamResponse tr1 = result.stream().filter(r -> r.getId().equals(201L)).findFirst().orElseThrow();
+            assertEquals(2, tr1.getMemberCount());
+            assertEquals("OPEN", tr1.getStatus());
+            TeamRoleSlotDto feSlot = tr1.getRoleSlots().stream().filter(s -> "Frontend".equalsIgnoreCase(s.getRoleName())).findFirst().orElseThrow();
+            assertEquals(2, feSlot.getSlotCount());
+            assertEquals(2, feSlot.getFilledSlots());
+            assertEquals(0, feSlot.getAvailableSlots());
+
+            // Check Team 2 counts and role slots
+            TeamResponse tr2 = result.stream().filter(r -> r.getId().equals(202L)).findFirst().orElseThrow();
+            assertEquals(1, tr2.getMemberCount());
+            assertEquals("OPEN", tr2.getStatus());
+            TeamRoleSlotDto devOpsSlot = tr2.getRoleSlots().stream().filter(s -> "DevOps".equalsIgnoreCase(s.getRoleName())).findFirst().orElseThrow();
+            assertEquals(1, devOpsSlot.getSlotCount());
+            assertEquals(1, devOpsSlot.getFilledSlots());
+            assertEquals(0, devOpsSlot.getAvailableSlots());
         }
     }
 
