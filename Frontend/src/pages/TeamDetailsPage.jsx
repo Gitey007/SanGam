@@ -59,6 +59,7 @@ export const TeamDetailsPage = () => {
   const [joinRequests, setJoinRequests] = useState([]);
   const [sentInvitations, setSentInvitations] = useState([]);
   const [myPendingInvitation, setMyPendingInvitation] = useState(null);
+  const [myPendingJoinRequest, setMyPendingJoinRequest] = useState(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
@@ -205,8 +206,8 @@ export const TeamDetailsPage = () => {
 
       const uid = user?.id || user?.userId;
 
-      // 2. Fetch members and pending student invitations safely
-      const [membersData, myInvs] = await Promise.all([
+      // 2. Fetch members, pending student invitations, and pending join requests safely
+      const [membersData, myInvs, myJoinReqs] = await Promise.all([
         teamApi.getTeamMembers(id).catch((err) => {
           console.warn('Failed to load team members:', err);
           return [];
@@ -214,6 +215,12 @@ export const TeamDetailsPage = () => {
         uid
           ? teamApi.getMyTeamInvitations('PENDING').catch((err) => {
               console.warn('Failed to load user invitations:', err);
+              return [];
+            })
+          : Promise.resolve([]),
+        uid
+          ? teamApi.getMyJoinRequests().catch((err) => {
+              console.warn('Failed to load user join requests:', err);
               return [];
             })
           : Promise.resolve([]),
@@ -238,12 +245,28 @@ export const TeamDetailsPage = () => {
 
       if (currentUserIsMember) {
         setJoinRequestSent(false);
+        setMyPendingJoinRequest(null);
         setMyPendingInvitation(null);
-      } else if (Array.isArray(myInvs)) {
-        const found = myInvs.find(
-          (inv) => String(inv.teamId) === String(id) && inv.status === 'PENDING'
-        );
-        setMyPendingInvitation(found || null);
+      } else {
+        if (Array.isArray(myInvs)) {
+          const foundInv = myInvs.find(
+            (inv) => String(inv.teamId) === String(id) && inv.status === 'PENDING'
+          );
+          setMyPendingInvitation(foundInv || null);
+        } else {
+          setMyPendingInvitation(null);
+        }
+
+        if (Array.isArray(myJoinReqs)) {
+          const foundReq = myJoinReqs.find(
+            (req) => String(req.teamId) === String(id) && req.status === 'PENDING'
+          );
+          setMyPendingJoinRequest(foundReq || null);
+          setJoinRequestSent(Boolean(foundReq));
+        } else {
+          setMyPendingJoinRequest(null);
+          setJoinRequestSent(false);
+        }
       }
 
       // 3. If user is leader, safely load pending join requests and sent invitations
@@ -344,6 +367,10 @@ export const TeamDetailsPage = () => {
       toastError('You have a pending invitation. Please accept or decline the invitation instead.');
       return;
     }
+    if (joinRequestSent || myPendingJoinRequest) {
+      toastError('You already have a pending join request for this team.');
+      return;
+    }
     if (isExpired) {
       toastError('The deadline to join this team has expired.');
       return;
@@ -383,6 +410,7 @@ export const TeamDetailsPage = () => {
       setJoinRequestSent(true);
       setIsJoinModalOpen(false);
       success('Join request sent successfully!');
+      await fetchTeamDetails();
     } catch (err) {
       console.error('Failed to send join request:', err);
       const message = extractErrorMessage(
@@ -392,6 +420,7 @@ export const TeamDetailsPage = () => {
       toastError(message);
       if (err.response?.status === 409) {
         setJoinRequestSent(true);
+        await fetchTeamDetails();
       }
     } finally {
       setIsJoining(false);
@@ -952,9 +981,9 @@ export const TeamDetailsPage = () => {
                     Decline
                   </Button>
                 </div>
-              ) : joinRequestSent ? (
+              ) : (joinRequestSent || myPendingJoinRequest) ? (
                 /* Priority 3: Join Request Pending */
-                <Badge variant="neutral" size="md">
+                <Badge variant="amber" size="md">
                   Request Pending
                 </Badge>
               ) : isExpired ? (
