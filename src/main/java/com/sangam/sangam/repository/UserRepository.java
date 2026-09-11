@@ -15,46 +15,46 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT u FROM User u WHERE LOWER(u.email) = LOWER(:email)")
     Optional<User> findByEmail(@Param("email") String email);
 
-    @EntityGraph(attributePaths = {"skills", "lookingFor"})
+    @EntityGraph(attributePaths = {"skills"})
     @Query("SELECT u FROM User u WHERE LOWER(u.email) = LOWER(:email)")
     Optional<User> findWithSkillsByEmail(@Param("email") String email);
 
     @Query("SELECT (COUNT(u) > 0) FROM User u WHERE LOWER(u.email) = LOWER(:email)")
     boolean existsByEmail(@Param("email") String email);
 
-    @EntityGraph(attributePaths = {"skills", "lookingFor"})
+    @EntityGraph(attributePaths = {"skills"})
     @Query("SELECT u FROM User u WHERE u.id = :id")
     Optional<User> findWithSkillsById(@Param("id") Long id);
 
-    @EntityGraph(attributePaths = {"skills", "lookingFor"})
+    @EntityGraph(attributePaths = {"skills"})
     @Query("SELECT u FROM User u")
     List<User> findAllWithSkills();
 
-    @EntityGraph(attributePaths = {"skills", "lookingFor"})
+    @EntityGraph(attributePaths = {"skills"})
     @Query("SELECT DISTINCT u FROM User u WHERE u.college = :college")
     List<User> findByCollege(@Param("college") String college);
 
-    @EntityGraph(attributePaths = {"skills", "lookingFor"})
+    @EntityGraph(attributePaths = {"skills"})
     @Query("SELECT DISTINCT u FROM User u WHERE u.college <> :college")
     List<User> findByCollegeNot(@Param("college") String college);
 
-    @EntityGraph(attributePaths = {"skills", "lookingFor"})
+    @EntityGraph(attributePaths = {"skills"})
     @Query("SELECT DISTINCT u FROM User u WHERE u.college = :college AND u.year = :year")
     List<User> findByCollegeAndYear(@Param("college") String college, @Param("year") Byte year);
 
-    @EntityGraph(attributePaths = {"skills", "lookingFor"})
+    @EntityGraph(attributePaths = {"skills"})
     @Query("SELECT DISTINCT u FROM User u WHERE u.college <> :college AND u.year = :year")
     List<User> findByCollegeNotAndYear(@Param("college") String college, @Param("year") Byte year);
 
-    @EntityGraph(attributePaths = {"skills", "lookingFor"})
+    @EntityGraph(attributePaths = {"skills"})
     @Query("SELECT DISTINCT u FROM User u WHERE u.year = :year")
     List<User> findByYear(@Param("year") Byte year);
 
-    @EntityGraph(attributePaths = {"skills", "lookingFor"})
+    @EntityGraph(attributePaths = {"skills"})
     @Query("SELECT DISTINCT u FROM User u JOIN u.skills s WHERE s.id = :skillId")
     List<User> findUsersBySkillId(@Param("skillId") Long skillId);
 
-    @EntityGraph(attributePaths = {"skills", "lookingFor"})
+    @EntityGraph(attributePaths = {"skills"})
     @Query("""
             SELECT DISTINCT u
             FROM User u

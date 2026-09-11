@@ -65,10 +65,12 @@ public class Team {
             joinColumns = @JoinColumn(name = "team_id"),
             inverseJoinColumns = @JoinColumn(name = "skill_id")
     )
+    @org.hibernate.annotations.BatchSize(size = 50)
     private java.util.Set<Skill> requiredSkills = new java.util.HashSet<>();
 
     @jakarta.persistence.ElementCollection
     @jakarta.persistence.CollectionTable(name = "team_required_roles", joinColumns = @JoinColumn(name = "team_id"))
+    @org.hibernate.annotations.BatchSize(size = 50)
     private java.util.Set<TeamRoleSlot> roleSlots = new java.util.LinkedHashSet<>();
 
     @Column(name = "join_deadline")

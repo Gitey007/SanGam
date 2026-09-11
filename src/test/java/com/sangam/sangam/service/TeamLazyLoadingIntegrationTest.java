@@ -225,4 +225,42 @@ class TeamLazyLoadingIntegrationTest {
         assertEquals(1, beta.getRequiredSkills().size());
         assertEquals(1, beta.getRoleSlots().size());
     }
+
+    @Test
+    @DisplayName("Multiple requiredSkills + multiple roleSlots do not produce Cartesian duplication or inflated slot counts")
+    void testTeamMultipleSkillsAndMultipleRoleSlotsDoNotDuplicateOrCartesianExplode() {
+        // 1. Create leader
+        User leader = new User();
+        leader.setName("Lead Architect");
+        leader.setEmail("architect@college.edu");
+        leader.setPasswordHash("hashed_pass");
+        leader.setCollege("IIT Madras");
+        leader.setBranch("CSE");
+        leader.setYear((byte) 3);
+        userRepository.save(leader);
+
+        // 2. Create team with 4 skills and 3 role slots
+        CreateTeamRequest req = new CreateTeamRequest();
+        req.setName("Full Scale Platform");
+        req.setDescription("Building high-throughput real-time engine");
+        req.setMaxMembers((byte) 5);
+        req.setRequiredSkills(Set.of("Java", "Kafka", "PostgreSQL", "Redis"));
+        req.setRequiredRoles(Set.of("Backend Lead", "Frontend Lead", "Data Engineer"));
+        Team team = teamService.createTeam(req, leader.getEmail());
+
+        // 3. Test single team fetch (findById / findWithDetailsById)
+        TeamResponse single = teamService.getTeamById(team.getId());
+        assertNotNull(single);
+        assertEquals(4, single.getRequiredSkills().size(), "Required skills must be exactly 4 without Cartesian multiplication");
+        assertEquals(3, single.getRoleSlots().size(), "Role slots must be exactly 3 without Cartesian multiplication");
+        assertTrue(single.getRequiredSkills().containsAll(Set.of("Java", "Kafka", "PostgreSQL", "Redis")));
+
+        // 4. Test list teams fetch (findAll / findAllWithDetails)
+        List<TeamResponse> allTeams = teamService.getAllTeams();
+        TeamResponse listed = allTeams.stream()
+                .filter(t -> t.getId().equals(team.getId()))
+                .findFirst().orElseThrow();
+        assertEquals(4, listed.getRequiredSkills().size(), "Listed team required skills must be exactly 4");
+        assertEquals(3, listed.getRoleSlots().size(), "Listed team role slots must be exactly 3");
+    }
 }
