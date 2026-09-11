@@ -69,7 +69,7 @@ public class Team {
 
     @jakarta.persistence.ElementCollection
     @jakarta.persistence.CollectionTable(name = "team_required_roles", joinColumns = @JoinColumn(name = "team_id"))
-    private java.util.List<TeamRoleSlot> roleSlots = new java.util.ArrayList<>();
+    private java.util.Set<TeamRoleSlot> roleSlots = new java.util.LinkedHashSet<>();
 
     @Column(name = "join_deadline")
     private LocalDateTime joinDeadline;
@@ -229,12 +229,15 @@ public class Team {
         this.requiredSkills = requiredSkills;
     }
 
-    public java.util.List<TeamRoleSlot> getRoleSlots() {
+    public java.util.Set<TeamRoleSlot> getRoleSlots() {
+        if (roleSlots == null) {
+            roleSlots = new java.util.LinkedHashSet<>();
+        }
         return roleSlots;
     }
 
-    public void setRoleSlots(java.util.List<TeamRoleSlot> roleSlots) {
-        this.roleSlots = roleSlots != null ? roleSlots : new java.util.ArrayList<>();
+    public void setRoleSlots(java.util.Collection<TeamRoleSlot> roleSlots) {
+        this.roleSlots = roleSlots != null ? new java.util.LinkedHashSet<>(roleSlots) : new java.util.LinkedHashSet<>();
     }
 
     public java.util.Set<String> getRequiredRoles() {
@@ -249,12 +252,12 @@ public class Team {
 
     public void setRequiredRoles(java.util.Set<String> requiredRoles) {
         if (requiredRoles == null) {
-            this.roleSlots = new java.util.ArrayList<>();
+            this.roleSlots = new java.util.LinkedHashSet<>();
         } else {
             this.roleSlots = requiredRoles.stream()
                     .filter(r -> r != null && !r.isBlank())
                     .map(r -> new TeamRoleSlot(r, 1))
-                    .collect(java.util.stream.Collectors.toList());
+                    .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
         }
     }
 }

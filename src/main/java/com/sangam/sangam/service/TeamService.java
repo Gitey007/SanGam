@@ -361,20 +361,14 @@ public class TeamService {
                 String key = roleName.toLowerCase();
                 int slotCount = slot.getSlotCount() != null ? slot.getSlotCount() : 1;
 
-                if (aggregatedSlots.containsKey(key)) {
-                    TeamRoleSlotDto existing = aggregatedSlots.get(key);
-                    int newTotal = existing.getSlotCount() + slotCount;
-                    int filled = existing.getFilledSlots();
-                    int available = (teamRemainingCapacity == 0) ? 0 : Math.min(teamRemainingCapacity, Math.max(0, newTotal - filled));
-                    aggregatedSlots.put(key, new TeamRoleSlotDto(existing.getRoleName(), newTotal, filled, available));
-                } else {
+                if (!aggregatedSlots.containsKey(key)) {
                     int filled = 0;
                     for (TeamMember m : members) {
                         if (roleMatches(roleName, m.getAssignedRole())) {
                             filled++;
                         }
                     }
-                    int available = (teamRemainingCapacity == 0) ? 0 : Math.min(teamRemainingCapacity, Math.max(0, slotCount - filled));
+                    int available = (teamRemainingCapacity == 0) ? 0 : Math.max(0, slotCount - filled);
                     aggregatedSlots.put(key, new TeamRoleSlotDto(roleName, slotCount, filled, available));
                 }
             }
@@ -390,7 +384,7 @@ public class TeamService {
                             filled++;
                         }
                     }
-                    int available = (teamRemainingCapacity == 0) ? 0 : Math.min(teamRemainingCapacity, Math.max(0, 1 - filled));
+                    int available = (teamRemainingCapacity == 0) ? 0 : Math.max(0, 1 - filled);
                     aggregatedSlots.put(key, new TeamRoleSlotDto(roleName, 1, filled, available));
                 }
             }
