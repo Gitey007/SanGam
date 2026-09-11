@@ -4,6 +4,9 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.sangam.sangam.entity.TeamJoinRequest;
 
@@ -19,7 +22,11 @@ public interface TeamJoinRequestRepository extends JpaRepository<TeamJoinRequest
 
     boolean existsByTeamIdAndUserIdAndStatus(Long teamId, Long userId, TeamJoinRequest.RequestStatus status);
 
-    void deleteByTeamId(Long teamId);
+    @Modifying(flushAutomatically = true)
+    @Query("DELETE FROM TeamJoinRequest tjr WHERE tjr.team.id = :teamId")
+    void deleteByTeamId(@Param("teamId") Long teamId);
 
-    void deleteByUserId(Long userId);
+    @Modifying(flushAutomatically = true)
+    @Query("DELETE FROM TeamJoinRequest tjr WHERE tjr.user.id = :userId")
+    void deleteByUserId(@Param("userId") Long userId);
 }

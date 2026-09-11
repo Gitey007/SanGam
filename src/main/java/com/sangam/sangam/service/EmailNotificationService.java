@@ -41,7 +41,6 @@ public class EmailNotificationService {
         this.restClient = restClient;
     }
 
-    @Async
     public void sendJoinRequestSubmittedEmail(String studentEmail, String studentName, String teamName, String requestedRole) {
         if (studentEmail == null || studentEmail.isBlank()) return;
         String subject = "SanGam: Join Request Submitted for " + teamName;
@@ -52,10 +51,9 @@ public class EmailNotificationService {
                 + "You can track your request status on SanGam: " + appBaseUrl + "/teams\n\n"
                 + "Best regards,\nSanGam Team";
 
-        sendEmailAsync(studentEmail, subject, content);
+        executePostCommit(() -> sendEmailAsync(studentEmail, subject, content));
     }
 
-    @Async
     public void sendJoinRequestReceivedEmail(String leaderEmail, String leaderName, String studentName, String studentEmail,
                                             String college, String branch, Byte year, String teamName, String requestedRole) {
         if (leaderEmail == null || leaderEmail.isBlank()) return;
@@ -72,10 +70,9 @@ public class EmailNotificationService {
                 + "\nReview and manage this request on SanGam: " + appBaseUrl + "/teams\n\n"
                 + "Best regards,\nSanGam Team";
 
-        sendEmailAsync(leaderEmail, subject, content);
+        executePostCommit(() -> sendEmailAsync(leaderEmail, subject, content));
     }
 
-    @Async
     public void sendJoinRequestAcceptedEmail(String studentEmail, String studentName, String teamName, String acceptedRole, String teamDescription) {
         if (studentEmail == null || studentEmail.isBlank()) return;
         String subject = "SanGam: Join Request Accepted for " + teamName;
@@ -88,10 +85,26 @@ public class EmailNotificationService {
                 + "\nView your new team on SanGam: " + appBaseUrl + "/teams\n\n"
                 + "Best regards,\nSanGam Team";
 
-        sendEmailAsync(studentEmail, subject, content);
+        executePostCommit(() -> sendEmailAsync(studentEmail, subject, content));
     }
 
-    private void sendEmailAsync(String toEmail, String subject, String textContent) {
+    private void executePostCommit(Runnable action) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            action.run();
+                        }
+                    }
+            );
+        } else {
+            action.run();
+        }
+    }
+
+    @Async
+    public void sendEmailAsync(String toEmail, String subject, String textContent) {
         if (brevoApiKey == null || brevoApiKey.isBlank() || senderEmail == null || senderEmail.isBlank()) {
             logger.warn("Brevo API key or sender email not configured. Skipping email notification to {}", maskEmail(toEmail));
             return;

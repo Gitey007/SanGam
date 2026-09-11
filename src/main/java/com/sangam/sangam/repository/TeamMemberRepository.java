@@ -3,6 +3,9 @@ package com.sangam.sangam.repository;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.sangam.sangam.entity.TeamMember;
 import com.sangam.sangam.entity.TeamMemberId;
@@ -16,9 +19,15 @@ public interface TeamMemberRepository
 
     long countByTeamId(Long teamId);
 
-    void deleteByTeamIdAndUserId(Long teamId, Long userId);
+    @Modifying(flushAutomatically = true)
+    @Query("DELETE FROM TeamMember tm WHERE tm.teamId = :teamId AND tm.userId = :userId")
+    void deleteByTeamIdAndUserId(@Param("teamId") Long teamId, @Param("userId") Long userId);
 
-    void deleteByTeamId(Long teamId);
+    @Modifying(flushAutomatically = true)
+    @Query("DELETE FROM TeamMember tm WHERE tm.teamId = :teamId")
+    void deleteByTeamId(@Param("teamId") Long teamId);
 
-    void deleteByUserId(Long userId);
+    @Modifying(flushAutomatically = true)
+    @Query("DELETE FROM TeamMember tm WHERE tm.userId = :userId")
+    void deleteByUserId(@Param("userId") Long userId);
 }
