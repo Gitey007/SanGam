@@ -46,6 +46,7 @@ export const SettingsPage = () => {
   const [passwordFormErrors, setPasswordFormErrors] = useState({});
   const [passwordError, setPasswordError] = useState(null);
   const [passwordSuccessMessage, setPasswordSuccessMessage] = useState(null);
+  const [isPasswordFormOpen, setIsPasswordFormOpen] = useState(false);
 
   // Delete Account State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -77,6 +78,17 @@ export const SettingsPage = () => {
     }
     if (passwordError) setPasswordError(null);
     if (passwordSuccessMessage) setPasswordSuccessMessage(null);
+  };
+
+  const handleCancelPasswordChange = () => {
+    setIsPasswordFormOpen(false);
+    setPasswordForm({
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    });
+    setPasswordFormErrors({});
+    setPasswordError(null);
   };
 
   const handleChangePassword = async (e) => {
@@ -118,6 +130,7 @@ export const SettingsPage = () => {
       setPasswordFormErrors({});
       setPasswordSuccessMessage('Your password has been changed successfully.');
       success('Password changed successfully.');
+      setIsPasswordFormOpen(false);
     } catch (err) {
       const msg = extractErrorMessage(err, 'Failed to change password. Please verify your current password.');
       setPasswordError(msg);
@@ -316,11 +329,28 @@ export const SettingsPage = () => {
 
       {/* Change Password Card */}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-subtle space-y-4">
-        <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-700">
-          <KeyRound className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
-            Change Password
-          </h2>
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
+          <div className="flex items-center gap-2">
+            <KeyRound className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
+              Change Password
+            </h2>
+          </div>
+          {!isPasswordFormOpen && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setPasswordSuccessMessage(null);
+                setPasswordError(null);
+                setIsPasswordFormOpen(true);
+              }}
+              leftIcon={KeyRound}
+            >
+              Change Password
+            </Button>
+          )}
         </div>
 
         <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -334,65 +364,78 @@ export const SettingsPage = () => {
           </div>
         )}
 
-        {passwordError && (
-          <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-200">
-            {passwordError}
-          </div>
+        {isPasswordFormOpen && (
+          <>
+            {passwordError && (
+              <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-200">
+                {passwordError}
+              </div>
+            )}
+
+            <form onSubmit={handleChangePassword} className="space-y-4 max-w-md pt-1">
+              <Input
+                label="Current Password"
+                name="currentPassword"
+                type="password"
+                placeholder="Enter current password"
+                value={passwordForm.currentPassword}
+                onChange={handlePasswordInputChange}
+                leftIcon={Lock}
+                error={passwordFormErrors.currentPassword}
+                required
+                autoComplete="current-password"
+              />
+
+              <Input
+                label="New Password"
+                name="newPassword"
+                type="password"
+                placeholder="Minimum 8 characters"
+                value={passwordForm.newPassword}
+                onChange={handlePasswordInputChange}
+                leftIcon={Lock}
+                error={passwordFormErrors.newPassword}
+                required
+                autoComplete="new-password"
+              />
+
+              <Input
+                label="Confirm New Password"
+                name="confirmPassword"
+                type="password"
+                placeholder="Re-enter new password"
+                value={passwordForm.confirmPassword}
+                onChange={handlePasswordInputChange}
+                leftIcon={Lock}
+                error={passwordFormErrors.confirmPassword}
+                required
+                autoComplete="new-password"
+              />
+
+              <div className="flex items-center gap-3 pt-1">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  isLoading={isChangingPassword}
+                  leftIcon={KeyRound}
+                  disabled={isChangingPassword}
+                >
+                  {isChangingPassword ? 'Changing Password...' : 'Change Password'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancelPasswordChange}
+                  disabled={isChangingPassword}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </>
         )}
-
-        <form onSubmit={handleChangePassword} className="space-y-4 max-w-md pt-1">
-          <Input
-            label="Current Password"
-            name="currentPassword"
-            type="password"
-            placeholder="Enter current password"
-            value={passwordForm.currentPassword}
-            onChange={handlePasswordInputChange}
-            leftIcon={Lock}
-            error={passwordFormErrors.currentPassword}
-            required
-            autoComplete="current-password"
-          />
-
-          <Input
-            label="New Password"
-            name="newPassword"
-            type="password"
-            placeholder="Minimum 8 characters"
-            value={passwordForm.newPassword}
-            onChange={handlePasswordInputChange}
-            leftIcon={Lock}
-            error={passwordFormErrors.newPassword}
-            required
-            autoComplete="new-password"
-          />
-
-          <Input
-            label="Confirm New Password"
-            name="confirmPassword"
-            type="password"
-            placeholder="Re-enter new password"
-            value={passwordForm.confirmPassword}
-            onChange={handlePasswordInputChange}
-            leftIcon={Lock}
-            error={passwordFormErrors.confirmPassword}
-            required
-            autoComplete="new-password"
-          />
-
-          <div className="pt-1">
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              isLoading={isChangingPassword}
-              leftIcon={KeyRound}
-              disabled={isChangingPassword}
-            >
-              {isChangingPassword ? 'Changing Password...' : 'Change Password'}
-            </Button>
-          </div>
-        </form>
       </div>
 
       {/* Danger Zone */}
