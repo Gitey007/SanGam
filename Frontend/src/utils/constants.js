@@ -69,6 +69,53 @@ export const ACHIEVEMENT_CATEGORIES = [
   'Other',
 ];
 
+export const ACHIEVEMENT_CATEGORY_STYLES = {
+  Hackathon: {
+    bg: '#F3E8FF',
+    text: '#7E22CE',
+    border: '#D8B4FE',
+    className: 'bg-[#F3E8FF] dark:bg-purple-950/60 text-[#7E22CE] dark:text-purple-300 border-[#D8B4FE] dark:border-purple-800/60',
+  },
+  Competition: {
+    bg: '#E0F2FE',
+    text: '#0369A1',
+    border: '#BAE6FD',
+    className: 'bg-[#E0F2FE] dark:bg-sky-950/60 text-[#0369A1] dark:text-sky-300 border-[#BAE6FD] dark:border-sky-800/60',
+  },
+  Certification: {
+    bg: '#DCFCE7',
+    text: '#15803D',
+    border: '#BBF7D0',
+    className: 'bg-[#DCFCE7] dark:bg-emerald-950/60 text-[#15803D] dark:text-emerald-300 border-[#BBF7D0] dark:border-emerald-800/60',
+  },
+  Coding: {
+    bg: '#FFF7ED',
+    text: '#C2410C',
+    border: '#FED7AA',
+    className: 'bg-[#FFF7ED] dark:bg-orange-950/60 text-[#C2410C] dark:text-orange-300 border-[#FED7AA] dark:border-orange-800/60',
+  },
+  Academic: {
+    bg: '#CCFBF1',
+    text: '#0F766E',
+    border: '#99F6E4',
+    className: 'bg-[#CCFBF1] dark:bg-teal-950/60 text-[#0F766E] dark:text-teal-300 border-[#99F6E4] dark:border-teal-800/60',
+  },
+  Other: {
+    bg: '#F1F5F9',
+    text: '#475569',
+    border: '#CBD5E1',
+    className: 'bg-[#F1F5F9] dark:bg-slate-800/80 text-[#475569] dark:text-slate-300 border-[#CBD5E1] dark:border-slate-700',
+  },
+};
+
+export const getAchievementCategoryBadgeClass = (category) => {
+  if (!category) return ACHIEVEMENT_CATEGORY_STYLES.Other.className;
+  const match = Object.keys(ACHIEVEMENT_CATEGORY_STYLES).find(
+    (key) => key.toLowerCase() === String(category).trim().toLowerCase()
+  );
+  return match ? ACHIEVEMENT_CATEGORY_STYLES[match].className : ACHIEVEMENT_CATEGORY_STYLES.Other.className;
+};
+
 export const POPULAR_ROLES = [
   'Backend Developer',
   'Frontend Developer',

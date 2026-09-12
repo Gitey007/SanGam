@@ -26,7 +26,7 @@ import ErrorState from '../components/common/ErrorState';
 import Badge from '../components/common/Badge';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
-import { POPULAR_SKILLS } from '../utils/constants';
+import { POPULAR_SKILLS, getAchievementCategoryBadgeClass } from '../utils/constants';
 import { extractErrorMessage } from '../utils/helpers';
 
 export const ProfilePage = () => {
@@ -486,8 +486,12 @@ export const ProfilePage = () => {
                 >
                   <div className="flex-1">
                     <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <span className="px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                        {ach.category || 'Achievement'}
+                      <span
+                        className={`px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider border transition-colors duration-150 ${getAchievementCategoryBadgeClass(
+                          ach.category
+                        )}`}
+                      >
+                        {ach.category || 'Other'}
                       </span>
                       <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                         {ach.title}
