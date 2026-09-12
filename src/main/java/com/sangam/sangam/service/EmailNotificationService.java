@@ -41,6 +41,19 @@ public class EmailNotificationService {
         this.restClient = restClient;
     }
 
+    public void sendTeamInvitationEmail(String studentEmail, String studentName, String teamName, String leaderName, String invitedRole) {
+        if (studentEmail == null || studentEmail.isBlank()) return;
+        String subject = "You've been invited to join " + teamName + " on SanGam";
+        String content = "Hello " + (studentName != null ? studentName : "Student") + ",\n\n"
+                + (leaderName != null ? leaderName : "A team leader") + " has invited you to join the team \"" + teamName + "\" on SanGam.\n\n"
+                + (invitedRole != null && !invitedRole.isBlank() ? "Invited Role: " + invitedRole + "\n" : "")
+                + "Status: PENDING\n\n"
+                + "You can review and accept or decline this invitation on SanGam: " + appBaseUrl + "/teams\n\n"
+                + "Best regards,\nSanGam Team";
+
+        executePostCommit(() -> sendEmailAsync(studentEmail, subject, content));
+    }
+
     public void sendJoinRequestSubmittedEmail(String studentEmail, String studentName, String teamName, String requestedRole) {
         if (studentEmail == null || studentEmail.isBlank()) return;
         String subject = "SanGam: Join Request Submitted for " + teamName;

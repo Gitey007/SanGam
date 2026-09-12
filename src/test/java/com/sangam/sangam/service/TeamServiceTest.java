@@ -1,5 +1,6 @@
 package com.sangam.sangam.service;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -7,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -71,6 +73,12 @@ class TeamServiceTest {
     @Mock
     private SkillRepository skillRepository;
 
+    @Mock
+    private EmailNotificationService emailNotificationService;
+
+    @Mock
+    private NotificationService notificationService;
+
     private TeamService teamService;
 
     private User leader;
@@ -86,7 +94,9 @@ class TeamServiceTest {
                 teamMemberRepository,
                 teamJoinRequestRepository,
                 teamInvitationRepository,
-                skillRepository);
+                skillRepository,
+                emailNotificationService,
+                notificationService);
 
         leader = new User();
         leader.setId(1L);
@@ -1817,6 +1827,184 @@ class TeamServiceTest {
             for (TeamRoleSlotDto dto : response.getRoleSlots()) {
                 assertEquals(0, dto.getAvailableSlots(), "Role " + dto.getRoleName() + " must have 0 openings");
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("Team Invitation Email Notification Tests")
+    class TeamInvitationEmailTests {
+
+        private Team inviteTeam;
+        private User inviteLeader;
+        private User inviteStudent;
+
+        @BeforeEach
+        void init() {
+            inviteLeader = new User();
+            inviteLeader.setId(10L);
+            inviteLeader.setName("Leader Priya");
+            inviteLeader.setEmail("priya.leader@college.edu");
+
+            inviteStudent = new User();
+            inviteStudent.setId(20L);
+            inviteStudent.setName("Student Rahul");
+            inviteStudent.setEmail("rahul.student@college.edu");
+
+            inviteTeam = new Team();
+            inviteTeam.setId(100L);
+            inviteTeam.setName("Cloud Hackers");
+            inviteTeam.setLeader(inviteLeader);
+            inviteTeam.setMaxMembers((byte) 4);
+        }
+
+        @Test
+        @DisplayName("Valid new invitation schedules email with correct student recipient and role")
+        void testInviteStudent_SendsEmailWithCorrectParameters() {
+            when(userRepository.findByEmail("priya.leader@college.edu")).thenReturn(Optional.of(inviteLeader));
+            when(teamRepository.findById(100L)).thenReturn(Optional.of(inviteTeam));
+            when(userRepository.findById(20L)).thenReturn(Optional.of(inviteStudent));
+            when(teamMemberRepository.existsById(new TeamMemberId(100L, 20L))).thenReturn(false);
+            when(teamMemberRepository.countByTeamId(100L)).thenReturn(1L);
+            when(teamInvitationRepository.findByTeamIdAndInvitedUserId(100L, 20L)).thenReturn(Optional.empty());
+            when(teamInvitationRepository.save(any(TeamInvitation.class))).thenAnswer(i -> {
+                TeamInvitation inv = i.getArgument(0);
+                inv.setId(555L);
+                return inv;
+            });
+
+            TeamInvitationResponse response = teamService.inviteStudent(
+                    100L, 20L, "priya.leader@college.edu", "Backend Developer", null);
+
+            assertNotNull(response);
+            assertEquals("PENDING", response.getStatus());
+
+            verify(emailNotificationService).sendTeamInvitationEmail(
+                    "rahul.student@college.edu",
+                    "Student Rahul",
+                    "Cloud Hackers",
+                    "Leader Priya",
+                    "Backend Developer");
+        }
+
+        @Test
+        @DisplayName("Valid invitation with custom role passes custom role to email")
+        void testInviteStudent_WithCustomRole_SendsEmailWithCustomRole() {
+            when(userRepository.findByEmail("priya.leader@college.edu")).thenReturn(Optional.of(inviteLeader));
+            when(teamRepository.findById(100L)).thenReturn(Optional.of(inviteTeam));
+            when(userRepository.findById(20L)).thenReturn(Optional.of(inviteStudent));
+            when(teamMemberRepository.existsById(new TeamMemberId(100L, 20L))).thenReturn(false);
+            when(teamMemberRepository.countByTeamId(100L)).thenReturn(1L);
+            when(teamInvitationRepository.findByTeamIdAndInvitedUserId(100L, 20L)).thenReturn(Optional.empty());
+            when(teamInvitationRepository.save(any(TeamInvitation.class))).thenAnswer(i -> {
+                TeamInvitation inv = i.getArgument(0);
+                inv.setId(556L);
+                return inv;
+            });
+
+            TeamInvitationResponse response = teamService.inviteStudent(
+                    100L, 20L, "priya.leader@college.edu", null, "AI Research Engineer");
+
+            assertNotNull(response);
+            verify(emailNotificationService).sendTeamInvitationEmail(
+                    "rahul.student@college.edu",
+                    "Student Rahul",
+                    "Cloud Hackers",
+                    "Leader Priya",
+                    "AI Research Engineer");
+        }
+
+        @Test
+        @DisplayName("Re-inviting a previously rejected student schedules new invitation email")
+        void testInviteStudent_Reinvite_SendsEmail() {
+            TeamInvitation existing = new TeamInvitation(
+                    inviteTeam, inviteStudent, inviteLeader, TeamInvitation.InvitationStatus.REJECTED, "Designer", null);
+            existing.setId(777L);
+
+            when(userRepository.findByEmail("priya.leader@college.edu")).thenReturn(Optional.of(inviteLeader));
+            when(teamRepository.findById(100L)).thenReturn(Optional.of(inviteTeam));
+            when(userRepository.findById(20L)).thenReturn(Optional.of(inviteStudent));
+            when(teamMemberRepository.existsById(new TeamMemberId(100L, 20L))).thenReturn(false);
+            when(teamMemberRepository.countByTeamId(100L)).thenReturn(1L);
+            when(teamInvitationRepository.findByTeamIdAndInvitedUserId(100L, 20L)).thenReturn(Optional.of(existing));
+            when(teamInvitationRepository.save(existing)).thenReturn(existing);
+
+            TeamInvitationResponse response = teamService.inviteStudent(
+                    100L, 20L, "priya.leader@college.edu", "UI/UX Designer", null);
+
+            assertNotNull(response);
+            assertEquals("PENDING", response.getStatus());
+
+            verify(emailNotificationService).sendTeamInvitationEmail(
+                    "rahul.student@college.edu",
+                    "Student Rahul",
+                    "Cloud Hackers",
+                    "Leader Priya",
+                    "UI/UX Designer");
+        }
+
+        @Test
+        @DisplayName("Validation error does NOT send invitation email (e.g. duplicate pending invitation)")
+        void testInviteStudent_DuplicatePending_DoesNotSendEmail() {
+            TeamInvitation pendingInv = new TeamInvitation(
+                    inviteTeam, inviteStudent, inviteLeader, TeamInvitation.InvitationStatus.PENDING, "Designer", null);
+
+            when(userRepository.findByEmail("priya.leader@college.edu")).thenReturn(Optional.of(inviteLeader));
+            when(teamRepository.findById(100L)).thenReturn(Optional.of(inviteTeam));
+            when(userRepository.findById(20L)).thenReturn(Optional.of(inviteStudent));
+            when(teamMemberRepository.existsById(new TeamMemberId(100L, 20L))).thenReturn(false);
+            when(teamMemberRepository.countByTeamId(100L)).thenReturn(1L);
+            when(teamInvitationRepository.findByTeamIdAndInvitedUserId(100L, 20L)).thenReturn(Optional.of(pendingInv));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> {
+                teamService.inviteStudent(100L, 20L, "priya.leader@college.edu", "Designer", null);
+            });
+
+            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+            verify(emailNotificationService, never()).sendTeamInvitationEmail(any(), any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("Validation error does NOT send invitation email (e.g. target is already a member)")
+        void testInviteStudent_AlreadyMember_DoesNotSendEmail() {
+            when(userRepository.findByEmail("priya.leader@college.edu")).thenReturn(Optional.of(inviteLeader));
+            when(teamRepository.findById(100L)).thenReturn(Optional.of(inviteTeam));
+            when(userRepository.findById(20L)).thenReturn(Optional.of(inviteStudent));
+            when(teamMemberRepository.existsById(new TeamMemberId(100L, 20L))).thenReturn(true);
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> {
+                teamService.inviteStudent(100L, 20L, "priya.leader@college.edu", "Designer", null);
+            });
+
+            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+            verify(emailNotificationService, never()).sendTeamInvitationEmail(any(), any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("Email service failure does NOT fail the invitation or roll back")
+        void testInviteStudent_EmailFailureDoesNotBreakTransaction() {
+            when(userRepository.findByEmail("priya.leader@college.edu")).thenReturn(Optional.of(inviteLeader));
+            when(teamRepository.findById(100L)).thenReturn(Optional.of(inviteTeam));
+            when(userRepository.findById(20L)).thenReturn(Optional.of(inviteStudent));
+            when(teamMemberRepository.existsById(new TeamMemberId(100L, 20L))).thenReturn(false);
+            when(teamMemberRepository.countByTeamId(100L)).thenReturn(1L);
+            when(teamInvitationRepository.findByTeamIdAndInvitedUserId(100L, 20L)).thenReturn(Optional.empty());
+            when(teamInvitationRepository.save(any(TeamInvitation.class))).thenAnswer(i -> {
+                TeamInvitation inv = i.getArgument(0);
+                inv.setId(557L);
+                return inv;
+            });
+
+            doThrow(new RuntimeException("Brevo API timeout"))
+                    .when(emailNotificationService)
+                    .sendTeamInvitationEmail(any(), any(), any(), any(), any());
+
+            assertDoesNotThrow(() -> {
+                TeamInvitationResponse response = teamService.inviteStudent(
+                        100L, 20L, "priya.leader@college.edu", "Backend Developer", null);
+                assertNotNull(response);
+                assertEquals(557L, response.getInvitationId());
+                assertEquals("PENDING", response.getStatus());
+            });
         }
     }
 }
