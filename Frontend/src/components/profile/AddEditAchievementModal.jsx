@@ -35,8 +35,8 @@ export const AddEditAchievementModal = ({
         title: achievement.title || '',
         description: achievement.description || '',
         category: achievement.category || 'Hackathon',
-        date: achievement.date || achievement.achievementDate || '',
-        proofUrl: achievement.proofUrl || achievement.verificationUrl || '',
+        date: achievement.date || '',
+        proofUrl: achievement.proofUrl || '',
       });
     } else {
       setFormData({
@@ -74,23 +74,13 @@ export const AddEditAchievementModal = ({
     }
 
     setIsLoading(true);
-    const payload = {
-      title: formData.title.trim(),
-      description: formData.description.trim(),
-      category: formData.category,
-      date: formData.date ? formData.date.trim() : '',
-      achievementDate: formData.date ? formData.date.trim() : '',
-      proofUrl: formData.proofUrl ? formData.proofUrl.trim() : '',
-      verificationUrl: formData.proofUrl ? formData.proofUrl.trim() : '',
-    };
-
     try {
       if (isEditing) {
-        const updated = await userApi.updateAchievement(userId, achievement.id, payload);
+        const updated = await userApi.updateAchievement(userId, achievement.id, formData);
         success('Achievement updated successfully');
         if (onSaved) onSaved(updated);
       } else {
-        const created = await userApi.addAchievement(userId, payload);
+        const created = await userApi.addAchievement(userId, formData);
         success('Achievement added successfully');
         if (onSaved) onSaved(created);
       }
