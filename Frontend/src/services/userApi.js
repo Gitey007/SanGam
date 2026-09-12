@@ -170,6 +170,15 @@ export const userApi = {
     });
     return response.data;
   },
+
+  /**
+   * Change Password (Authenticated)
+   * POST /api/auth/change-password
+   */
+  async changePassword(data) {
+    const response = await api.post('/api/auth/change-password', data);
+    return response.data;
+  },
 };
 
 export default userApi;

@@ -104,6 +104,21 @@ export const authApi = {
     const response = await api.post('/api/auth/forgot-password/reset', payload);
     return response.data;
   },
+
+  /**
+   * Change Password (Authenticated)
+   * POST /api/auth/change-password
+   * Request body: { currentPassword, newPassword, confirmPassword }
+   */
+  async changePassword(data) {
+    const payload = {
+      currentPassword: data.currentPassword,
+      newPassword: data.newPassword,
+      confirmPassword: data.confirmPassword,
+    };
+    const response = await api.post('/api/auth/change-password', payload);
+    return response.data;
+  },
 };
 
 export default authApi;

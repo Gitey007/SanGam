@@ -3,7 +3,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   Settings as SettingsIcon,
   User,
-  Shield,
   LogOut,
   Building2,
   Mail,
@@ -16,24 +15,37 @@ import {
   Trash2,
   AlertTriangle,
   KeyRound,
+  Lock,
   Send,
+  CheckCircle2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import Button from '../components/common/Button';
+import Input from '../components/common/Input';
 import Avatar from '../components/common/Avatar';
-import Badge from '../components/common/Badge';
 import Modal from '../components/common/Modal';
+import authApi from '../services/authApi';
 import userApi from '../services/userApi';
-import { API_BASE_URL } from '../utils/constants';
 import { extractErrorMessage } from '../utils/helpers';
 
 export const SettingsPage = () => {
-  const { user, logout, token } = useAuth();
+  const { user, logout } = useAuth();
   const { theme, setTheme, isDark } = useTheme();
   const { success, error: toastError } = useToast();
   const navigate = useNavigate();
+
+  // Change Password State
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordFormErrors, setPasswordFormErrors] = useState({});
+  const [passwordError, setPasswordError] = useState(null);
+  const [passwordSuccessMessage, setPasswordSuccessMessage] = useState(null);
 
   // Delete Account State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -55,6 +67,64 @@ export const SettingsPage = () => {
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handlePasswordInputChange = (e) => {
+    const { name, value } = e.target;
+    setPasswordForm((prev) => ({ ...prev, [name]: value }));
+    if (passwordFormErrors[name]) {
+      setPasswordFormErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
+    if (passwordError) setPasswordError(null);
+    if (passwordSuccessMessage) setPasswordSuccessMessage(null);
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    const validationErrors = {};
+
+    if (!passwordForm.currentPassword) {
+      validationErrors.currentPassword = 'Current password is required.';
+    }
+
+    if (!passwordForm.newPassword || passwordForm.newPassword.length < 8) {
+      validationErrors.newPassword = 'New password must be at least 8 characters long.';
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      validationErrors.confirmPassword = 'Passwords do not match.';
+    }
+
+    if (Object.keys(validationErrors).length > 0) {
+      setPasswordFormErrors(validationErrors);
+      return;
+    }
+
+    setIsChangingPassword(true);
+    setPasswordError(null);
+    setPasswordSuccessMessage(null);
+
+    try {
+      await authApi.changePassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+        confirmPassword: passwordForm.confirmPassword,
+      });
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+      setPasswordFormErrors({});
+      setPasswordSuccessMessage('Your password has been changed successfully.');
+      success('Password changed successfully.');
+    } catch (err) {
+      const msg = extractErrorMessage(err, 'Failed to change password. Please verify your current password.');
+      setPasswordError(msg);
+      toastError(msg);
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   const handleOpenDeleteModal = () => {
@@ -244,37 +314,85 @@ export const SettingsPage = () => {
         </div>
       </div>
 
-      {/* Session & Backend Connection */}
+      {/* Change Password Card */}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-subtle space-y-4">
         <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-700">
-          <Shield className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+          <KeyRound className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
-            Authentication & Backend Status
+            Change Password
           </h2>
         </div>
 
-        <div className="space-y-3 text-xs">
-          <div className="flex items-center justify-between py-1.5">
-            <span className="text-slate-600 dark:text-slate-300">Session Status</span>
-            <Badge variant="success" size="sm">
-              Authenticated (JWT Active)
-            </Badge>
-          </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Ensure your account is using a secure password of at least 8 characters.
+        </p>
 
-          <div className="flex items-center justify-between py-1.5 border-t border-slate-100 dark:border-slate-700">
-            <span className="text-slate-600 dark:text-slate-300">Backend API URL</span>
-            <span className="font-mono text-[11px] text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">
-              {API_BASE_URL || '/api (Vite Proxy)'}
-            </span>
+        {passwordSuccessMessage && (
+          <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-200 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>{passwordSuccessMessage}</span>
           </div>
+        )}
 
-          <div className="flex items-center justify-between py-1.5 border-t border-slate-100 dark:border-slate-700">
-            <span className="text-slate-600 dark:text-slate-300">Auth Token Verification</span>
-            <span className="text-slate-500 dark:text-slate-400">
-              {token ? 'Bearer token attached to API headers' : 'None'}
-            </span>
+        {passwordError && (
+          <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-200">
+            {passwordError}
           </div>
-        </div>
+        )}
+
+        <form onSubmit={handleChangePassword} className="space-y-4 max-w-md pt-1">
+          <Input
+            label="Current Password"
+            name="currentPassword"
+            type="password"
+            placeholder="Enter current password"
+            value={passwordForm.currentPassword}
+            onChange={handlePasswordInputChange}
+            leftIcon={Lock}
+            error={passwordFormErrors.currentPassword}
+            required
+            autoComplete="current-password"
+          />
+
+          <Input
+            label="New Password"
+            name="newPassword"
+            type="password"
+            placeholder="Minimum 8 characters"
+            value={passwordForm.newPassword}
+            onChange={handlePasswordInputChange}
+            leftIcon={Lock}
+            error={passwordFormErrors.newPassword}
+            required
+            autoComplete="new-password"
+          />
+
+          <Input
+            label="Confirm New Password"
+            name="confirmPassword"
+            type="password"
+            placeholder="Re-enter new password"
+            value={passwordForm.confirmPassword}
+            onChange={handlePasswordInputChange}
+            leftIcon={Lock}
+            error={passwordFormErrors.confirmPassword}
+            required
+            autoComplete="new-password"
+          />
+
+          <div className="pt-1">
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              isLoading={isChangingPassword}
+              leftIcon={KeyRound}
+              disabled={isChangingPassword}
+            >
+              {isChangingPassword ? 'Changing Password...' : 'Change Password'}
+            </Button>
+          </div>
+        </form>
       </div>
 
       {/* Danger Zone */}

@@ -177,17 +177,19 @@ public class AuthService {
 
     public String forgotPasswordSendOtp(String email) {
         if (email == null || email.isBlank()) {
-            throw new IllegalArgumentException("Email is required");
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Email is required");
         }
 
         String normalizedEmail = email.trim().toLowerCase();
 
-        // Check if user exists. If yes, send OTP. If not, do NOT reveal existence (generic response).
-        if (userRepository.existsByEmail(normalizedEmail)) {
-            emailOtpService.sendOtp(normalizedEmail);
+        if (!userRepository.existsByEmail(normalizedEmail)) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.NOT_FOUND, "No account is registered with this email.");
         }
 
-        return "If the email is registered, an OTP has been sent.";
+        emailOtpService.sendOtp(normalizedEmail);
+        return "OTP has been sent to your registered email.";
     }
 
     public boolean forgotPasswordVerifyOtp(String email, String otp) {
@@ -223,6 +225,48 @@ public class AuthService {
         User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
                         org.springframework.http.HttpStatus.BAD_REQUEST, "Unable to reset password"));
+
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public void changePassword(com.sangam.sangam.dto.ChangePasswordRequest request, String authenticatedEmail) {
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
+
+        if (request == null || request.getCurrentPassword() == null || request.getCurrentPassword().isBlank()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Current password is required");
+        }
+
+        if (request.getNewPassword() == null || request.getNewPassword().length() < 8) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "New password must be at least 8 characters");
+        }
+
+        if (request.getConfirmPassword() != null && !request.getConfirmPassword().isBlank()) {
+            if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.BAD_REQUEST, "New passwords do not match");
+            }
+        }
+
+        User user = userRepository.findByEmail(authenticatedEmail.trim().toLowerCase())
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.NOT_FOUND, "User not found"));
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Current password is incorrect");
+        }
+
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPasswordHash())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "New password cannot be the same as current password");
+        }
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);

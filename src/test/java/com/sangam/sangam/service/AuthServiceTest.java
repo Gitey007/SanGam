@@ -320,24 +320,28 @@ class AuthServiceTest {
     // =========================================================================
 
     @Test
-    void testForgotPasswordSendOtp_ExistingUser_SendsOtpAndReturnsGenericMessage() {
+    void testForgotPasswordSendOtp_ExistingUser_SendsOtpAndReturnsSuccessMessage() {
         String email = "student@college.edu";
         when(userRepository.existsByEmail(email)).thenReturn(true);
 
         String message = authService.forgotPasswordSendOtp(email);
 
-        assertEquals("If the email is registered, an OTP has been sent.", message);
+        assertEquals("OTP has been sent to your registered email.", message);
         verify(emailOtpService).sendOtp(email);
     }
 
     @Test
-    void testForgotPasswordSendOtp_NonExistingUser_ReturnsGenericMessageWithoutSendingOtp() {
+    void testForgotPasswordSendOtp_NonExistingUser_ThrowsNotFoundExceptionWithoutSendingOtp() {
         String email = "unknown@college.edu";
         when(userRepository.existsByEmail(email)).thenReturn(false);
 
-        String message = authService.forgotPasswordSendOtp(email);
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> {
+                    authService.forgotPasswordSendOtp(email);
+                });
 
-        assertEquals("If the email is registered, an OTP has been sent.", message);
+        assertEquals(org.springframework.http.HttpStatus.NOT_FOUND, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("No account is registered with this email."));
         verify(emailOtpService, never()).sendOtp(anyString());
     }
 
@@ -446,6 +450,144 @@ class AuthServiceTest {
                 });
 
         assertTrue(ex.getReason().contains("OTP verification required"));
+    }
+
+    // =========================================================================
+    // Change Password Tests
+    // =========================================================================
+
+    @Test
+    void testChangePassword_Success() {
+        String email = "student@college.edu";
+        com.sangam.sangam.dto.ChangePasswordRequest request =
+                new com.sangam.sangam.dto.ChangePasswordRequest("currentPass123", "newBrandPass456", "newBrandPass456");
+
+        User user = new User();
+        user.setId(1L);
+        user.setEmail(email);
+        user.setPasswordHash("hashedCurrentPass");
+
+        when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("currentPass123", "hashedCurrentPass")).thenReturn(true);
+        when(passwordEncoder.matches("newBrandPass456", "hashedCurrentPass")).thenReturn(false);
+        when(passwordEncoder.encode("newBrandPass456")).thenReturn("hashedNewPass");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        authService.changePassword(request, email);
+
+        assertEquals("hashedNewPass", user.getPasswordHash());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void testChangePassword_Unauthenticated_Fails() {
+        com.sangam.sangam.dto.ChangePasswordRequest request =
+                new com.sangam.sangam.dto.ChangePasswordRequest("currentPass123", "newBrandPass456", "newBrandPass456");
+
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> {
+                    authService.changePassword(request, null);
+                });
+
+        assertEquals(org.springframework.http.HttpStatus.UNAUTHORIZED, ex.getStatusCode());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void testChangePassword_WrongCurrentPassword_Fails() {
+        String email = "student@college.edu";
+        com.sangam.sangam.dto.ChangePasswordRequest request =
+                new com.sangam.sangam.dto.ChangePasswordRequest("wrongOldPass", "newBrandPass456", "newBrandPass456");
+
+        User user = new User();
+        user.setId(1L);
+        user.setEmail(email);
+        user.setPasswordHash("hashedCurrentPass");
+
+        when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrongOldPass", "hashedCurrentPass")).thenReturn(false);
+
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> {
+                    authService.changePassword(request, email);
+                });
+
+        assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("Current password is incorrect"));
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void testChangePassword_ShortNewPassword_Fails() {
+        String email = "student@college.edu";
+        com.sangam.sangam.dto.ChangePasswordRequest request =
+                new com.sangam.sangam.dto.ChangePasswordRequest("currentPass123", "short", "short");
+
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> {
+                    authService.changePassword(request, email);
+                });
+
+        assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("at least 8 characters"));
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void testChangePassword_MismatchedConfirmPassword_Fails() {
+        String email = "student@college.edu";
+        com.sangam.sangam.dto.ChangePasswordRequest request =
+                new com.sangam.sangam.dto.ChangePasswordRequest("currentPass123", "newBrandPass456", "differentPass789");
+
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> {
+                    authService.changePassword(request, email);
+                });
+
+        assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("do not match"));
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void testChangePassword_SameAsOldPassword_Fails() {
+        String email = "student@college.edu";
+        com.sangam.sangam.dto.ChangePasswordRequest request =
+                new com.sangam.sangam.dto.ChangePasswordRequest("samePass123", "samePass123", "samePass123");
+
+        User user = new User();
+        user.setId(1L);
+        user.setEmail(email);
+        user.setPasswordHash("hashedSamePass");
+
+        when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("samePass123", "hashedSamePass")).thenReturn(true);
+
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> {
+                    authService.changePassword(request, email);
+                });
+
+        assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("cannot be the same"));
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void testChangePassword_UserNotFound_Fails() {
+        String email = "nonexistent@college.edu";
+        com.sangam.sangam.dto.ChangePasswordRequest request =
+                new com.sangam.sangam.dto.ChangePasswordRequest("currentPass123", "newBrandPass456", "newBrandPass456");
+
+        when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
+
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> {
+                    authService.changePassword(request, email);
+                });
+
+        assertEquals(org.springframework.http.HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verify(userRepository, never()).save(any(User.class));
     }
 }
 
