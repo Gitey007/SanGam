@@ -131,5 +131,7 @@ CREATE INDEX idx_team_invitations_team_status ON team_invitations (team_id, stat
 -- Users: Accelerates student peer discovery filtering by college and (college, year)
 CREATE INDEX idx_users_college_year ON users (college, year);
 
-
-
+-- 16. Align status columns on team_invitations and team_join_requests with Java enums
+-- Expands ENUM definitions to VARCHAR(50) to support all valid statuses (PENDING, ACCEPTED, REJECTED, CANCELLED, REVOKED, EXPIRED) without data truncation errors.
+ALTER TABLE team_invitations MODIFY COLUMN status VARCHAR(50) NOT NULL;
+ALTER TABLE team_join_requests MODIFY COLUMN status VARCHAR(50) NOT NULL;

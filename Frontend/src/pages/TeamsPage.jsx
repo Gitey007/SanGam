@@ -17,6 +17,7 @@ import TeamCard from '../components/teams/TeamCard';
 import EmptyState from '../components/common/EmptyState';
 import ErrorState from '../components/common/ErrorState';
 import ConfirmModal from '../components/common/ConfirmModal';
+import Modal from '../components/common/Modal';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import teamApi from '../services/teamApi';
@@ -47,6 +48,17 @@ export const TeamsPage = () => {
     isOpen: false,
     invitationId: null,
     isLoading: false,
+  });
+
+  const [requestAnotherModal, setRequestAnotherModal] = useState({
+    isOpen: false,
+    invitation: null,
+    team: null,
+    openRoles: [],
+    selectedRole: '',
+    customRole: '',
+    isLoadingRoles: false,
+    isSubmitting: false,
   });
 
   const { user } = useAuth();
@@ -166,6 +178,85 @@ export const TeamsPage = () => {
       const msg = extractErrorMessage(err, 'Failed to decline invitation.');
       toastError(msg);
       setDeclineInvitationModal((prev) => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  const handleOpenRequestAnotherModal = async (invitation) => {
+    const cachedTeam = teams.find((t) => String(t.id) === String(invitation.teamId));
+    let initialRoles = [];
+    if (cachedTeam?.roleSlots) {
+      initialRoles = cachedTeam.roleSlots.filter((r) => r.availableSlots > 0);
+    }
+
+    setRequestAnotherModal({
+      isOpen: true,
+      invitation,
+      team: cachedTeam || null,
+      openRoles: initialRoles,
+      selectedRole: initialRoles.length > 0 ? initialRoles[0].roleName : '',
+      customRole: '',
+      isLoadingRoles: !cachedTeam || !cachedTeam.roleSlots,
+      isSubmitting: false,
+    });
+
+    try {
+      const freshTeam = await teamApi.getTeamById(invitation.teamId);
+      const openSlots = Array.isArray(freshTeam?.roleSlots)
+        ? freshTeam.roleSlots.filter((r) => r.availableSlots > 0)
+        : [];
+
+      setRequestAnotherModal((prev) => {
+        if (!prev.isOpen || prev.invitation?.invitationId !== invitation.invitationId) return prev;
+        return {
+          ...prev,
+          team: freshTeam,
+          openRoles: openSlots,
+          selectedRole:
+            openSlots.length > 0
+              ? openSlots.some((s) => s.roleName === prev.selectedRole)
+                ? prev.selectedRole
+                : openSlots[0].roleName
+              : '',
+          isLoadingRoles: false,
+        };
+      });
+    } catch (err) {
+      console.warn('Failed to load fresh team details for role request:', err);
+      setRequestAnotherModal((prev) => ({ ...prev, isLoadingRoles: false }));
+    }
+  };
+
+  const handleConfirmRequestAnotherRole = async (e) => {
+    e?.preventDefault();
+    const uid = user?.id || user?.userId;
+    const inv = requestAnotherModal.invitation;
+    const role = requestAnotherModal.selectedRole;
+    if (!uid || !inv || !role) return;
+
+    setRequestAnotherModal((prev) => ({ ...prev, isSubmitting: true }));
+    try {
+      await teamApi.sendJoinRequest(
+        inv.teamId,
+        uid,
+        role,
+        requestAnotherModal.customRole?.trim() || null
+      );
+      success(`Join request submitted as ${role}! The team leader will review your request.`);
+      setRequestAnotherModal({
+        isOpen: false,
+        invitation: null,
+        team: null,
+        openRoles: [],
+        selectedRole: '',
+        customRole: '',
+        isLoadingRoles: false,
+        isSubmitting: false,
+      });
+      await Promise.all([fetchTeams(), fetchInvitations(), fetchMyRequests()]);
+    } catch (err) {
+      const msg = extractErrorMessage(err, 'Failed to submit join request.');
+      toastError(msg);
+      setRequestAnotherModal((prev) => ({ ...prev, isSubmitting: false }));
     }
   };
 
@@ -339,87 +430,114 @@ export const TeamsPage = () => {
           />
         ) : (
           <div className="space-y-3">
-            {pendingInvitations.map((inv) => (
-              <div
-                key={inv.invitationId}
-                className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
-              >
-                <div className="space-y-1.5 flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link
-                      to={`/teams/${inv.teamId}`}
-                      className="text-base font-bold text-slate-900 dark:text-white hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
-                    >
-                      {inv.teamName}
-                    </Link>
-                    <Badge variant="brand" size="sm">
-                      Pending Your Response
-                    </Badge>
-                  </div>
+            {pendingInvitations.map((inv) => {
+              const matchingTeam = teams.find((t) => String(t.id) === String(inv.teamId));
+              const membersCount = matchingTeam?.currentMemberCount || matchingTeam?.members?.length || 0;
+              const isTeamFull = Boolean(matchingTeam?.maxMembers > 0 && membersCount >= matchingTeam.maxMembers);
+              const isExpired = Boolean(
+                matchingTeam?.isExpired ||
+                matchingTeam?.expired ||
+                (matchingTeam?.joinDeadline && new Date(matchingTeam.joinDeadline) < new Date())
+              );
+              const roleSlotsList = matchingTeam?.roleSlots || [];
+              const openRoles = roleSlotsList.filter((r) => r.availableSlots > 0);
+              const isEligibleForRequestAnother = matchingTeam
+                ? !isTeamFull && !isExpired && openRoles.length > 0
+                : true;
 
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Invited by{' '}
-                    <span className="font-semibold text-slate-700 dark:text-slate-200">
-                      {inv.invitedByName}
-                    </span>{' '}
-                    (Team Leader) •{' '}
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">
-                      Role: {inv.invitedRole || 'Not specified'}
-                    </span>
-                    {inv.customRole && (
-                      <span className="ml-1 text-brand-600 dark:text-brand-400 font-medium">
-                        ({inv.customRole})
+              return (
+                <div
+                  key={inv.invitationId}
+                  className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
+                >
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        to={`/teams/${inv.teamId}`}
+                        className="text-base font-bold text-slate-900 dark:text-white hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                      >
+                        {inv.teamName}
+                      </Link>
+                      <Badge variant="brand" size="sm">
+                        Pending Your Response
+                      </Badge>
+                    </div>
+
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Invited by{' '}
+                      <span className="font-semibold text-slate-700 dark:text-slate-200">
+                        {inv.invitedByName}
+                      </span>{' '}
+                      (Team Leader) •{' '}
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                        Role: {inv.invitedRole || 'Not specified'}
                       </span>
-                    )}
-                  </p>
-
-                  {inv.teamDescription && (
-                    <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 max-w-2xl pt-1">
-                      {inv.teamDescription}
+                      {inv.customRole && (
+                        <span className="ml-1 text-brand-600 dark:text-brand-400 font-medium">
+                          ({inv.customRole})
+                        </span>
+                      )}
                     </p>
-                  )}
 
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 pt-1">
-                    <Clock className="w-3 h-3" />
-                    <span>
-                      Received{' '}
-                      {inv.createdAt
-                        ? new Date(inv.createdAt).toLocaleDateString(
-                            undefined,
-                            {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                            }
-                          )
-                        : 'recently'}
-                    </span>
+                    {inv.teamDescription && (
+                      <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 max-w-2xl pt-1">
+                        {inv.teamDescription}
+                      </p>
+                    )}
+
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 pt-1">
+                      <Clock className="w-3 h-3" />
+                      <span>
+                        Received{' '}
+                        {inv.createdAt
+                          ? new Date(inv.createdAt).toLocaleDateString(
+                              undefined,
+                              {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              }
+                            )
+                          : 'recently'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-end sm:self-center">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      leftIcon={Check}
+                      onClick={() => handleAcceptInvitation(inv)}
+                      isLoading={actionLoading[inv.invitationId] === 'accept'}
+                      disabled={Boolean(actionLoading[inv.invitationId])}
+                    >
+                      Accept
+                    </Button>
+                    {isEligibleForRequestAnother && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenRequestAnotherModal(inv)}
+                        disabled={Boolean(actionLoading[inv.invitationId])}
+                      >
+                        Request Another Role
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      leftIcon={X}
+                      onClick={() => setDeclineInvitationModal({ isOpen: true, invitationId: inv.invitationId, isLoading: false })}
+                      disabled={Boolean(actionLoading[inv.invitationId])}
+                      className="text-slate-600 dark:text-slate-300 hover:text-rose-600 hover:border-rose-200 dark:hover:border-rose-800"
+                    >
+                      Decline
+                    </Button>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    leftIcon={Check}
-                    onClick={() => handleAcceptInvitation(inv)}
-                    isLoading={actionLoading[inv.invitationId] === 'accept'}
-                    disabled={Boolean(actionLoading[inv.invitationId])}
-                  >
-                    Accept
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    leftIcon={X}
-                    onClick={() => setDeclineInvitationModal({ isOpen: true, invitationId: inv.invitationId, isLoading: false })}
-                    className="text-slate-600 dark:text-slate-300 hover:text-rose-600 hover:border-rose-200 dark:hover:border-rose-800"
-                  >
-                    Decline
-                  </Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )
       ) : tab === 'requests' ? (
@@ -573,6 +691,72 @@ export const TeamsPage = () => {
         confirmVariant="danger"
         isLoading={declineInvitationModal.isLoading}
       />
+
+      {/* Student "Request Another Role" Modal */}
+      <Modal
+        isOpen={requestAnotherModal.isOpen}
+        onClose={() =>
+          !requestAnotherModal.isSubmitting &&
+          setRequestAnotherModal((prev) => ({ ...prev, isOpen: false }))
+        }
+        title="Request Another Role"
+        description={`Submit a new join request for an available role on ${requestAnotherModal.team?.name || requestAnotherModal.invitation?.teamName || 'this team'}:`}
+        maxWidth="max-w-md"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setRequestAnotherModal((prev) => ({ ...prev, isOpen: false }))}
+              disabled={requestAnotherModal.isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleConfirmRequestAnotherRole}
+              isLoading={requestAnotherModal.isSubmitting}
+              disabled={!requestAnotherModal.selectedRole || requestAnotherModal.openRoles.length === 0 || requestAnotherModal.isLoadingRoles}
+            >
+              Submit Request
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleConfirmRequestAnotherRole} className="space-y-4">
+          {requestAnotherModal.isLoadingRoles ? (
+            <div className="py-6 text-center text-xs text-slate-500 dark:text-slate-400">
+              Loading available roles...
+            </div>
+          ) : requestAnotherModal.openRoles.length === 0 ? (
+            <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300">
+              There are no available open role slots remaining on this team at this time.
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                Available Open Roles
+              </label>
+              <select
+                value={requestAnotherModal.selectedRole}
+                onChange={(e) =>
+                  setRequestAnotherModal((prev) => ({ ...prev, selectedRole: e.target.value }))
+                }
+                className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
+              >
+                {requestAnotherModal.openRoles.map((slot, i) => (
+                  <option key={`${slot.roleName}-${i}`} value={slot.roleName}>
+                    {slot.roleName} ({slot.availableSlots} opening{slot.availableSlots > 1 ? 's' : ''})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </form>
+      </Modal>
     </div>
   );
 };

@@ -1,6 +1,7 @@
 package com.sangam.sangam.service;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
@@ -181,9 +182,10 @@ class EmailNotificationServiceTest {
                         String textContent = root.get("textContent").asText();
                         assertTrue(textContent.contains("Applicant Details:"));
                         assertTrue(textContent.contains("Charlie"));
-                        assertTrue(textContent.contains("applicant@college.edu"));
+                        assertFalse(textContent.contains("applicant@college.edu"));
                         assertTrue(textContent.contains("Engineering College"));
                         assertTrue(textContent.contains("CSE"));
+                        assertTrue(textContent.contains("Backend Developer"));
                     } catch (Exception e) {
                         throw new AssertionError("Failed to parse request body", e);
                     }
