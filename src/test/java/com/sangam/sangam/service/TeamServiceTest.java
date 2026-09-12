@@ -2084,6 +2084,32 @@ class TeamServiceTest {
                 assertEquals("PENDING", response.getStatus());
             });
         }
+
+        @Test
+        @DisplayName("Invite student when target role is full throws CONFLICT")
+        void testInviteStudent_FullRole_ThrowsConflict() {
+            TeamRoleSlot backendSlot = new TeamRoleSlot("Backend Developer", 1);
+            inviteTeam.setRoleSlots(Set.of(backendSlot));
+
+            TeamMember existingBackendMember = new TeamMember();
+            existingBackendMember.setTeamId(100L);
+            existingBackendMember.setUserId(30L);
+            existingBackendMember.setAssignedRole("Backend Developer");
+
+            when(userRepository.findByEmail("priya.leader@college.edu")).thenReturn(Optional.of(inviteLeader));
+            when(teamRepository.findById(100L)).thenReturn(Optional.of(inviteTeam));
+            when(userRepository.findById(20L)).thenReturn(Optional.of(inviteStudent));
+            when(teamMemberRepository.existsById(new TeamMemberId(100L, 20L))).thenReturn(false);
+            when(teamMemberRepository.countByTeamId(100L)).thenReturn(1L);
+            when(teamMemberRepository.findByTeamId(100L)).thenReturn(List.of(existingBackendMember));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.inviteStudent(100L, 20L, "priya.leader@college.edu", "Backend Developer", null));
+
+            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+            assertTrue(ex.getReason().contains("This role is no longer available"));
+            verify(emailNotificationService, never()).sendTeamInvitationEmail(any(), any(), any(), any(), any());
+        }
     }
 
     @Nested

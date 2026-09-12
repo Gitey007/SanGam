@@ -776,10 +776,8 @@ export const TeamDetailsPage = () => {
     setIsInviteModalOpen(true);
     if (openRoles.length > 0) {
       setSelectedInviteRole(openRoles[0].roleName);
-    } else if (roleSlotsList.length > 0) {
-      setSelectedInviteRole(roleSlotsList[0].roleName);
     } else {
-      setSelectedInviteRole('Member');
+      setSelectedInviteRole('');
     }
     setInviteCustomRole('');
 
@@ -801,6 +799,27 @@ export const TeamDetailsPage = () => {
    */
   const handleSendInvitation = async (targetUserId) => {
     if (!id || !targetUserId) return;
+    if (isExpired) {
+      toastError('The deadline to invite members has expired.');
+      return;
+    }
+    if (isTeamFull) {
+      toastError('Cannot invite students. The team is already full.');
+      return;
+    }
+    if (!selectedInviteRole) {
+      toastError('Please select an available role to invite.');
+      return;
+    }
+    const targetSlot = roleSlotsList.find((r) => r.roleName === selectedInviteRole);
+    if (roleSlotsList.length > 0 && targetSlot && targetSlot.availableSlots <= 0) {
+      toastError('Cannot invite to a full role. Please select an available role.');
+      return;
+    }
+    if (isOther(selectedInviteRole) && !inviteCustomRole.trim()) {
+      toastError('Please specify the custom role.');
+      return;
+    }
     setInvitingUserId(targetUserId);
     try {
       await teamApi.inviteStudentToTeam(
@@ -811,6 +830,7 @@ export const TeamDetailsPage = () => {
       );
       success('Invitation sent successfully!');
       await fetchSentInvitations();
+      await fetchTeamDetails();
     } catch (err) {
       const msg = extractErrorMessage(err, 'Failed to send invitation.');
       toastError(msg);
@@ -2213,23 +2233,31 @@ export const TeamDetailsPage = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <select
                   value={selectedInviteRole}
-                  onChange={(e) => setSelectedInviteRole(e.target.value)}
+                  onChange={(e) => {
+                    const targetSlot = roleSlotsList.find((s) => s.roleName === e.target.value);
+                    if (targetSlot && targetSlot.availableSlots > 0) {
+                      setSelectedInviteRole(e.target.value);
+                    }
+                  }}
                   className="w-full h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
                 >
-                  {roleSlotsList.map((slot, i) => (
-                    <option
-                      key={`${slot.roleName}-${i}`}
-                      value={slot.roleName}
-                    >
-                      {slot.roleName} (
-                      {slot.availableSlots > 0
-                        ? `${slot.availableSlots} opening${
-                            slot.availableSlots > 1 ? 's' : ''
-                          }`
-                        : 'FULL'}
-                      )
+                  {!selectedInviteRole && (
+                    <option value="" disabled>
+                      {openRoles.length === 0 ? '-- All roles are full --' : '-- Select an available role --'}
                     </option>
-                  ))}
+                  )}
+                  {roleSlotsList.map((slot, i) => {
+                    const isAvailable = slot.availableSlots > 0;
+                    return (
+                      <option
+                        key={`${slot.roleName}-${i}`}
+                        value={slot.roleName}
+                        disabled={!isAvailable}
+                      >
+                        {slot.roleName} {isAvailable ? `(${slot.availableSlots} slot${slot.availableSlots > 1 ? 's' : ''})` : '(FULL)'}
+                      </option>
+                    );
+                  })}
                 </select>
 
                 {isOther(selectedInviteRole) && (
@@ -2257,8 +2285,8 @@ export const TeamDetailsPage = () => {
             />
           </div>
 
-          {/* Warning if full */}
-          {isTeamFull && (
+          {/* Warning if team is full or all roles are full */}
+          {isTeamFull ? (
             <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-center gap-2 text-amber-800 dark:text-amber-300 text-xs">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>
@@ -2266,7 +2294,14 @@ export const TeamDetailsPage = () => {
                 {team.maxMembers}). You cannot invite more members.
               </span>
             </div>
-          )}
+          ) : openRoles.length === 0 && roleSlotsList.length > 0 ? (
+            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-center gap-2 text-amber-800 dark:text-amber-300 text-xs">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>
+                All role slots are currently full. To invite new members, please edit the team to add more slots or remove existing members.
+              </span>
+            </div>
+          ) : null}
 
           {/* Student list */}
           <div className="max-h-72 overflow-y-auto space-y-2 divide-y divide-slate-100 dark:divide-slate-700 pr-1">
@@ -2363,7 +2398,15 @@ export const TeamDetailsPage = () => {
                           leftIcon={Send}
                           onClick={() => handleSendInvitation(student.id)}
                           isLoading={invitingUserId === student.id}
-                          disabled={isTeamFull || Boolean(invitingUserId)}
+                          disabled={
+                            isTeamFull ||
+                            isExpired ||
+                            Boolean(invitingUserId) ||
+                            !selectedInviteRole ||
+                            (roleSlotsList.length > 0 &&
+                              (roleSlotsList.find((r) => r.roleName === selectedInviteRole)?.availableSlots ?? 0) <= 0) ||
+                            (isOther(selectedInviteRole) && !inviteCustomRole.trim())
+                          }
                           className="min-w-[68px] whitespace-nowrap"
                         >
                           Invite
