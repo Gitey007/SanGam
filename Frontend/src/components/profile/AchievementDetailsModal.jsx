@@ -11,7 +11,15 @@ export const AchievementDetailsModal = ({
 }) => {
   if (!achievement) return null;
 
-  const rawUrl = achievement.verificationUrl || achievement.proofUrl || '';
+  const rawUrl =
+    achievement.verificationUrl ||
+    achievement.proofUrl ||
+    achievement.verification_url ||
+    achievement.proof_url ||
+    achievement.proof ||
+    achievement.certificateUrl ||
+    achievement.certificate_url ||
+    '';
   const trimmedUrl = typeof rawUrl === 'string' ? rawUrl.trim() : '';
   const proofUrl = trimmedUrl
     ? trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')
@@ -19,7 +27,13 @@ export const AchievementDetailsModal = ({
       : `https://${trimmedUrl}`
     : null;
 
-  const dateValue = (achievement.achievementDate || achievement.date || '').trim();
+  const dateValue = (
+    achievement.achievementDate ||
+    achievement.date ||
+    achievement.achievement_date ||
+    ''
+  ).trim();
+
   const titleValue = (achievement.title || '').trim();
   const descriptionValue = (achievement.description || '').trim();
   const categoryValue = (achievement.category || 'Other').trim();
