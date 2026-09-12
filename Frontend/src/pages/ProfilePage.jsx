@@ -498,10 +498,10 @@ export const ProfilePage = () => {
                     <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                       {ach.title}
                     </h3>
-                    {ach.date && (
+                    {(ach.date || ach.achievementDate) && (
                       <span className="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 shrink-0">
                         <Calendar className="w-3 h-3" />
-                        {ach.date}
+                        {ach.date || ach.achievementDate}
                       </span>
                     )}
                   </div>
