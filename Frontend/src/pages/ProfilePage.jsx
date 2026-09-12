@@ -20,7 +20,6 @@ import userApi from '../services/userApi';
 import ProfileHeader from '../components/profile/ProfileHeader';
 import EditProfileModal from '../components/profile/EditProfileModal';
 import AddEditAchievementModal from '../components/profile/AddEditAchievementModal';
-import AchievementDetailsModal from '../components/profile/AchievementDetailsModal';
 import AddEditProjectModal from '../components/profile/AddEditProjectModal';
 import { ProfileSkeleton } from '../components/common/Skeleton';
 import ErrorState from '../components/common/ErrorState';
@@ -46,7 +45,6 @@ export const ProfilePage = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAchievementModalOpen, setIsAchievementModalOpen] = useState(false);
   const [editingAchievement, setEditingAchievement] = useState(null);
-  const [selectedAchievementDetails, setSelectedAchievementDetails] = useState(null);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [deleteConfirmItem, setDeleteConfirmItem] = useState(null);
@@ -484,62 +482,70 @@ export const ProfilePage = () => {
               {achievementsList.map((ach) => (
                 <div
                   key={ach.id}
-                  className="rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-3.5 bg-white dark:bg-slate-800/60 hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-800/60 hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col sm:flex-row sm:items-start justify-between gap-3"
                 >
-                  {/* Category & Title */}
-                  <div className="flex flex-wrap items-center gap-2.5 min-w-0 flex-1">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider border transition-colors duration-150 shrink-0 ${getAchievementCategoryBadgeClass(
-                        ach.category
-                      )}`}
-                    >
-                      {ach.category || 'Other'}
-                    </span>
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                      {ach.title}
-                    </h3>
-                    {ach.date && (
-                      <span className="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 shrink-0">
-                        <Calendar className="w-3 h-3" />
-                        {ach.date}
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider border transition-colors duration-150 ${getAchievementCategoryBadgeClass(
+                          ach.category
+                        )}`}
+                      >
+                        {ach.category || 'Other'}
                       </span>
-                    )}
-                  </div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                        {ach.title}
+                      </h3>
+                      {ach.date && (
+                        <span className="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500">
+                          <Calendar className="w-3 h-3" />
+                          {ach.date}
+                        </span>
+                      )}
+                    </div>
 
-                  {/* Actions: View Details, Edit, Delete */}
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedAchievementDetails(ach)}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white px-2.5 py-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors"
-                    >
-                      <span>View Details</span>
-                    </button>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mt-1 whitespace-pre-line">
+                      {ach.description}
+                    </p>
 
-                    {isOwnProfile && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingAchievement(ach);
-                            setIsAchievementModalOpen(true);
-                          }}
-                          className="p-1.5 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                          title="Edit achievement"
+                    {ach.proofUrl && (
+                      <div className="mt-2.5">
+                        <a
+                          href={ach.proofUrl.startsWith('http') ? ach.proofUrl : `https://${ach.proofUrl}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 hover:underline"
                         >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteAchievementClick(ach)}
-                          className="p-1.5 rounded text-slate-400 hover:text-red-600 dark:hover:text-rose-400 hover:bg-red-50 dark:hover:bg-rose-950/40 transition-colors"
-                          title="Delete achievement"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          <ExternalLink className="w-3 h-3" />
+                          <span>View Proof / Certificate</span>
+                        </a>
                       </div>
                     )}
                   </div>
+
+                  {isOwnProfile && (
+                    <div className="flex items-center gap-1 self-end sm:self-start">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingAchievement(ach);
+                          setIsAchievementModalOpen(true);
+                        }}
+                        className="p-1.5 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                        title="Edit achievement"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAchievementClick(ach)}
+                        className="p-1.5 rounded text-slate-400 hover:text-red-600 dark:hover:text-rose-400 hover:bg-red-50 dark:hover:bg-rose-950/40 transition-colors"
+                        title="Delete achievement"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -577,13 +583,6 @@ export const ProfilePage = () => {
           onSaved={fetchProfile}
         />
       )}
-
-      {/* View Achievement Details Modal */}
-      <AchievementDetailsModal
-        isOpen={Boolean(selectedAchievementDetails)}
-        onClose={() => setSelectedAchievementDetails(null)}
-        achievement={selectedAchievementDetails}
-      />
 
       {/* Add / Edit Project Modal */}
       {isOwnProfile && (
