@@ -8,6 +8,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './routes/ProtectedRoute';
 import PublicRoute from './routes/PublicRoute';
 import AppLayout from './components/layout/AppLayout';
+import { PageSkeleton } from './components/common/Skeleton';
 
 // Lazy-loaded Pages for Route-level Code Splitting
 const LandingPage = lazy(() => import('./pages/LandingPage'));
@@ -23,20 +24,13 @@ const CreateTeamPage = lazy(() => import('./pages/CreateTeamPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
-// Subtle route transition fallback
-const RouteFallback = () => (
-  <div className="min-h-[50vh] flex items-center justify-center p-8">
-    <div className="w-7 h-7 rounded-full border-2 border-slate-200 dark:border-slate-700 border-t-slate-800 dark:border-t-brand-500 animate-spin" />
-  </div>
-);
-
 export const App = () => {
   return (
     <ThemeProvider>
       <ToastProvider>
         <AuthProvider>
           <BrowserRouter>
-            <Suspense fallback={<RouteFallback />}>
+            <Suspense fallback={<PageSkeleton />}>
               <Routes>
                 {/* Public Landing Page */}
                 <Route path="/" element={<LandingPage />} />

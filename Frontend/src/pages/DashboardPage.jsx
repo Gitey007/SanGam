@@ -25,6 +25,7 @@ import ConfirmModal from '../components/common/ConfirmModal';
 import { formatCollege, formatBranchYear, extractErrorMessage } from '../utils/helpers';
 import { POPULAR_SKILLS } from '../utils/constants';
 import teamApi from '../services/teamApi';
+import { TeamCardSkeleton } from '../components/common/Skeleton';
 
 export const DashboardPage = () => {
   const { user } = useAuth();
@@ -372,7 +373,7 @@ export const DashboardPage = () => {
         {isLoadingTeams ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-48 bg-slate-100/70 dark:bg-slate-800/70 rounded-xl animate-pulse" />
+              <TeamCardSkeleton key={i} />
             ))}
           </div>
         ) : teams.length > 0 ? (

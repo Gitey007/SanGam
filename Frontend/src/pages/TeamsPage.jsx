@@ -22,6 +22,11 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import teamApi from '../services/teamApi';
 import { extractErrorMessage } from '../utils/helpers';
+import {
+  TeamCardSkeleton,
+  TeamInvitationCardSkeleton,
+  TeamRequestCardSkeleton,
+} from '../components/common/Skeleton';
 
 export const TeamsPage = () => {
   const navigate = useNavigate();
@@ -426,12 +431,9 @@ export const TeamsPage = () => {
       {tab === 'invitations' ? (
         /* Invitations List (Pending only per Spec 26) */
         isLoadingInvitations ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[1, 2].map((i) => (
-              <div
-                key={i}
-                className="h-40 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse"
-              />
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <TeamInvitationCardSkeleton key={i} />
             ))}
           </div>
         ) : pendingInvitations.length === 0 ? (
@@ -565,12 +567,9 @@ export const TeamsPage = () => {
       ) : tab === 'requests' ? (
         /* My Join Requests Tab (Spec 25) */
         isLoadingRequests ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[1, 2].map((i) => (
-              <div
-                key={i}
-                className="h-36 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse"
-              />
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <TeamRequestCardSkeleton key={i} />
             ))}
           </div>
         ) : pendingRequests.length === 0 ? (
@@ -670,11 +669,8 @@ export const TeamsPage = () => {
         /* Teams Grid */
         isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-48 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse"
-              />
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <TeamCardSkeleton key={i} />
             ))}
           </div>
         ) : error ? (
