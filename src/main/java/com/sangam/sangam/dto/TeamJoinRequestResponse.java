@@ -135,6 +135,10 @@ public class TeamJoinRequestResponse {
         this.customRole = customRole;
     }
 
+    public Long getId() {
+        return requestId;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }

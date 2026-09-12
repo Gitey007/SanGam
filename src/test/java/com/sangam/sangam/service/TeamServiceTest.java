@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -15,6 +17,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -2080,6 +2083,183 @@ class TeamServiceTest {
                 assertEquals(557L, response.getInvitationId());
                 assertEquals("PENDING", response.getStatus());
             });
+        }
+    }
+
+    @Nested
+    @DisplayName("Request Another Role Tests")
+    class RequestAnotherRoleTests {
+
+        private Team teamWithSlots;
+        private User teamLeader;
+        private User studentUser;
+        private TeamInvitation pendingInv;
+
+        @BeforeEach
+        void setUp() {
+            teamLeader = new User();
+            teamLeader.setId(10L);
+            teamLeader.setName("Leader Alice");
+            teamLeader.setEmail("alice.leader@college.edu");
+
+            studentUser = new User();
+            studentUser.setId(20L);
+            studentUser.setName("Student Bob");
+            studentUser.setEmail("bob.student@college.edu");
+            studentUser.setCollege("Engineering College");
+            studentUser.setBranch("CSE");
+            studentUser.setYear((byte) 3);
+
+            teamWithSlots = new Team();
+            teamWithSlots.setId(100L);
+            teamWithSlots.setName("CodeCrafters");
+            teamWithSlots.setLeader(teamLeader);
+            teamWithSlots.setMaxMembers((byte) 4);
+            teamWithSlots.setRoleSlots(Set.of(
+                    new TeamRoleSlot("ML / AI Engineer", 1),
+                    new TeamRoleSlot("Researcher", 1),
+                    new TeamRoleSlot("Frontend Developer", 1)
+            ));
+
+            pendingInv = new TeamInvitation(
+                    teamWithSlots, studentUser, teamLeader, TeamInvitation.InvitationStatus.PENDING,
+                    "ML / AI Engineer", null
+            );
+            pendingInv.setId(500L);
+        }
+
+        @Test
+        @DisplayName("Request another role with available slot creates normal PENDING join request and cancels original invitation")
+        void testRequestAnotherRole_Success() {
+            when(userRepository.findByEmail("bob.student@college.edu")).thenReturn(Optional.of(studentUser));
+            when(teamInvitationRepository.findById(500L)).thenReturn(Optional.of(pendingInv));
+            when(teamRepository.findById(100L)).thenReturn(Optional.of(teamWithSlots));
+            when(userRepository.findById(20L)).thenReturn(Optional.of(studentUser));
+            when(teamMemberRepository.existsById(new TeamMemberId(100L, 20L))).thenReturn(false);
+            when(teamMemberRepository.countByTeamId(100L)).thenReturn(1L);
+            when(teamMemberRepository.findByTeamId(100L)).thenReturn(List.of(
+                    new TeamMember() {{ setTeamId(100L); setUserId(10L); setAssignedRole("Frontend Developer"); }}
+            ));
+            when(teamJoinRequestRepository.findByTeamIdAndUserId(100L, 20L)).thenReturn(Optional.empty());
+            when(teamJoinRequestRepository.save(any(TeamJoinRequest.class))).thenAnswer(i -> {
+                TeamJoinRequest req = i.getArgument(0);
+                req.setId(700L);
+                return req;
+            });
+
+            TeamJoinRequestResponse response = teamService.requestAnotherRole(
+                    500L, "bob.student@college.edu", "Researcher", null
+            );
+
+            assertNotNull(response);
+            assertEquals(700L, response.getId());
+            assertEquals("PENDING", response.getStatus());
+            assertEquals("Researcher", response.getRequestedRole());
+
+            assertEquals(TeamInvitation.InvitationStatus.CANCELLED, pendingInv.getStatus());
+            verify(teamInvitationRepository).save(pendingInv);
+
+            verify(emailNotificationService).sendJoinRequestReceivedEmail(
+                    eq("alice.leader@college.edu"), eq("Leader Alice"),
+                    eq("Student Bob"), eq("bob.student@college.edu"), eq("Engineering College"),
+                    eq("CSE"), eq((byte) 3), eq("CodeCrafters"), eq("Researcher")
+            );
+        }
+
+        @Test
+        @DisplayName("Request another role fails when requested role has no available slots (409 CONFLICT)")
+        void testRequestAnotherRole_RoleUnavailable_ThrowsConflict() {
+            when(userRepository.findByEmail("bob.student@college.edu")).thenReturn(Optional.of(studentUser));
+            when(teamInvitationRepository.findById(500L)).thenReturn(Optional.of(pendingInv));
+            when(teamRepository.findById(100L)).thenReturn(Optional.of(teamWithSlots));
+            when(userRepository.findById(20L)).thenReturn(Optional.of(studentUser));
+            when(teamMemberRepository.existsById(new TeamMemberId(100L, 20L))).thenReturn(false);
+            when(teamMemberRepository.countByTeamId(100L)).thenReturn(2L);
+            TeamMember researcherMember = new TeamMember();
+            researcherMember.setTeamId(100L);
+            researcherMember.setUserId(30L);
+            researcherMember.setAssignedRole("Researcher");
+            when(teamMemberRepository.findByTeamId(100L)).thenReturn(List.of(researcherMember));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.requestAnotherRole(500L, "bob.student@college.edu", "Researcher", null)
+            );
+
+            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+            assertTrue(ex.getReason().contains("This role is no longer available"));
+        }
+
+        @Test
+        @DisplayName("Request another role fails when invitation is not pending (400 Bad Request)")
+        void testRequestAnotherRole_NotPending_ThrowsBadRequest() {
+            pendingInv.setStatus(TeamInvitation.InvitationStatus.ACCEPTED);
+            when(userRepository.findByEmail("bob.student@college.edu")).thenReturn(Optional.of(studentUser));
+            when(teamInvitationRepository.findById(500L)).thenReturn(Optional.of(pendingInv));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.requestAnotherRole(500L, "bob.student@college.edu", "Researcher", null)
+            );
+
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        }
+
+        @Test
+        @DisplayName("Request another role by unauthorized user is forbidden (403 FORBIDDEN)")
+        void testRequestAnotherRole_UnauthorizedUser_ThrowsForbidden() {
+            User otherUser = new User();
+            otherUser.setId(99L);
+            otherUser.setEmail("other@college.edu");
+
+            when(userRepository.findByEmail("other@college.edu")).thenReturn(Optional.of(otherUser));
+            when(teamInvitationRepository.findById(500L)).thenReturn(Optional.of(pendingInv));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.requestAnotherRole(500L, "other@college.edu", "Researcher", null)
+            );
+
+            assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        }
+
+        @Test
+        @DisplayName("Accepting the requested alternate-role join request assigns student with requested role")
+        void testLeaderAcceptsAlternateRoleJoinRequest() {
+            TeamJoinRequest alternateRequest = new TeamJoinRequest(
+                    teamWithSlots, studentUser, TeamJoinRequest.RequestStatus.PENDING, "Researcher", null
+            );
+            alternateRequest.setId(700L);
+
+            when(teamJoinRequestRepository.findById(700L)).thenReturn(Optional.of(alternateRequest));
+            when(teamRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(teamWithSlots));
+            when(teamMemberRepository.existsById(new TeamMemberId(100L, 20L))).thenReturn(false);
+            when(teamMemberRepository.findByTeamId(100L)).thenReturn(Collections.emptyList());
+            when(teamMemberRepository.countByTeamId(100L)).thenReturn(1L);
+
+            teamService.acceptJoinRequest(100L, 700L, 10L, null, null, null);
+
+            assertEquals(TeamJoinRequest.RequestStatus.ACCEPTED, alternateRequest.getStatus());
+            verify(teamMemberRepository).save(argThat(m ->
+                    m.getUserId().equals(20L) && "Researcher".equals(m.getAssignedRole())
+            ));
+        }
+
+        @Test
+        @DisplayName("getAllTeams includes members list for membership verification")
+        void testGetAllTeams_IncludesMembers() {
+            TeamMember m = new TeamMember();
+            m.setTeamId(100L);
+            m.setUserId(20L);
+            m.setRole(TeamMember.Role.MEMBER);
+            m.setAssignedRole("Researcher");
+
+            when(teamRepository.findAll()).thenReturn(List.of(teamWithSlots));
+            when(teamMemberRepository.findByTeamIdIn(List.of(100L))).thenReturn(List.of(m));
+
+            List<TeamResponse> all = teamService.getAllTeams();
+            assertEquals(1, all.size());
+            assertNotNull(all.get(0).getMembers());
+            assertEquals(1, all.get(0).getMembers().size());
+            assertEquals(20L, all.get(0).getMembers().get(0).getUserId());
+            assertEquals("Researcher", all.get(0).getMembers().get(0).getAssignedRole());
         }
     }
 }

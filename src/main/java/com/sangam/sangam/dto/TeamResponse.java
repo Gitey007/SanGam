@@ -29,6 +29,7 @@ public class TeamResponse {
     private List<TeamRoleSlotDto> roleSlots;
     private Integer memberCount;
     private String status; // "OPEN", "ALMOST_FULL", "FULL"
+    private List<TeamMemberResponse> members;
 
     public TeamResponse() {
     }
@@ -329,5 +330,13 @@ public class TeamResponse {
 
     public void setAvailableCapacity(Integer availableCapacity) {
         this.availableCapacity = availableCapacity;
+    }
+
+    public List<TeamMemberResponse> getMembers() {
+        return members;
+    }
+
+    public void setMembers(List<TeamMemberResponse> members) {
+        this.members = members;
     }
 }

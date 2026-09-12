@@ -228,16 +228,14 @@ export const TeamsPage = () => {
 
   const handleConfirmRequestAnotherRole = async (e) => {
     e?.preventDefault();
-    const uid = user?.id || user?.userId;
     const inv = requestAnotherModal.invitation;
     const role = requestAnotherModal.selectedRole;
-    if (!uid || !inv || !role) return;
+    if (!inv || !role) return;
 
     setRequestAnotherModal((prev) => ({ ...prev, isSubmitting: true }));
     try {
-      await teamApi.sendJoinRequest(
-        inv.teamId,
-        uid,
+      await teamApi.requestAnotherRole(
+        inv.invitationId,
         role,
         requestAnotherModal.customRole?.trim() || null
       );
@@ -278,16 +276,18 @@ export const TeamsPage = () => {
   };
 
   const myTeams = teams.filter((t) => {
+    const currentUserId = user?.id || user?.userId;
     const isLeader =
-      (t.leaderId && user?.id && String(t.leaderId) === String(user.id)) ||
-      (t.leader?.id && user?.id && String(t.leader.id) === String(user.id)) ||
+      (t.leaderId && currentUserId && String(t.leaderId) === String(currentUserId)) ||
+      (t.leader?.id && currentUserId && String(t.leader.id) === String(currentUserId)) ||
       (t.leaderName && user?.name && t.leaderName === user.name);
     const isMember = t.members?.some(
       (m) =>
-        String(m.userId || m.id) === String(user?.id) ||
-        m.name === user?.name
+        (m.userId && currentUserId && String(m.userId) === String(currentUserId)) ||
+        (m.id && currentUserId && String(m.id) === String(currentUserId)) ||
+        (m.name && user?.name && m.name === user.name)
     );
-    return isLeader || isMember;
+    return Boolean(isLeader || isMember);
   });
 
   const [limit, setLimit] = useState(10); // 10 | 20 | 30 | 'ALL'
@@ -700,7 +700,7 @@ export const TeamsPage = () => {
           setRequestAnotherModal((prev) => ({ ...prev, isOpen: false }))
         }
         title="Request Another Role"
-        description={`Submit a new join request for an available role on ${requestAnotherModal.team?.name || requestAnotherModal.invitation?.teamName || 'this team'}:`}
+        description={`Submit a new join request for an available role on ${requestAnotherModal.team?.name || requestAnotherModal.invitation?.teamName || 'this team'}.`}
         maxWidth="max-w-md"
         footer={
           <>
@@ -733,7 +733,7 @@ export const TeamsPage = () => {
             </div>
           ) : requestAnotherModal.openRoles.length === 0 ? (
             <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300">
-              There are no available open role slots remaining on this team at this time.
+              No alternate roles are currently available.
             </div>
           ) : (
             <div>

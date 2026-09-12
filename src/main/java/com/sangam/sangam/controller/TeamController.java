@@ -399,6 +399,33 @@ public class TeamController {
                 "Invitation rejected successfully");
     }
 
+    @PostMapping("/invitations/{invitationId}/request-another")
+    public ResponseEntity<TeamJoinRequestResponse> requestAnotherRole(
+            @PathVariable Long invitationId,
+            @RequestParam(required = false) String requestedRole,
+            @RequestParam(required = false) String customRole,
+            @RequestBody(required = false) RoleActionRequest body,
+            Authentication authentication) {
+
+        String effectiveRole = (requestedRole != null && !requestedRole.isBlank())
+                ? requestedRole
+                : (body != null ? body.getRequestedRole() : null);
+
+        String effectiveCustomRole = (customRole != null && !customRole.isBlank())
+                ? customRole
+                : (body != null ? body.getCustomRole() : null);
+
+        TeamJoinRequestResponse response = teamService.requestAnotherRole(
+                invitationId,
+                authentication != null ? authentication.getName() : null,
+                effectiveRole,
+                effectiveCustomRole);
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
+    }
+
     @GetMapping("/invitations/my")
     public ResponseEntity<List<TeamInvitationResponse>> getMyInvitations(
             @RequestParam(required = false) TeamInvitation.InvitationStatus status,
