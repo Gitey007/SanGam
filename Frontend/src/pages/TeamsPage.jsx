@@ -54,7 +54,7 @@ export const TeamsPage = () => {
     isOpen: false,
     invitation: null,
     team: null,
-    openRoles: [],
+    allRoles: [],
     selectedRole: '',
     customRole: '',
     isLoadingRoles: false,
@@ -185,15 +185,18 @@ export const TeamsPage = () => {
     const cachedTeam = teams.find((t) => String(t.id) === String(invitation.teamId));
     let initialRoles = [];
     if (cachedTeam?.roleSlots) {
-      initialRoles = cachedTeam.roleSlots.filter((r) => r.availableSlots > 0);
+      initialRoles = cachedTeam.roleSlots.filter(
+        (r) => r.roleName?.toLowerCase() !== invitation.invitedRole?.toLowerCase()
+      );
     }
+    const firstAvailable = initialRoles.find((r) => r.availableSlots > 0);
 
     setRequestAnotherModal({
       isOpen: true,
       invitation,
       team: cachedTeam || null,
-      openRoles: initialRoles,
-      selectedRole: initialRoles.length > 0 ? initialRoles[0].roleName : '',
+      allRoles: initialRoles,
+      selectedRole: firstAvailable ? firstAvailable.roleName : '',
       customRole: '',
       isLoadingRoles: !cachedTeam || !cachedTeam.roleSlots,
       isSubmitting: false,
@@ -201,22 +204,27 @@ export const TeamsPage = () => {
 
     try {
       const freshTeam = await teamApi.getTeamById(invitation.teamId);
-      const openSlots = Array.isArray(freshTeam?.roleSlots)
-        ? freshTeam.roleSlots.filter((r) => r.availableSlots > 0)
+      const allSlots = Array.isArray(freshTeam?.roleSlots)
+        ? freshTeam.roleSlots.filter(
+            (r) => r.roleName?.toLowerCase() !== invitation.invitedRole?.toLowerCase()
+          )
         : [];
+      const freshAvailable = allSlots.find((r) => r.availableSlots > 0);
 
       setRequestAnotherModal((prev) => {
         if (!prev.isOpen || prev.invitation?.invitationId !== invitation.invitationId) return prev;
+        const currentSelectionStillAvailable = allSlots.some(
+          (s) => s.roleName === prev.selectedRole && s.availableSlots > 0
+        );
         return {
           ...prev,
           team: freshTeam,
-          openRoles: openSlots,
-          selectedRole:
-            openSlots.length > 0
-              ? openSlots.some((s) => s.roleName === prev.selectedRole)
-                ? prev.selectedRole
-                : openSlots[0].roleName
-              : '',
+          allRoles: allSlots,
+          selectedRole: currentSelectionStillAvailable
+            ? prev.selectedRole
+            : freshAvailable
+            ? freshAvailable.roleName
+            : '',
           isLoadingRoles: false,
         };
       });
@@ -232,6 +240,12 @@ export const TeamsPage = () => {
     const role = requestAnotherModal.selectedRole;
     if (!inv || !role) return;
 
+    const selectedSlot = requestAnotherModal.allRoles?.find((r) => r.roleName === role);
+    if (!selectedSlot || selectedSlot.availableSlots <= 0) {
+      toastError('Selected role is full. Please choose an available role.');
+      return;
+    }
+
     setRequestAnotherModal((prev) => ({ ...prev, isSubmitting: true }));
     try {
       await teamApi.requestAnotherRole(
@@ -244,7 +258,7 @@ export const TeamsPage = () => {
         isOpen: false,
         invitation: null,
         team: null,
-        openRoles: [],
+        allRoles: [],
         selectedRole: '',
         customRole: '',
         isLoadingRoles: false,
@@ -503,38 +517,46 @@ export const TeamsPage = () => {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-end sm:self-center">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      leftIcon={Check}
-                      onClick={() => handleAcceptInvitation(inv)}
-                      isLoading={actionLoading[inv.invitationId] === 'accept'}
-                      disabled={Boolean(actionLoading[inv.invitationId])}
-                    >
-                      Accept
-                    </Button>
-                    {isEligibleForRequestAnother && (
+                  {isExpired ? (
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
+                        Expired
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-end sm:self-center">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        leftIcon={Check}
+                        onClick={() => handleAcceptInvitation(inv)}
+                        isLoading={actionLoading[inv.invitationId] === 'accept'}
+                        disabled={Boolean(actionLoading[inv.invitationId])}
+                      >
+                        Accept
+                      </Button>
+                      {isEligibleForRequestAnother && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenRequestAnotherModal(inv)}
+                          disabled={Boolean(actionLoading[inv.invitationId])}
+                        >
+                          Request Another Role
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleOpenRequestAnotherModal(inv)}
+                        leftIcon={X}
+                        onClick={() => setDeclineInvitationModal({ isOpen: true, invitationId: inv.invitationId, isLoading: false })}
                         disabled={Boolean(actionLoading[inv.invitationId])}
+                        className="text-slate-600 dark:text-slate-300 hover:text-rose-600 hover:border-rose-200 dark:hover:border-rose-800"
                       >
-                        Request Another Role
+                        Decline
                       </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      leftIcon={X}
-                      onClick={() => setDeclineInvitationModal({ isOpen: true, invitationId: inv.invitationId, isLoading: false })}
-                      disabled={Boolean(actionLoading[inv.invitationId])}
-                      className="text-slate-600 dark:text-slate-300 hover:text-rose-600 hover:border-rose-200 dark:hover:border-rose-800"
-                    >
-                      Decline
-                    </Button>
-                  </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -561,7 +583,16 @@ export const TeamsPage = () => {
           />
         ) : (
           <div className="space-y-3">
-            {pendingRequests.map((req) => (
+            {pendingRequests.map((req) => {
+              const matchingTeam = teams.find((t) => String(t.id) === String(req.teamId));
+              const isReqExpired = Boolean(
+                req.status === 'EXPIRED' ||
+                matchingTeam?.isExpired ||
+                matchingTeam?.expired ||
+                (matchingTeam?.joinDeadline && new Date(matchingTeam.joinDeadline) < new Date())
+              );
+
+              return (
               <div
                 key={req.requestId}
                 className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
@@ -574,8 +605,8 @@ export const TeamsPage = () => {
                     >
                       {req.teamName || `Team #${req.teamId}`}
                     </Link>
-                    <Badge variant="amber" size="sm">
-                      Pending Review
+                    <Badge variant={isReqExpired ? 'neutral' : 'amber'} size="sm">
+                      {isReqExpired ? 'Expired' : 'Pending Review'}
                     </Badge>
                   </div>
 
@@ -610,14 +641,20 @@ export const TeamsPage = () => {
                 </div>
 
                 <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCancelRequestModal({ isOpen: true, request: req, isLoading: false })}
-                    className="text-rose-600 dark:text-rose-400 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-200 dark:border-rose-800"
-                  >
-                    Cancel Request
-                  </Button>
+                  {isReqExpired ? (
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
+                      Expired
+                    </span>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCancelRequestModal({ isOpen: true, request: req, isLoading: false })}
+                      className="text-rose-600 dark:text-rose-400 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-200 dark:border-rose-800"
+                    >
+                      Cancel Request
+                    </Button>
+                  )}
                   <Link to={`/teams/${req.teamId}`}>
                     <Button variant="outline" size="sm" rightIcon={ArrowRight}>
                       View Squad
@@ -625,7 +662,8 @@ export const TeamsPage = () => {
                   </Link>
                 </div>
               </div>
-            ))}
+            );
+          })}
           </div>
         )
       ) : (
@@ -719,7 +757,14 @@ export const TeamsPage = () => {
               size="sm"
               onClick={handleConfirmRequestAnotherRole}
               isLoading={requestAnotherModal.isSubmitting}
-              disabled={!requestAnotherModal.selectedRole || requestAnotherModal.openRoles.length === 0 || requestAnotherModal.isLoadingRoles}
+              disabled={
+                !requestAnotherModal.selectedRole ||
+                requestAnotherModal.isLoadingRoles ||
+                requestAnotherModal.isSubmitting ||
+                !requestAnotherModal.allRoles?.some(
+                  (r) => r.roleName === requestAnotherModal.selectedRole && r.availableSlots > 0
+                )
+              }
             >
               Submit Request
             </Button>
@@ -731,27 +776,40 @@ export const TeamsPage = () => {
             <div className="py-6 text-center text-xs text-slate-500 dark:text-slate-400">
               Loading available roles...
             </div>
-          ) : requestAnotherModal.openRoles.length === 0 ? (
+          ) : !requestAnotherModal.allRoles || requestAnotherModal.allRoles.length === 0 ? (
             <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300">
-              No alternate roles are currently available.
+              No alternate roles are defined for this team.
             </div>
           ) : (
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                Available Open Roles
+                Alternate Roles
               </label>
               <select
                 value={requestAnotherModal.selectedRole}
-                onChange={(e) =>
-                  setRequestAnotherModal((prev) => ({ ...prev, selectedRole: e.target.value }))
-                }
+                onChange={(e) => {
+                  const targetSlot = requestAnotherModal.allRoles?.find((s) => s.roleName === e.target.value);
+                  if (targetSlot && targetSlot.availableSlots > 0) {
+                    setRequestAnotherModal((prev) => ({ ...prev, selectedRole: e.target.value }));
+                  }
+                }}
                 className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
               >
-                {requestAnotherModal.openRoles.map((slot, i) => (
-                  <option key={`${slot.roleName}-${i}`} value={slot.roleName}>
-                    {slot.roleName} ({slot.availableSlots} opening{slot.availableSlots > 1 ? 's' : ''})
-                  </option>
-                ))}
+                {!requestAnotherModal.selectedRole && (
+                  <option value="" disabled>Select an available role...</option>
+                )}
+                {requestAnotherModal.allRoles.map((slot, i) => {
+                  const isAvailable = slot.availableSlots > 0;
+                  return (
+                    <option
+                      key={`${slot.roleName}-${i}`}
+                      value={slot.roleName}
+                      disabled={!isAvailable}
+                    >
+                      {slot.roleName} {isAvailable ? `(${slot.availableSlots} slot${slot.availableSlots > 1 ? 's' : ''})` : '(FULL)'}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}

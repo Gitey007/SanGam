@@ -350,6 +350,13 @@ export const TeamDetailsPage = () => {
   // Available roles with openings
   const roleSlotsList = team?.roleSlots || [];
   const openRoles = roleSlotsList.filter((r) => r.availableSlots > 0);
+  const studentAlternateRoles = Array.isArray(roleSlotsList)
+    ? roleSlotsList.filter(
+        (s) =>
+          !myPendingInvitation?.invitedRole ||
+          s.roleName?.toLowerCase() !== myPendingInvitation.invitedRole?.toLowerCase()
+      )
+    : [];
 
   const invitedRoleSlot = myPendingInvitation
     ? roleSlotsList.find((s) => roleMatches(s.roleName, myPendingInvitation.invitedRole))
@@ -480,11 +487,8 @@ export const TeamDetailsPage = () => {
    * Open "Request Another Role" modal for invited student
    */
   const handleStudentOpenRequestAnotherModal = () => {
-    if (openRoles.length > 0) {
-      setSelectedStudentAnotherRole(openRoles[0].roleName);
-    } else {
-      setSelectedStudentAnotherRole('');
-    }
+    const firstAvailable = studentAlternateRoles.find((s) => s.availableSlots > 0);
+    setSelectedStudentAnotherRole(firstAvailable ? firstAvailable.roleName : '');
     setStudentAnotherCustomRole('');
     setIsStudentRequestAnotherModalOpen(true);
   };
@@ -495,6 +499,12 @@ export const TeamDetailsPage = () => {
   const handleConfirmStudentRequestAnotherRole = async (e) => {
     e?.preventDefault();
     if (!selectedStudentAnotherRole) return;
+
+    const selectedSlot = studentAlternateRoles.find((r) => r.roleName === selectedStudentAnotherRole);
+    if (!selectedSlot || selectedSlot.availableSlots <= 0) {
+      toastError('Selected role is full. Please choose an available role.');
+      return;
+    }
 
     setActionLoading((prev) => ({ ...prev, 'my-invitation': 'request-another' }));
     try {
@@ -1037,6 +1047,10 @@ export const TeamDetailsPage = () => {
                     Leave Team
                   </Button>
                 </div>
+              ) : isExpired ? (
+                <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
+                  Join Deadline Expired
+                </span>
               ) : myPendingInvitation ? (
                 /* Priority 2: Pending Invitation Exists -> Show Accept Invitation (Hide Join Request) */
                 <div className="flex items-center gap-2">
@@ -1075,10 +1089,6 @@ export const TeamDetailsPage = () => {
                     Cancel Request
                   </Button>
                 </div>
-              ) : isExpired ? (
-                <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
-                  Join Deadline Expired
-                </span>
               ) : isTeamFull ? (
                 <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
                   Team is full
@@ -1102,7 +1112,30 @@ export const TeamDetailsPage = () => {
         {/* Priority 2: Student Invitation Banner */}
         {!isMember && !isLeader && myPendingInvitation && (
           <div className="mx-6 md:mx-8 mt-6 p-4 rounded-xl bg-brand-50/80 dark:bg-brand-950/40 border border-brand-200 dark:border-brand-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-            {isTeamFull ? (
+            {isExpired ? (
+              <>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Join Deadline Expired
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    The join deadline for this team has passed. This invitation is no longer active.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setMyPendingInvitation(null)}
+                  >
+                    Dismiss
+                  </Button>
+                </div>
+              </>
+            ) : isTeamFull ? (
               <>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
@@ -1888,7 +1921,13 @@ export const TeamDetailsPage = () => {
               size="sm"
               onClick={handleConfirmStudentRequestAnotherRole}
               isLoading={actionLoading['my-invitation'] === 'request-another'}
-              disabled={!selectedStudentAnotherRole || openRoles.length === 0}
+              disabled={
+                !selectedStudentAnotherRole ||
+                actionLoading['my-invitation'] === 'request-another' ||
+                !studentAlternateRoles.some(
+                  (r) => r.roleName === selectedStudentAnotherRole && r.availableSlots > 0
+                )
+              }
             >
               Submit Request
             </Button>
@@ -1896,26 +1935,40 @@ export const TeamDetailsPage = () => {
         }
       >
         <form onSubmit={handleConfirmStudentRequestAnotherRole} className="space-y-4">
-          {openRoles.length === 0 ? (
+          {studentAlternateRoles.length === 0 ? (
             <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300">
-              No alternate roles are currently available.
+              No alternate roles are defined for this team.
             </div>
           ) : (
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                Available Open Roles
+                Alternate Roles
               </label>
               <select
                 value={selectedStudentAnotherRole}
-                onChange={(e) => setSelectedStudentAnotherRole(e.target.value)}
+                onChange={(e) => {
+                  const targetSlot = studentAlternateRoles.find((s) => s.roleName === e.target.value);
+                  if (targetSlot && targetSlot.availableSlots > 0) {
+                    setSelectedStudentAnotherRole(e.target.value);
+                  }
+                }}
                 className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
               >
-                {openRoles.map((slot, i) => (
-                  <option key={`${slot.roleName}-${i}`} value={slot.roleName}>
-                    {slot.roleName} ({slot.availableSlots} opening
-                    {slot.availableSlots > 1 ? 's' : ''})
-                  </option>
-                ))}
+                {!selectedStudentAnotherRole && (
+                  <option value="" disabled>Select an available role...</option>
+                )}
+                {studentAlternateRoles.map((slot, i) => {
+                  const isAvailable = slot.availableSlots > 0;
+                  return (
+                    <option
+                      key={`${slot.roleName}-${i}`}
+                      value={slot.roleName}
+                      disabled={!isAvailable}
+                    >
+                      {slot.roleName} {isAvailable ? `(${slot.availableSlots} slot${slot.availableSlots > 1 ? 's' : ''})` : '(FULL)'}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}
