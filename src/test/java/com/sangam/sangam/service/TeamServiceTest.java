@@ -2155,6 +2155,7 @@ class TeamServiceTest {
             assertEquals(700L, response.getId());
             assertEquals("PENDING", response.getStatus());
             assertEquals("Researcher", response.getRequestedRole());
+            assertTrue(Boolean.TRUE.equals(response.getFromInvitation()));
 
             assertEquals(TeamInvitation.InvitationStatus.CANCELLED, pendingInv.getStatus());
             verify(teamInvitationRepository).save(pendingInv);
@@ -2164,6 +2165,96 @@ class TeamServiceTest {
                     eq("Student Bob"), eq("bob.student@college.edu"), eq("Engineering College"),
                     eq("CSE"), eq((byte) 3), eq("CodeCrafters"), eq("Researcher")
             );
+        }
+
+        @Test
+        @DisplayName("Normal student sendJoinRequest sets fromInvitation = false")
+        void testNormalJoinRequest_HasFromInvitationFalse() {
+            when(teamRepository.findById(100L)).thenReturn(Optional.of(teamWithSlots));
+            when(userRepository.findById(20L)).thenReturn(Optional.of(studentUser));
+            when(teamMemberRepository.existsById(new TeamMemberId(100L, 20L))).thenReturn(false);
+            when(teamMemberRepository.countByTeamId(100L)).thenReturn(1L);
+            when(teamMemberRepository.findByTeamId(100L)).thenReturn(Collections.emptyList());
+            when(teamJoinRequestRepository.findByTeamIdAndUserId(100L, 20L)).thenReturn(Optional.empty());
+            when(teamJoinRequestRepository.save(any(TeamJoinRequest.class))).thenAnswer(i -> {
+                TeamJoinRequest req = i.getArgument(0);
+                req.setId(701L);
+                return req;
+            });
+
+            TeamJoinRequestResponse response = teamService.sendJoinRequest(100L, 20L, "Researcher", null);
+
+            assertNotNull(response);
+            assertEquals(701L, response.getId());
+            assertFalse(Boolean.TRUE.equals(response.getFromInvitation()));
+        }
+
+        @Test
+        @DisplayName("Leader Accept as Another Role on normal request assigns selected alternate role")
+        void testLeaderAcceptAsAnotherRole_AssignsAlternateRole() {
+            TeamJoinRequest normalReq = new TeamJoinRequest(
+                    teamWithSlots, studentUser, TeamJoinRequest.RequestStatus.PENDING, "Researcher", null, false
+            );
+            normalReq.setId(702L);
+
+            when(teamJoinRequestRepository.findById(702L)).thenReturn(Optional.of(normalReq));
+            when(teamRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(teamWithSlots));
+            when(teamMemberRepository.existsById(new TeamMemberId(100L, 20L))).thenReturn(false);
+            when(teamMemberRepository.findByTeamId(100L)).thenReturn(Collections.emptyList());
+            when(teamMemberRepository.countByTeamId(100L)).thenReturn(1L);
+
+            teamService.acceptJoinRequest(100L, 702L, 10L, "Frontend Developer", null, null);
+
+            assertEquals(TeamJoinRequest.RequestStatus.ACCEPTED, normalReq.getStatus());
+            verify(teamMemberRepository).save(argThat(m ->
+                    m.getUserId().equals(20L) && "Frontend Developer".equals(m.getAssignedRole())
+            ));
+        }
+
+        @Test
+        @DisplayName("Leader Accept as Another Role fails when selected alternate role is full (409 CONFLICT)")
+        void testLeaderAcceptAsAnotherRole_AlternateRoleFull_ThrowsConflict() {
+            TeamJoinRequest normalReq = new TeamJoinRequest(
+                    teamWithSlots, studentUser, TeamJoinRequest.RequestStatus.PENDING, "Researcher", null, false
+            );
+            normalReq.setId(703L);
+
+            TeamMember existingFrontendMember = new TeamMember();
+            existingFrontendMember.setTeamId(100L);
+            existingFrontendMember.setUserId(30L);
+            existingFrontendMember.setAssignedRole("Frontend Developer");
+
+            when(teamJoinRequestRepository.findById(703L)).thenReturn(Optional.of(normalReq));
+            when(teamRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(teamWithSlots));
+            when(teamMemberRepository.existsById(new TeamMemberId(100L, 20L))).thenReturn(false);
+            when(teamMemberRepository.findByTeamId(100L)).thenReturn(List.of(existingFrontendMember));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.acceptJoinRequest(100L, 703L, 10L, "Frontend Developer", null, null)
+            );
+
+            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+            assertTrue(ex.getReason().contains("This role is no longer available"));
+        }
+
+        @Test
+        @DisplayName("Invitation-originated request cannot be accepted as a different alternate role (400 BAD REQUEST)")
+        void testInvitationOriginatedRequest_CannotChangeRoleOnAccept_ThrowsBadRequest() {
+            TeamJoinRequest invOriginatedReq = new TeamJoinRequest(
+                    teamWithSlots, studentUser, TeamJoinRequest.RequestStatus.PENDING, "Researcher", null, true
+            );
+            invOriginatedReq.setId(704L);
+
+            when(teamJoinRequestRepository.findById(704L)).thenReturn(Optional.of(invOriginatedReq));
+            when(teamRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(teamWithSlots));
+            when(teamMemberRepository.existsById(new TeamMemberId(100L, 20L))).thenReturn(false);
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.acceptJoinRequest(100L, 704L, 10L, "Frontend Developer", null, null)
+            );
+
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+            assertTrue(ex.getReason().contains("Cannot change role for an invitation-originated"));
         }
 
         @Test
@@ -2224,7 +2315,7 @@ class TeamServiceTest {
         @DisplayName("Accepting the requested alternate-role join request assigns student with requested role")
         void testLeaderAcceptsAlternateRoleJoinRequest() {
             TeamJoinRequest alternateRequest = new TeamJoinRequest(
-                    teamWithSlots, studentUser, TeamJoinRequest.RequestStatus.PENDING, "Researcher", null
+                    teamWithSlots, studentUser, TeamJoinRequest.RequestStatus.PENDING, "Researcher", null, true
             );
             alternateRequest.setId(700L);
 

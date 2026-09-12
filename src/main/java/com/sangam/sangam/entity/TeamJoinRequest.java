@@ -50,6 +50,9 @@ public class TeamJoinRequest {
     @Column(name = "custom_role", length = 150)
     private String customRole;
 
+    @Column(name = "from_invitation")
+    private Boolean fromInvitation = false;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -72,6 +75,7 @@ public class TeamJoinRequest {
         this.team = team;
         this.user = user;
         this.status = status;
+        this.fromInvitation = false;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
@@ -82,6 +86,18 @@ public class TeamJoinRequest {
         this.status = status;
         this.requestedRole = requestedRole;
         this.customRole = customRole;
+        this.fromInvitation = false;
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public TeamJoinRequest(Team team, User user, RequestStatus status, String requestedRole, String customRole, Boolean fromInvitation) {
+        this.team = team;
+        this.user = user;
+        this.status = status;
+        this.requestedRole = requestedRole;
+        this.customRole = customRole;
+        this.fromInvitation = fromInvitation != null && fromInvitation;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
@@ -132,6 +148,18 @@ public class TeamJoinRequest {
 
     public void setCustomRole(String customRole) {
         this.customRole = customRole;
+    }
+
+    public Boolean getFromInvitation() {
+        return fromInvitation;
+    }
+
+    public Boolean isFromInvitation() {
+        return fromInvitation != null && fromInvitation;
+    }
+
+    public void setFromInvitation(Boolean fromInvitation) {
+        this.fromInvitation = fromInvitation;
     }
 
     public LocalDateTime getCreatedAt() {

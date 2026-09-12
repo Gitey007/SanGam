@@ -12,6 +12,7 @@ public class TeamJoinRequestResponse {
     private String status;
     private String requestedRole;
     private String customRole;
+    private Boolean fromInvitation;
     private LocalDateTime createdAt;
 
     public TeamJoinRequestResponse() {
@@ -68,6 +69,30 @@ public class TeamJoinRequestResponse {
         this.status = status;
         this.requestedRole = requestedRole;
         this.customRole = customRole;
+        this.createdAt = createdAt;
+    }
+
+    public TeamJoinRequestResponse(
+            Long requestId,
+            Long teamId,
+            String teamName,
+            Long userId,
+            String userName,
+            String status,
+            String requestedRole,
+            String customRole,
+            Boolean fromInvitation,
+            LocalDateTime createdAt) {
+
+        this.requestId = requestId;
+        this.teamId = teamId;
+        this.teamName = teamName;
+        this.userId = userId;
+        this.userName = userName;
+        this.status = status;
+        this.requestedRole = requestedRole;
+        this.customRole = customRole;
+        this.fromInvitation = fromInvitation;
         this.createdAt = createdAt;
     }
 
@@ -133,6 +158,18 @@ public class TeamJoinRequestResponse {
 
     public void setCustomRole(String customRole) {
         this.customRole = customRole;
+    }
+
+    public Boolean getFromInvitation() {
+        return fromInvitation;
+    }
+
+    public Boolean isFromInvitation() {
+        return fromInvitation != null && fromInvitation;
+    }
+
+    public void setFromInvitation(Boolean fromInvitation) {
+        this.fromInvitation = fromInvitation;
     }
 
     public Long getId() {

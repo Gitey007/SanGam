@@ -88,6 +88,12 @@ export const TeamDetailsPage = () => {
   const [selectedStudentAnotherRole, setSelectedStudentAnotherRole] = useState('');
   const [studentAnotherCustomRole, setStudentAnotherCustomRole] = useState('');
 
+  // Leader "Accept as Another Role" Modal state
+  const [acceptAnotherRoleRequest, setAcceptAnotherRoleRequest] = useState(null);
+  const [selectedLeaderAnotherRole, setSelectedLeaderAnotherRole] = useState('');
+  const [leaderAnotherCustomRole, setLeaderAnotherCustomRole] = useState('');
+  const [isSubmittingLeaderAnotherRole, setIsSubmittingLeaderAnotherRole] = useState(false);
+
   // Leader "Replace Member / Free Slot" Modal state
   const [replaceModalRequest, setReplaceModalRequest] = useState(null);
   const [selectedMemberToReplace, setSelectedMemberToReplace] = useState(null);
@@ -601,7 +607,61 @@ export const TeamDetailsPage = () => {
     }
   };
 
+  /**
+   * Open Leader "Accept as Another Role" Modal
+   */
+  const handleOpenAcceptAnotherRoleModal = (request) => {
+    setAcceptAnotherRoleRequest(request);
+    setLeaderAnotherCustomRole('');
+    const otherRoles = roleSlotsList.filter(
+      (s) => !roleMatches(s.roleName, request?.requestedRole)
+    );
+    const firstAvailable = otherRoles.find((s) => s.availableSlots > 0);
+    setSelectedLeaderAnotherRole(firstAvailable ? firstAvailable.roleName : '');
+  };
 
+  /**
+   * Leader confirms accepting join request as another role
+   */
+  const handleConfirmAcceptAnotherRole = async (e) => {
+    e?.preventDefault();
+    const uid = user?.id || user?.userId;
+    if (!acceptAnotherRoleRequest || !selectedLeaderAnotherRole || !uid) return;
+
+    const slot = roleSlotsList.find((s) => roleMatches(s.roleName, selectedLeaderAnotherRole));
+    if (slot && slot.availableSlots <= 0) {
+      toastError('Selected role is full. Please choose an available role.');
+      return;
+    }
+
+    setIsSubmittingLeaderAnotherRole(true);
+    const reqId = acceptAnotherRoleRequest.requestId;
+    const effCustomRole = isOther(selectedLeaderAnotherRole)
+      ? leaderAnotherCustomRole?.trim() || null
+      : null;
+
+    try {
+      await teamApi.acceptJoinRequest(
+        id,
+        reqId,
+        uid,
+        selectedLeaderAnotherRole,
+        effCustomRole
+      );
+      success(
+        `Accepted ${acceptAnotherRoleRequest.userName} into ${selectedLeaderAnotherRole}!`
+      );
+      setAcceptAnotherRoleRequest(null);
+      setSelectedLeaderAnotherRole('');
+      setLeaderAnotherCustomRole('');
+      await fetchTeamDetails();
+    } catch (err) {
+      const msg = extractErrorMessage(err, 'Failed to accept join request as another role.');
+      toastError(msg);
+    } finally {
+      setIsSubmittingLeaderAnotherRole(false);
+    }
+  };
 
   /**
    * Open Leader "Replace Member / Free Slot" Modal
@@ -1590,6 +1650,16 @@ export const TeamDetailsPage = () => {
 
                       const isRoleFull =
                         reqRoleSlot && reqRoleSlot.availableSlots <= 0;
+                      const isFromInvitation = Boolean(req.fromInvitation);
+                      const uid = user?.id || user?.userId;
+                      const hasReplacableMember =
+                        isRoleFull &&
+                        members.some(
+                          (m) =>
+                            m.role !== 'LEADER' &&
+                            String(m.userId) !== String(uid) &&
+                            roleMatches(m.assignedRole, req.requestedRole)
+                        );
 
                       return (
                         <div
@@ -1651,6 +1721,38 @@ export const TeamDetailsPage = () => {
                             >
                               Accept
                             </Button>
+
+                            {!isFromInvitation && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  handleOpenAcceptAnotherRoleModal(req)
+                                }
+                                disabled={
+                                  Boolean(actionLoading[req.requestId]) ||
+                                  isTeamFull
+                                }
+                                className="text-brand-600 dark:text-brand-400 border-brand-300 dark:border-brand-700 hover:bg-brand-50 dark:hover:bg-brand-950/50"
+                              >
+                                Accept as Another Role
+                              </Button>
+                            )}
+
+                            {hasReplacableMember && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                leftIcon={RefreshCw}
+                                onClick={() =>
+                                  handleOpenReplaceModal(req)
+                                }
+                                disabled={Boolean(actionLoading[req.requestId])}
+                                className="text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/50"
+                              >
+                                Replace Member / Free Slot
+                              </Button>
+                            )}
 
                             <Button
                               variant="outline"
@@ -1833,6 +1935,121 @@ export const TeamDetailsPage = () => {
               />
             </div>
           )}
+        </form>
+      </Modal>
+
+      {/* Leader "Accept as Another Role" Modal */}
+      <Modal
+        isOpen={Boolean(acceptAnotherRoleRequest)}
+        onClose={() => !isSubmittingLeaderAnotherRole && setAcceptAnotherRoleRequest(null)}
+        title="Accept as Another Role"
+        description={`${
+          acceptAnotherRoleRequest?.userName || 'Candidate'
+        } requested "${acceptAnotherRoleRequest?.requestedRole || 'a role'}". Select an available alternate role:`}
+        maxWidth="max-w-md"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAcceptAnotherRoleRequest(null)}
+              disabled={isSubmittingLeaderAnotherRole}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleConfirmAcceptAnotherRole}
+              isLoading={isSubmittingLeaderAnotherRole}
+              disabled={
+                !selectedLeaderAnotherRole ||
+                isSubmittingLeaderAnotherRole ||
+                isTeamFull ||
+                Boolean(
+                  roleSlotsList.find((s) => roleMatches(s.roleName, selectedLeaderAnotherRole))
+                    ?.availableSlots <= 0
+                ) ||
+                (isOther(selectedLeaderAnotherRole) && !leaderAnotherCustomRole.trim())
+              }
+            >
+              Submit
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleConfirmAcceptAnotherRole} className="space-y-4">
+          {(() => {
+            const otherRoles = roleSlotsList.filter(
+              (s) => !roleMatches(s.roleName, acceptAnotherRoleRequest?.requestedRole)
+            );
+            const allFull =
+              otherRoles.length === 0 || otherRoles.every((s) => s.availableSlots <= 0);
+
+            return (
+              <>
+                {otherRoles.length === 0 ? (
+                  <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300">
+                    No other roles are defined for this squad.
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Select Alternate Role
+                    </label>
+                    <select
+                      value={selectedLeaderAnotherRole}
+                      onChange={(e) => setSelectedLeaderAnotherRole(e.target.value)}
+                      className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
+                    >
+                      {!selectedLeaderAnotherRole && (
+                        <option value="" disabled>
+                          {allFull ? '-- All alternate roles are full --' : '-- Select an available role --'}
+                        </option>
+                      )}
+                      {otherRoles.map((slot, i) => (
+                        <option
+                          key={`${slot.roleName}-${i}`}
+                          value={slot.roleName}
+                          disabled={slot.availableSlots <= 0}
+                        >
+                          {slot.roleName} (
+                          {slot.availableSlots > 0
+                            ? `${slot.availableSlots} opening${slot.availableSlots > 1 ? 's' : ''}`
+                            : 'Full'}
+                          )
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {allFull && otherRoles.length > 0 && (
+                  <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-300">
+                    All alternate roles are currently full. You can close this modal and reject the request or replace an existing member.
+                  </div>
+                )}
+
+                {isOther(selectedLeaderAnotherRole) && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Custom Role:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. ML Engineer"
+                      value={leaderAnotherCustomRole}
+                      onChange={(e) => setLeaderAnotherCustomRole(e.target.value)}
+                      required
+                      className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
+                    />
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </form>
       </Modal>
 

@@ -597,11 +597,17 @@ public class TeamService {
                 request.getStatus().name(),
                 request.getRequestedRole(),
                 request.getCustomRole(),
+                Boolean.TRUE.equals(request.getFromInvitation()),
                 request.getCreatedAt());
     }
 
     @Transactional
     public TeamJoinRequestResponse sendJoinRequest(Long teamId, Long userId, String requestedRole, String customRole) {
+        return sendJoinRequest(teamId, userId, requestedRole, customRole, false);
+    }
+
+    @Transactional
+    public TeamJoinRequestResponse sendJoinRequest(Long teamId, Long userId, String requestedRole, String customRole, boolean fromInvitation) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -671,6 +677,7 @@ public class TeamService {
                 req.setStatus(TeamJoinRequest.RequestStatus.PENDING);
                 req.setRequestedRole(requestedRole != null ? requestedRole.trim() : null);
                 req.setCustomRole(customRole != null ? customRole.trim() : null);
+                req.setFromInvitation(fromInvitation);
                 req.setCreatedAt(LocalDateTime.now());
                 req.setUpdatedAt(LocalDateTime.now());
                 saved = teamJoinRequestRepository.save(req);
@@ -678,7 +685,8 @@ public class TeamService {
                 TeamJoinRequest request = new TeamJoinRequest(
                         team, user, TeamJoinRequest.RequestStatus.PENDING,
                         requestedRole != null ? requestedRole.trim() : null,
-                        customRole != null ? customRole.trim() : null);
+                        customRole != null ? customRole.trim() : null,
+                        fromInvitation);
                 saved = teamJoinRequestRepository.save(request);
             }
         } catch (DataIntegrityViolationException ex) {
@@ -804,6 +812,13 @@ public class TeamService {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Team is full");
+        }
+
+        if (Boolean.TRUE.equals(request.getFromInvitation()) && selectedRole != null && !selectedRole.isBlank()
+                && !roleMatches(selectedRole.trim(), request.getRequestedRole())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Cannot change role for an invitation-originated alternate-role request");
         }
 
         String effectiveRole = (selectedRole != null && !selectedRole.isBlank()) ? selectedRole.trim() : request.getRequestedRole();
@@ -1325,7 +1340,7 @@ public class TeamService {
         teamInvitationRepository.save(invitation);
 
         // 2. Create the new normal PENDING join request
-        return sendJoinRequest(team.getId(), currentUser.getId(), requestedRole, customRole);
+        return sendJoinRequest(team.getId(), currentUser.getId(), requestedRole, customRole, true);
     }
 
     private void revokeRemainingPendingRequestsAndInvitations(Team team) {
