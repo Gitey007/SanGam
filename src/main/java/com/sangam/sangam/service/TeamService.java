@@ -1036,6 +1036,15 @@ public class TeamService {
                         // Safety: Notification failure must not break main flow
                     }
                 }
+                if (emailNotificationService != null) {
+                    try {
+                        String roleForEmail = invitedRole != null ? invitedRole : customRole;
+                        emailNotificationService.sendTeamInvitationEmail(
+                                targetUser.getEmail(), targetUser.getName(), team.getName(), inviter.getName(), roleForEmail);
+                    } catch (Exception e) {
+                        // Safety: Email failure MUST NOT break the main database operation
+                    }
+                }
                 return toInvitationResponse(saved);
             }
 
@@ -1056,6 +1065,16 @@ public class TeamService {
                             team.getName());
                 } catch (Exception e) {
                     // Safety: Notification failure must not break main flow
+                }
+            }
+
+            if (emailNotificationService != null) {
+                try {
+                    String roleForEmail = invitedRole != null ? invitedRole : customRole;
+                    emailNotificationService.sendTeamInvitationEmail(
+                            targetUser.getEmail(), targetUser.getName(), team.getName(), inviter.getName(), roleForEmail);
+                } catch (Exception e) {
+                    // Safety: Email failure MUST NOT break the main database operation
                 }
             }
 
