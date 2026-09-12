@@ -45,7 +45,7 @@ public class TeamInvitation {
     private User invitedBy;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private InvitationStatus status = InvitationStatus.PENDING;
 
     @Column(name = "invited_role", length = 100)

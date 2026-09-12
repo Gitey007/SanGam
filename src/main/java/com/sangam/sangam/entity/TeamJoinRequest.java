@@ -41,7 +41,7 @@ public class TeamJoinRequest {
     private User user;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private RequestStatus status = RequestStatus.PENDING;
 
     @Column(name = "requested_role", length = 100)

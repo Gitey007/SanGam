@@ -1249,6 +1249,81 @@ class TeamServiceTest {
 
             assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
         }
+
+        @Test
+        @DisplayName("23. Full team transition on acceptJoinRequest revokes remaining pending invitations and requests")
+        void testAcceptJoinRequestFullTeamRevokesRemainingPendingInvitationsAndRequests() {
+            Team team = new Team();
+            team.setId(30L);
+            team.setName("Full Team Test");
+            team.setLeader(leader);
+            team.setMaxMembers((byte) 2);
+
+            TeamJoinRequest acceptedReq = new TeamJoinRequest(team, candidate1, TeamJoinRequest.RequestStatus.PENDING, "Backend Developer", null);
+            acceptedReq.setId(301L);
+
+            TeamInvitation otherInv = new TeamInvitation(team, candidate2, leader, TeamInvitation.InvitationStatus.PENDING, "Frontend Developer", null);
+            otherInv.setId(302L);
+
+            User candidate3 = new User();
+            candidate3.setId(103L);
+            TeamJoinRequest otherReq = new TeamJoinRequest(team, candidate3, TeamJoinRequest.RequestStatus.PENDING, "Frontend Developer", null);
+            otherReq.setId(303L);
+
+            when(teamRepository.findByIdForUpdate(30L)).thenReturn(Optional.of(team));
+            when(teamJoinRequestRepository.findById(301L)).thenReturn(Optional.of(acceptedReq));
+            when(teamMemberRepository.existsById(new TeamMemberId(30L, 101L))).thenReturn(false);
+            when(teamMemberRepository.findByTeamId(30L)).thenReturn(List.of());
+            when(teamMemberRepository.countByTeamId(30L)).thenReturn(2L);
+            when(teamInvitationRepository.findByTeamId(30L)).thenReturn(List.of(otherInv));
+            when(teamJoinRequestRepository.findByTeamIdAndStatus(30L, TeamJoinRequest.RequestStatus.PENDING)).thenReturn(List.of(otherReq));
+
+            teamService.acceptJoinRequest(30L, 301L, 1L);
+
+            assertEquals(TeamJoinRequest.RequestStatus.ACCEPTED, acceptedReq.getStatus());
+            assertEquals(TeamInvitation.InvitationStatus.REVOKED, otherInv.getStatus());
+            assertEquals(TeamJoinRequest.RequestStatus.REVOKED, otherReq.getStatus());
+            verify(teamInvitationRepository).save(otherInv);
+            verify(teamJoinRequestRepository).save(otherReq);
+        }
+
+        @Test
+        @DisplayName("24. Full team transition on acceptInvitation revokes remaining pending invitations and requests")
+        void testAcceptInvitationFullTeamRevokesRemainingPendingInvitationsAndRequests() {
+            Team team = new Team();
+            team.setId(30L);
+            team.setName("Full Team Test");
+            team.setLeader(leader);
+            team.setMaxMembers((byte) 2);
+
+            TeamInvitation acceptedInv = new TeamInvitation(team, candidate1, leader, TeamInvitation.InvitationStatus.PENDING, "Backend Developer", null);
+            acceptedInv.setId(301L);
+
+            TeamInvitation otherInv = new TeamInvitation(team, candidate2, leader, TeamInvitation.InvitationStatus.PENDING, "Frontend Developer", null);
+            otherInv.setId(302L);
+
+            User candidate3 = new User();
+            candidate3.setId(103L);
+            TeamJoinRequest otherReq = new TeamJoinRequest(team, candidate3, TeamJoinRequest.RequestStatus.PENDING, "Frontend Developer", null);
+            otherReq.setId(303L);
+
+            when(userRepository.findByEmail("rahul@college.edu")).thenReturn(Optional.of(candidate1));
+            when(teamInvitationRepository.findById(301L)).thenReturn(Optional.of(acceptedInv));
+            when(teamRepository.findByIdForUpdate(30L)).thenReturn(Optional.of(team));
+            when(teamMemberRepository.existsById(new TeamMemberId(30L, 101L))).thenReturn(false);
+            when(teamMemberRepository.findByTeamId(30L)).thenReturn(List.of());
+            when(teamMemberRepository.countByTeamId(30L)).thenReturn(2L);
+            when(teamInvitationRepository.findByTeamId(30L)).thenReturn(List.of(otherInv));
+            when(teamJoinRequestRepository.findByTeamIdAndStatus(30L, TeamJoinRequest.RequestStatus.PENDING)).thenReturn(List.of(otherReq));
+
+            teamService.acceptInvitation(301L, "rahul@college.edu");
+
+            assertEquals(TeamInvitation.InvitationStatus.ACCEPTED, acceptedInv.getStatus());
+            assertEquals(TeamInvitation.InvitationStatus.REVOKED, otherInv.getStatus());
+            assertEquals(TeamJoinRequest.RequestStatus.REVOKED, otherReq.getStatus());
+            verify(teamInvitationRepository).save(otherInv);
+            verify(teamJoinRequestRepository).save(otherReq);
+        }
     }
 
     @Nested

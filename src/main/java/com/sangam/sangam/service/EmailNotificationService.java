@@ -75,7 +75,6 @@ public class EmailNotificationService {
                 + "You have received a new join request for your team \"" + teamName + "\".\n\n"
                 + "Applicant Details:\n"
                 + "• Name: " + (studentName != null ? studentName : "N/A") + "\n"
-                + "• Email: " + (studentEmail != null ? studentEmail : "N/A") + "\n"
                 + "• College: " + (college != null ? college : "N/A") + "\n"
                 + "• Branch: " + (branch != null ? branch : "N/A") + "\n"
                 + "• Year: " + (year != null ? year : "N/A") + "\n"
