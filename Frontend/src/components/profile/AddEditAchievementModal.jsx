@@ -35,8 +35,18 @@ export const AddEditAchievementModal = ({
         title: achievement.title || '',
         description: achievement.description || '',
         category: achievement.category || 'Hackathon',
-        date: achievement.achievementDate || achievement.date || '',
-        proofUrl: achievement.verificationUrl || achievement.proofUrl || '',
+        date:
+          achievement.achievementDate ||
+          achievement.date ||
+          achievement.achievement_date ||
+          '',
+        proofUrl:
+          achievement.verificationUrl ||
+          achievement.proofUrl ||
+          achievement.verification_url ||
+          achievement.proof_url ||
+          achievement.certificateUrl ||
+          '',
       });
     } else {
       setFormData({
