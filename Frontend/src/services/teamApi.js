@@ -235,6 +235,25 @@ export const teamApi = {
     return response.data;
   },
 
+  async requestAnotherRole(invitationId, requestedRole, customRole = null) {
+    if (!invitationId) throw new Error('Invitation ID is required');
+
+    const response = await api.post(
+      `/api/teams/invitations/${invitationId}/request-another`,
+      {
+        requestedRole,
+        customRole,
+      },
+      {
+        params: {
+          ...(requestedRole ? { requestedRole } : {}),
+          ...(customRole ? { customRole } : {}),
+        },
+      }
+    );
+    return response.data;
+  },
+
   async deleteTeam(teamId) {
     if (!teamId) throw new Error('Team ID is required');
 

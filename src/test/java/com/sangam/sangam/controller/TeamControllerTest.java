@@ -32,6 +32,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.sangam.sangam.config.GlobalExceptionHandler;
 import com.sangam.sangam.dto.TeamInvitationResponse;
+import com.sangam.sangam.dto.TeamJoinRequestResponse;
 import com.sangam.sangam.dto.TeamResponse;
 import com.sangam.sangam.dto.UpdateTeamRequest;
 import com.sangam.sangam.repository.UserRepository;
@@ -202,5 +203,26 @@ class TeamControllerTest {
     void testDeleteTeamUnauthorized() throws Exception {
         mockMvc.perform(delete("/api/teams/10"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("POST /api/teams/invitations/{invitationId}/request-another -> 201 Created")
+    void testRequestAnotherRoleSuccess() throws Exception {
+        TeamJoinRequestResponse resp = new TeamJoinRequestResponse(
+                100L, 10L, "Team Alpha", 2L, "Student", "PENDING", "Researcher", null, LocalDateTime.now()
+        );
+
+        when(teamService.requestAnotherRole(eq(50L), eq("student@college.edu"), eq("Researcher"), any()))
+                .thenReturn(resp);
+
+        mockMvc.perform(post("/api/teams/invitations/50/request-another")
+                        .principal(studentAuth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"requestedRole\":\"Researcher\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(100))
+                .andExpect(jsonPath("$.teamId").value(10))
+                .andExpect(jsonPath("$.requestedRole").value("Researcher"))
+                .andExpect(jsonPath("$.status").value("PENDING"));
     }
 }

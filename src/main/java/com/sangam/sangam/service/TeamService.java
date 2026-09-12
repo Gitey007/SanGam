@@ -411,7 +411,23 @@ public class TeamService {
 
         boolean isExpired = team.getJoinDeadline() != null && LocalDateTime.now().isAfter(team.getJoinDeadline());
 
-        return new TeamResponse(
+        List<TeamMemberResponse> memberResponses = (members != null && !members.isEmpty())
+                ? members.stream()
+                        .filter(Objects::nonNull)
+                        .map(m -> new TeamMemberResponse(
+                                m.getUserId(),
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                m.getRole() != null ? m.getRole().name() : "MEMBER",
+                                m.getAssignedRole(),
+                                m.getCustomRole()))
+                        .toList()
+                : Collections.emptyList();
+
+        TeamResponse response = new TeamResponse(
                 team.getId(),
                 team.getName(),
                 team.getDescription(),
@@ -434,6 +450,8 @@ public class TeamService {
                 roleSlotDtos,
                 memberCount,
                 status);
+        response.setMembers(memberResponses);
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -1258,6 +1276,56 @@ public class TeamService {
                 // Safety: Notification failure must not break main flow
             }
         }
+    }
+
+    @Transactional
+    public TeamJoinRequestResponse requestAnotherRole(Long invitationId, String authenticatedEmail, String requestedRole, String customRole) {
+        if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
+
+        User currentUser = userRepository.findByEmail(authenticatedEmail.trim().toLowerCase())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "User not authenticated"));
+
+        TeamInvitation invitation = teamInvitationRepository.findById(invitationId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Invitation not found"));
+
+        if (!invitation.getInvitedUser().getId().equals(currentUser.getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "You are not authorized to respond to this invitation");
+        }
+
+        if (invitation.getStatus() != TeamInvitation.InvitationStatus.PENDING) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Invitation is not pending");
+        }
+
+        Team team = invitation.getTeam();
+        if (team == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Team no longer exists");
+        }
+
+        if (requestedRole == null || requestedRole.isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "A valid role must be selected");
+        }
+
+        // 1. Mark original invitation as CANCELLED (superseded)
+        invitation.setStatus(TeamInvitation.InvitationStatus.CANCELLED);
+        invitation.setUpdatedAt(LocalDateTime.now());
+        teamInvitationRepository.save(invitation);
+
+        // 2. Create the new normal PENDING join request
+        return sendJoinRequest(team.getId(), currentUser.getId(), requestedRole, customRole);
     }
 
     private void revokeRemainingPendingRequestsAndInvitations(Team team) {

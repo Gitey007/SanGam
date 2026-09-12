@@ -88,11 +88,6 @@ export const TeamDetailsPage = () => {
   const [selectedStudentAnotherRole, setSelectedStudentAnotherRole] = useState('');
   const [studentAnotherCustomRole, setStudentAnotherCustomRole] = useState('');
 
-  // Leader "Accept as Another Role" Modal state
-  const [reassignModalRequest, setReassignModalRequest] = useState(null);
-  const [selectedReassignRole, setSelectedReassignRole] = useState('');
-  const [reassignCustomRole, setReassignCustomRole] = useState('');
-
   // Leader "Replace Member / Free Slot" Modal state
   const [replaceModalRequest, setReplaceModalRequest] = useState(null);
   const [selectedMemberToReplace, setSelectedMemberToReplace] = useState(null);
@@ -493,17 +488,25 @@ export const TeamDetailsPage = () => {
    */
   const handleConfirmStudentRequestAnotherRole = async (e) => {
     e?.preventDefault();
-    const uid = user?.id || user?.userId;
-    if (!uid || !selectedStudentAnotherRole) return;
+    if (!selectedStudentAnotherRole) return;
 
     setActionLoading((prev) => ({ ...prev, 'my-invitation': 'request-another' }));
     try {
-      await teamApi.sendJoinRequest(
-        id,
-        uid,
-        selectedStudentAnotherRole,
-        studentAnotherCustomRole.trim() || null
-      );
+      if (myPendingInvitation?.invitationId) {
+        await teamApi.requestAnotherRole(
+          myPendingInvitation.invitationId,
+          selectedStudentAnotherRole,
+          studentAnotherCustomRole.trim() || null
+        );
+      } else {
+        const uid = user?.id || user?.userId;
+        await teamApi.sendJoinRequest(
+          id,
+          uid,
+          selectedStudentAnotherRole,
+          studentAnotherCustomRole.trim() || null
+        );
+      }
       success(`Join request submitted as ${selectedStudentAnotherRole}! The team leader will review your request.`);
       setIsStudentRequestAnotherModalOpen(false);
       setMyPendingInvitation(null);
@@ -598,48 +601,7 @@ export const TeamDetailsPage = () => {
     }
   };
 
-  /**
-   * Open Leader "Accept as Another Role" Modal
-   */
-  const handleOpenReassignModal = (request) => {
-    setReassignModalRequest(request);
-    if (openRoles.length > 0) {
-      setSelectedReassignRole(openRoles[0].roleName);
-    } else {
-      setSelectedReassignRole('');
-    }
-    setReassignCustomRole('');
-  };
 
-  /**
-   * Confirm Leader "Accept as Another Role"
-   */
-  const handleConfirmReassignAccept = async (e) => {
-    e?.preventDefault();
-    const uid = user?.id || user?.userId;
-    if (!reassignModalRequest || !uid) return;
-
-    const reqId = reassignModalRequest.requestId;
-    setActionLoading((prev) => ({ ...prev, [reqId]: 'accept-reassign' }));
-
-    try {
-      await teamApi.acceptJoinRequest(
-        id,
-        reqId,
-        uid,
-        selectedReassignRole,
-        reassignCustomRole.trim() || null
-      );
-      success('Join request accepted with assigned role!');
-      setReassignModalRequest(null);
-      await fetchTeamDetails();
-    } catch (err) {
-      const msg = extractErrorMessage(err, 'Failed to accept join request.');
-      toastError(msg);
-    } finally {
-      setActionLoading((prev) => ({ ...prev, [reqId]: null }));
-    }
-  };
 
   /**
    * Open Leader "Replace Member / Free Slot" Modal
@@ -1671,72 +1633,24 @@ export const TeamDetailsPage = () => {
                           </div>
 
                           <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
-                            {!isRoleFull ? (
-                              <>
-                                <Button
-                                  variant="primary"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleAcceptRequest(req.requestId)
-                                  }
-                                  isLoading={
-                                    actionLoading[req.requestId] === 'accept'
-                                  }
-                                  disabled={
-                                    Boolean(actionLoading[req.requestId]) ||
-                                    isTeamFull
-                                  }
-                                  leftIcon={Check}
-                                >
-                                  Accept
-                                </Button>
-                                {openRoles.length > 1 && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                      handleOpenReassignModal(req)
-                                    }
-                                    disabled={Boolean(actionLoading[req.requestId]) || isTeamFull}
-                                    className="text-brand-600 dark:text-brand-400 border-brand-300 dark:border-brand-700"
-                                  >
-                                    Accept as Another Role
-                                  </Button>
-                                )}
-                              </>
-                            ) : (
-                              /* Role is FULL: Leader gets Option A (Another Role) and Option B (Replace Member) */
-                              <>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleOpenReassignModal(req)
-                                  }
-                                  disabled={
-                                    Boolean(actionLoading[req.requestId]) ||
-                                    isTeamFull ||
-                                    openRoles.length === 0
-                                  }
-                                  className="text-brand-600 dark:text-brand-400 border-brand-300 dark:border-brand-700 hover:bg-brand-50 dark:hover:bg-brand-950/50"
-                                >
-                                  Accept as Another Role
-                                </Button>
-
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  leftIcon={RefreshCw}
-                                  onClick={() =>
-                                    handleOpenReplaceModal(req)
-                                  }
-                                  disabled={Boolean(actionLoading[req.requestId])}
-                                  className="text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/50"
-                                >
-                                  Replace Member / Free Slot
-                                </Button>
-                              </>
-                            )}
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() =>
+                                handleAcceptRequest(req.requestId)
+                              }
+                              isLoading={
+                                actionLoading[req.requestId] === 'accept'
+                              }
+                              disabled={
+                                Boolean(actionLoading[req.requestId]) ||
+                                isTeamFull ||
+                                isRoleFull
+                              }
+                              leftIcon={Check}
+                            >
+                              Accept
+                            </Button>
 
                             <Button
                               variant="outline"
@@ -1853,7 +1767,7 @@ export const TeamDetailsPage = () => {
         isOpen={isStudentRequestAnotherModalOpen}
         onClose={() => setIsStudentRequestAnotherModalOpen(false)}
         title="Request Another Role"
-        description={`Submit a new join request for an available role on ${team?.name || 'this team'}:`}
+        description={`Submit a new join request for an available role on ${team?.name || 'this team'}.`}
         maxWidth="max-w-md"
         footer={
           <>
@@ -1882,7 +1796,7 @@ export const TeamDetailsPage = () => {
         <form onSubmit={handleConfirmStudentRequestAnotherRole} className="space-y-4">
           {openRoles.length === 0 ? (
             <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300">
-              There are no available open role slots remaining on this team at this time.
+              No alternate roles are currently available.
             </div>
           ) : (
             <div>
@@ -1915,96 +1829,6 @@ export const TeamDetailsPage = () => {
                 value={studentAnotherCustomRole}
                 onChange={(e) => setStudentAnotherCustomRole(e.target.value)}
                 required
-                className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
-              />
-            </div>
-          )}
-        </form>
-      </Modal>
-
-      {/* Leader "Accept as Another Role" Modal - Part 9, 12 */}
-      <Modal
-        isOpen={Boolean(reassignModalRequest)}
-        onClose={() => setReassignModalRequest(null)}
-        title="Accept Join Request"
-        description={`${
-          reassignModalRequest?.userName || 'This student'
-        } requested "${reassignModalRequest?.requestedRole || 'a role'}". Choose another available role:`}
-        maxWidth="max-w-md"
-        footer={
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setReassignModalRequest(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              onClick={handleConfirmReassignAccept}
-              disabled={!selectedReassignRole || openRoles.length === 0}
-            >
-              Accept
-            </Button>
-          </>
-        }
-      >
-        <form onSubmit={handleConfirmReassignAccept} className="space-y-4">
-          {openRoles.length === 0 ? (
-            <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300">
-              No other role slots are currently available.
-            </div>
-          ) : (
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                Choose another available role:
-              </label>
-              <div className="space-y-2">
-                {openRoles.map((slot, i) => (
-                  <label
-                    key={`${slot.roleName}-${i}`}
-                    className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
-                      selectedReassignRole === slot.roleName
-                        ? 'border-brand-500 bg-brand-50/50 dark:bg-brand-950/40'
-                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <input
-                        type="radio"
-                        name="reassignRole"
-                        value={slot.roleName}
-                        checked={selectedReassignRole === slot.roleName}
-                        onChange={() => setSelectedReassignRole(slot.roleName)}
-                        className="text-brand-600 focus:ring-brand-500"
-                      />
-                      <span className="text-xs font-semibold text-slate-900 dark:text-white">
-                        {slot.roleName}
-                      </span>
-                    </div>
-                    <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                      {slot.availableSlots} opening{slot.availableSlots > 1 ? 's' : ''}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {isOther(selectedReassignRole) && (
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                Custom Role:
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. ML Engineer"
-                value={reassignCustomRole}
-                onChange={(e) => setReassignCustomRole(e.target.value)}
                 className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
               />
             </div>
