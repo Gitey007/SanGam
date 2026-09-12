@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -503,10 +504,12 @@ public class TeamService {
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public TeamResponse getTeamById(Long teamId) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found"));
+
+        expirePendingRequestsAndInvitationsIfDeadlinePassed(team);
 
         return toTeamResponse(team);
     }
@@ -632,6 +635,7 @@ public class TeamService {
         }
 
         if (team.getJoinDeadline() != null && LocalDateTime.now().isAfter(team.getJoinDeadline())) {
+            expirePendingRequestsAndInvitationsIfDeadlinePassed(team);
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Team join deadline has expired");
@@ -733,7 +737,7 @@ public class TeamService {
         return sendJoinRequest(teamId, userId, null, null);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<TeamJoinRequestResponse> getPendingJoinRequests(Long teamId, Long leaderId) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -745,6 +749,8 @@ public class TeamService {
                     HttpStatus.FORBIDDEN,
                     "Only the team leader can view join requests");
         }
+
+        expirePendingRequestsAndInvitationsIfDeadlinePassed(team);
 
         return teamJoinRequestRepository.findByTeamIdAndStatus(teamId, TeamJoinRequest.RequestStatus.PENDING)
                 .stream()
@@ -776,6 +782,13 @@ public class TeamService {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Team not found"));
+
+        if (team.getJoinDeadline() != null && LocalDateTime.now().isAfter(team.getJoinDeadline())) {
+            expirePendingRequestsAndInvitationsIfDeadlinePassed(team);
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Team join deadline has expired");
+        }
 
         // 1. Authenticate / validate leader
         if (leaderId != null && !team.getLeader().getId().equals(leaderId)) {
@@ -908,6 +921,13 @@ public class TeamService {
                         HttpStatus.NOT_FOUND,
                         "Team not found"));
 
+        if (team.getJoinDeadline() != null && LocalDateTime.now().isAfter(team.getJoinDeadline())) {
+            expirePendingRequestsAndInvitationsIfDeadlinePassed(team);
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Team join deadline has expired");
+        }
+
         TeamJoinRequest request = teamJoinRequestRepository.findById(requestId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -1009,6 +1029,7 @@ public class TeamService {
         }
 
         if (team.getJoinDeadline() != null && LocalDateTime.now().isAfter(team.getJoinDeadline())) {
+            expirePendingRequestsAndInvitationsIfDeadlinePassed(team);
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Team join/invite deadline has expired");
@@ -1167,6 +1188,13 @@ public class TeamService {
                         HttpStatus.NOT_FOUND,
                         "Team no longer exists"));
 
+        if (team.getJoinDeadline() != null && LocalDateTime.now().isAfter(team.getJoinDeadline())) {
+            expirePendingRequestsAndInvitationsIfDeadlinePassed(team);
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Team join deadline has expired");
+        }
+
         TeamMemberId memberKey = new TeamMemberId(team.getId(), currentUser.getId());
         if (teamMemberRepository.existsById(memberKey)) {
             throw new ResponseStatusException(
@@ -1267,6 +1295,14 @@ public class TeamService {
                     "You are not authorized to reject this invitation");
         }
 
+        Team team = invitation.getTeam();
+        if (team != null && team.getJoinDeadline() != null && LocalDateTime.now().isAfter(team.getJoinDeadline())) {
+            expirePendingRequestsAndInvitationsIfDeadlinePassed(team);
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Team join deadline has expired");
+        }
+
         if (invitation.getStatus() != TeamInvitation.InvitationStatus.PENDING) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -1277,7 +1313,6 @@ public class TeamService {
         invitation.setUpdatedAt(LocalDateTime.now());
         teamInvitationRepository.save(invitation);
 
-        Team team = invitation.getTeam();
         if (notificationService != null && team != null && team.getLeader() != null) {
             try {
                 notificationService.createNotification(
@@ -1315,17 +1350,24 @@ public class TeamService {
                     "You are not authorized to respond to this invitation");
         }
 
-        if (invitation.getStatus() != TeamInvitation.InvitationStatus.PENDING) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Invitation is not pending");
-        }
-
         Team team = invitation.getTeam();
         if (team == null) {
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
                     "Team no longer exists");
+        }
+
+        if (team.getJoinDeadline() != null && LocalDateTime.now().isAfter(team.getJoinDeadline())) {
+            expirePendingRequestsAndInvitationsIfDeadlinePassed(team);
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Team join deadline has expired");
+        }
+
+        if (invitation.getStatus() != TeamInvitation.InvitationStatus.PENDING) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Invitation is not pending");
         }
 
         if (requestedRole == null || requestedRole.isBlank()) {
@@ -1396,7 +1438,49 @@ public class TeamService {
         }
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
+    public void expirePendingRequestsAndInvitationsIfDeadlinePassed(Team team) {
+        if (team == null || team.getId() == null) return;
+        if (team.getJoinDeadline() == null || !LocalDateTime.now().isAfter(team.getJoinDeadline())) {
+            return;
+        }
+        Long teamId = team.getId();
+
+        // 1. Expire pending join requests
+        List<TeamJoinRequest> pendingReqs = teamJoinRequestRepository.findByTeamIdAndStatus(teamId, TeamJoinRequest.RequestStatus.PENDING);
+        for (TeamJoinRequest req : pendingReqs) {
+            req.setStatus(TeamJoinRequest.RequestStatus.EXPIRED);
+            req.setUpdatedAt(LocalDateTime.now());
+            teamJoinRequestRepository.save(req);
+        }
+
+        // 2. Expire pending invitations
+        List<TeamInvitation> pendingInvs = teamInvitationRepository.findByTeamId(teamId).stream()
+                .filter(i -> i.getStatus() == TeamInvitation.InvitationStatus.PENDING)
+                .toList();
+        for (TeamInvitation inv : pendingInvs) {
+            inv.setStatus(TeamInvitation.InvitationStatus.EXPIRED);
+            inv.setUpdatedAt(LocalDateTime.now());
+            teamInvitationRepository.save(inv);
+        }
+    }
+
+    @Scheduled(fixedRate = 60000)
+    @Transactional
+    public void cleanupExpiredTeamsRequestsAndInvitations() {
+        try {
+            List<Team> allTeams = teamRepository.findAll();
+            for (Team t : allTeams) {
+                if (t.getJoinDeadline() != null && LocalDateTime.now().isAfter(t.getJoinDeadline())) {
+                    expirePendingRequestsAndInvitationsIfDeadlinePassed(t);
+                }
+            }
+        } catch (Exception e) {
+            // Safety: Scheduled job must not crash application
+        }
+    }
+
+    @Transactional
     public List<TeamJoinRequestResponse> getMyJoinRequests(String authenticatedEmail) {
         if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
@@ -1407,13 +1491,20 @@ public class TeamService {
                         HttpStatus.UNAUTHORIZED,
                         "User not authenticated"));
 
+        List<TeamJoinRequest> userRequests = teamJoinRequestRepository.findByUserIdAndStatus(currentUser.getId(), TeamJoinRequest.RequestStatus.PENDING);
+        for (TeamJoinRequest req : userRequests) {
+            if (req.getTeam() != null && req.getTeam().getJoinDeadline() != null && LocalDateTime.now().isAfter(req.getTeam().getJoinDeadline())) {
+                expirePendingRequestsAndInvitationsIfDeadlinePassed(req.getTeam());
+            }
+        }
+
         return teamJoinRequestRepository.findByUserIdAndStatus(currentUser.getId(), TeamJoinRequest.RequestStatus.PENDING)
                 .stream()
                 .map(this::toJoinRequestResponse)
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<TeamInvitationResponse> getMyInvitations(String authenticatedEmail, TeamInvitation.InvitationStatus status) {
         if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
@@ -1423,6 +1514,14 @@ public class TeamService {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.UNAUTHORIZED,
                         "User not authenticated"));
+
+        List<TeamInvitation> userInvitations = teamInvitationRepository.findByInvitedUserId(currentUser.getId());
+        for (TeamInvitation inv : userInvitations) {
+            if (inv.getStatus() == TeamInvitation.InvitationStatus.PENDING && inv.getTeam() != null
+                    && inv.getTeam().getJoinDeadline() != null && LocalDateTime.now().isAfter(inv.getTeam().getJoinDeadline())) {
+                expirePendingRequestsAndInvitationsIfDeadlinePassed(inv.getTeam());
+            }
+        }
 
         List<TeamInvitation> invitations;
         if (status != null) {
@@ -1436,7 +1535,7 @@ public class TeamService {
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<TeamInvitationResponse> getTeamInvitations(Long teamId, String authenticatedEmail) {
         if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
@@ -1457,6 +1556,8 @@ public class TeamService {
                     HttpStatus.FORBIDDEN,
                     "Only the team leader can view team invitations");
         }
+
+        expirePendingRequestsAndInvitationsIfDeadlinePassed(team);
 
         return teamInvitationRepository.findByTeamId(teamId)
                 .stream()
@@ -1516,6 +1617,14 @@ public class TeamService {
                     "Join request does not belong to the specified team");
         }
 
+        Team team = request.getTeam();
+        if (team != null && team.getJoinDeadline() != null && LocalDateTime.now().isAfter(team.getJoinDeadline())) {
+            expirePendingRequestsAndInvitationsIfDeadlinePassed(team);
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Team join deadline has expired");
+        }
+
         if (request.getStatus() != TeamJoinRequest.RequestStatus.PENDING) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -1554,6 +1663,13 @@ public class TeamService {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "Only the team leader can cancel sent invitations");
+        }
+
+        if (team.getJoinDeadline() != null && LocalDateTime.now().isAfter(team.getJoinDeadline())) {
+            expirePendingRequestsAndInvitationsIfDeadlinePassed(team);
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Team join deadline has expired");
         }
 
         if (invitation.getStatus() != TeamInvitation.InvitationStatus.PENDING) {

@@ -2353,5 +2353,450 @@ class TeamServiceTest {
             assertEquals("Researcher", all.get(0).getMembers().get(0).getAssignedRole());
         }
     }
+
+    @Nested
+    @DisplayName("Team Deadline Expiry & Role Lifecycle Integration Tests")
+    class TeamDeadlineExpiryAndAlternateRoleLifecycleTests {
+
+        private Team expiredTeam;
+        private Team activeTeam;
+        private User testLeader;
+        private User testStudent;
+
+        @BeforeEach
+        void setUp() {
+            testLeader = new User();
+            testLeader.setId(10L);
+            testLeader.setName("Leader User");
+            testLeader.setEmail("leader@college.edu");
+
+            testStudent = new User();
+            testStudent.setId(20L);
+            testStudent.setName("Student User");
+            testStudent.setEmail("student@college.edu");
+
+            expiredTeam = new Team();
+            expiredTeam.setId(100L);
+            expiredTeam.setName("Expired Team");
+            expiredTeam.setLeader(testLeader);
+            expiredTeam.setMaxMembers((byte) 4);
+            expiredTeam.setJoinDeadline(LocalDateTime.now().minusDays(1)); // Expired yesterday
+            expiredTeam.setRoleSlots(List.of(
+                    new TeamRoleSlot("Backend Developer", 1),
+                    new TeamRoleSlot("Frontend Developer", 1),
+                    new TeamRoleSlot("Researcher", 2)
+            ));
+
+            activeTeam = new Team();
+            activeTeam.setId(200L);
+            activeTeam.setName("Active Team");
+            activeTeam.setLeader(testLeader);
+            activeTeam.setMaxMembers((byte) 4);
+            activeTeam.setJoinDeadline(LocalDateTime.now().plusDays(5)); // Active
+            activeTeam.setRoleSlots(List.of(
+                    new TeamRoleSlot("Backend Developer", 1),
+                    new TeamRoleSlot("Frontend Developer", 1),
+                    new TeamRoleSlot("Researcher", 2)
+            ));
+        }
+
+        @Test
+        @DisplayName("1. Role availability calculation identifies full roles vs available roles")
+        void testRoleAvailabilityCalculation_FullVsAvailable() {
+            TeamMember backendMember = new TeamMember();
+            backendMember.setTeamId(200L);
+            backendMember.setUserId(10L);
+            backendMember.setAssignedRole("Backend Developer");
+
+            TeamResponse response = teamService.toTeamResponse(activeTeam, List.of(backendMember));
+            assertNotNull(response.getRoleSlots());
+
+            TeamRoleSlotDto backendSlot = response.getRoleSlots().stream()
+                    .filter(s -> "Backend Developer".equalsIgnoreCase(s.getRoleName()))
+                    .findFirst().orElseThrow();
+            assertEquals(1, backendSlot.getFilledSlots());
+            assertEquals(0, backendSlot.getAvailableSlots()); // FULL
+
+            TeamRoleSlotDto researcherSlot = response.getRoleSlots().stream()
+                    .filter(s -> "Researcher".equalsIgnoreCase(s.getRoleName()))
+                    .findFirst().orElseThrow();
+            assertEquals(0, researcherSlot.getFilledSlots());
+            assertEquals(2, researcherSlot.getAvailableSlots()); // Available
+        }
+
+        @Test
+        @DisplayName("2. Request Another Role succeeds when alternate role has available slots")
+        void testRequestAnotherRole_AvailableRole_Success() {
+            TeamInvitation invitation = new TeamInvitation(
+                    activeTeam, testStudent, testLeader, TeamInvitation.InvitationStatus.PENDING, "Backend Developer", null
+            );
+            invitation.setId(501L);
+
+            when(userRepository.findByEmail("student@college.edu")).thenReturn(Optional.of(testStudent));
+            when(teamInvitationRepository.findById(501L)).thenReturn(Optional.of(invitation));
+            when(teamRepository.findById(200L)).thenReturn(Optional.of(activeTeam));
+            when(userRepository.findById(20L)).thenReturn(Optional.of(testStudent));
+            when(teamMemberRepository.existsById(new TeamMemberId(200L, 20L))).thenReturn(false);
+            when(teamInvitationRepository.existsByTeamIdAndInvitedUserIdAndStatus(200L, 20L, TeamInvitation.InvitationStatus.PENDING))
+                    .thenReturn(false);
+            when(teamMemberRepository.countByTeamId(200L)).thenReturn(1L);
+            when(teamMemberRepository.findByTeamId(200L)).thenReturn(Collections.emptyList());
+            when(teamJoinRequestRepository.findByTeamIdAndUserId(200L, 20L)).thenReturn(Optional.empty());
+            when(teamJoinRequestRepository.save(any(TeamJoinRequest.class))).thenAnswer(i -> {
+                TeamJoinRequest r = i.getArgument(0);
+                r.setId(801L);
+                return r;
+            });
+
+            TeamJoinRequestResponse resp = teamService.requestAnotherRole(501L, "student@college.edu", "Researcher", null);
+
+            assertNotNull(resp);
+            assertEquals("Researcher", resp.getRequestedRole());
+            assertTrue(resp.isFromInvitation());
+            assertEquals(TeamInvitation.InvitationStatus.CANCELLED, invitation.getStatus());
+        }
+
+        @Test
+        @DisplayName("3. Backend rejects alternate role if it becomes full before submission (409 CONFLICT)")
+        void testRequestAnotherRole_BackendRejectsFullRole() {
+            TeamInvitation invitation = new TeamInvitation(
+                    activeTeam, testStudent, testLeader, TeamInvitation.InvitationStatus.PENDING, "Researcher", null
+            );
+            invitation.setId(502L);
+
+            TeamMember existingBackendMember = new TeamMember();
+            existingBackendMember.setTeamId(200L);
+            existingBackendMember.setUserId(30L);
+            existingBackendMember.setAssignedRole("Backend Developer");
+
+            when(userRepository.findByEmail("student@college.edu")).thenReturn(Optional.of(testStudent));
+            when(teamInvitationRepository.findById(502L)).thenReturn(Optional.of(invitation));
+            when(teamRepository.findById(200L)).thenReturn(Optional.of(activeTeam));
+            when(userRepository.findById(20L)).thenReturn(Optional.of(testStudent));
+            when(teamMemberRepository.existsById(new TeamMemberId(200L, 20L))).thenReturn(false);
+            when(teamInvitationRepository.existsByTeamIdAndInvitedUserIdAndStatus(200L, 20L, TeamInvitation.InvitationStatus.PENDING))
+                    .thenReturn(false);
+            when(teamMemberRepository.countByTeamId(200L)).thenReturn(1L);
+            when(teamMemberRepository.findByTeamId(200L)).thenReturn(List.of(existingBackendMember));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.requestAnotherRole(502L, "student@college.edu", "Backend Developer", null)
+            );
+
+            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+            assertTrue(ex.getReason().contains("This role is no longer available"));
+        }
+
+        @Test
+        @DisplayName("4. Expired team automatically expires all pending join requests")
+        void testExpiredTeam_ExpiresPendingJoinRequests() {
+            TeamJoinRequest req1 = new TeamJoinRequest(expiredTeam, testStudent, TeamJoinRequest.RequestStatus.PENDING, "Researcher", null);
+            req1.setId(901L);
+
+            when(teamJoinRequestRepository.findByTeamIdAndStatus(100L, TeamJoinRequest.RequestStatus.PENDING))
+                    .thenReturn(List.of(req1));
+            when(teamInvitationRepository.findByTeamId(100L)).thenReturn(Collections.emptyList());
+
+            teamService.expirePendingRequestsAndInvitationsIfDeadlinePassed(expiredTeam);
+
+            assertEquals(TeamJoinRequest.RequestStatus.EXPIRED, req1.getStatus());
+            verify(teamJoinRequestRepository).save(req1);
+        }
+
+        @Test
+        @DisplayName("5. Expired team automatically expires all pending invitations")
+        void testExpiredTeam_ExpiresPendingInvitations() {
+            TeamInvitation inv1 = new TeamInvitation(expiredTeam, testStudent, testLeader, TeamInvitation.InvitationStatus.PENDING);
+            inv1.setId(902L);
+
+            when(teamJoinRequestRepository.findByTeamIdAndStatus(100L, TeamJoinRequest.RequestStatus.PENDING))
+                    .thenReturn(Collections.emptyList());
+            when(teamInvitationRepository.findByTeamId(100L)).thenReturn(List.of(inv1));
+
+            teamService.expirePendingRequestsAndInvitationsIfDeadlinePassed(expiredTeam);
+
+            assertEquals(TeamInvitation.InvitationStatus.EXPIRED, inv1.getStatus());
+            verify(teamInvitationRepository).save(inv1);
+        }
+
+        @Test
+        @DisplayName("6. Expired join request cannot be accepted (409 CONFLICT or 400 BAD REQUEST)")
+        void testExpiredJoinRequest_CannotBeAccepted() {
+            // Case A: Team join deadline has expired
+            TeamJoinRequest pendingReq = new TeamJoinRequest(expiredTeam, testStudent, TeamJoinRequest.RequestStatus.PENDING, "Researcher", null);
+            pendingReq.setId(903L);
+
+            when(teamJoinRequestRepository.findById(903L)).thenReturn(Optional.of(pendingReq));
+            when(teamRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(expiredTeam));
+            when(teamJoinRequestRepository.findByTeamIdAndStatus(100L, TeamJoinRequest.RequestStatus.PENDING))
+                    .thenReturn(List.of(pendingReq));
+            when(teamInvitationRepository.findByTeamId(100L)).thenReturn(Collections.emptyList());
+
+            ResponseStatusException ex1 = assertThrows(ResponseStatusException.class, () ->
+                    teamService.acceptJoinRequest(100L, 903L, 10L)
+            );
+            assertEquals(HttpStatus.CONFLICT, ex1.getStatusCode());
+            assertTrue(ex1.getReason().contains("deadline has expired"));
+            assertEquals(TeamJoinRequest.RequestStatus.EXPIRED, pendingReq.getStatus());
+
+            // Case B: Request is already marked EXPIRED
+            TeamJoinRequest alreadyExpiredReq = new TeamJoinRequest(activeTeam, testStudent, TeamJoinRequest.RequestStatus.EXPIRED, "Researcher", null);
+            alreadyExpiredReq.setId(904L);
+            when(teamJoinRequestRepository.findById(904L)).thenReturn(Optional.of(alreadyExpiredReq));
+
+            ResponseStatusException ex2 = assertThrows(ResponseStatusException.class, () ->
+                    teamService.acceptJoinRequest(200L, 904L, 10L)
+            );
+            assertEquals(HttpStatus.BAD_REQUEST, ex2.getStatusCode());
+            assertTrue(ex2.getReason().contains("not pending"));
+        }
+
+        @Test
+        @DisplayName("7. Expired invitation cannot be accepted (409 CONFLICT or 400 BAD REQUEST)")
+        void testExpiredInvitation_CannotBeAccepted() {
+            // Case A: Team join deadline has expired
+            TeamInvitation pendingInv = new TeamInvitation(expiredTeam, testStudent, testLeader, TeamInvitation.InvitationStatus.PENDING);
+            pendingInv.setId(905L);
+
+            when(userRepository.findByEmail("student@college.edu")).thenReturn(Optional.of(testStudent));
+            when(teamInvitationRepository.findById(905L)).thenReturn(Optional.of(pendingInv));
+            when(teamRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(expiredTeam));
+            when(teamJoinRequestRepository.findByTeamIdAndStatus(100L, TeamJoinRequest.RequestStatus.PENDING))
+                    .thenReturn(Collections.emptyList());
+            when(teamInvitationRepository.findByTeamId(100L)).thenReturn(List.of(pendingInv));
+
+            ResponseStatusException ex1 = assertThrows(ResponseStatusException.class, () ->
+                    teamService.acceptInvitation(905L, "student@college.edu")
+            );
+            assertEquals(HttpStatus.CONFLICT, ex1.getStatusCode());
+            assertTrue(ex1.getReason().contains("deadline has expired"));
+            assertEquals(TeamInvitation.InvitationStatus.EXPIRED, pendingInv.getStatus());
+
+            // Case B: Invitation already marked EXPIRED
+            TeamInvitation alreadyExpiredInv = new TeamInvitation(activeTeam, testStudent, testLeader, TeamInvitation.InvitationStatus.EXPIRED);
+            alreadyExpiredInv.setId(906L);
+            when(teamInvitationRepository.findById(906L)).thenReturn(Optional.of(alreadyExpiredInv));
+
+            ResponseStatusException ex2 = assertThrows(ResponseStatusException.class, () ->
+                    teamService.acceptInvitation(906L, "student@college.edu")
+            );
+            assertEquals(HttpStatus.BAD_REQUEST, ex2.getStatusCode());
+            assertTrue(ex2.getReason().contains("not pending"));
+        }
+
+        @Test
+        @DisplayName("8. Expired invitation cannot be used for Request Another Role (409 CONFLICT or 400 BAD REQUEST)")
+        void testExpiredInvitation_CannotBeUsedForRequestAnotherRole() {
+            // Case A: Team deadline expired
+            TeamInvitation pendingInv = new TeamInvitation(expiredTeam, testStudent, testLeader, TeamInvitation.InvitationStatus.PENDING);
+            pendingInv.setId(907L);
+
+            when(userRepository.findByEmail("student@college.edu")).thenReturn(Optional.of(testStudent));
+            when(teamInvitationRepository.findById(907L)).thenReturn(Optional.of(pendingInv));
+            when(teamJoinRequestRepository.findByTeamIdAndStatus(100L, TeamJoinRequest.RequestStatus.PENDING))
+                    .thenReturn(Collections.emptyList());
+            when(teamInvitationRepository.findByTeamId(100L)).thenReturn(List.of(pendingInv));
+
+            ResponseStatusException ex1 = assertThrows(ResponseStatusException.class, () ->
+                    teamService.requestAnotherRole(907L, "student@college.edu", "Researcher", null)
+            );
+            assertEquals(HttpStatus.CONFLICT, ex1.getStatusCode());
+            assertTrue(ex1.getReason().contains("deadline has expired"));
+            assertEquals(TeamInvitation.InvitationStatus.EXPIRED, pendingInv.getStatus());
+
+            // Case B: Invitation already marked EXPIRED
+            TeamInvitation alreadyExpiredInv = new TeamInvitation(activeTeam, testStudent, testLeader, TeamInvitation.InvitationStatus.EXPIRED);
+            alreadyExpiredInv.setId(908L);
+            when(teamInvitationRepository.findById(908L)).thenReturn(Optional.of(alreadyExpiredInv));
+
+            ResponseStatusException ex2 = assertThrows(ResponseStatusException.class, () ->
+                    teamService.requestAnotherRole(908L, "student@college.edu", "Researcher", null)
+            );
+            assertEquals(HttpStatus.BAD_REQUEST, ex2.getStatusCode());
+            assertTrue(ex2.getReason().contains("not pending"));
+        }
+
+        @Test
+        @DisplayName("9. Sending a new join request to an expired team is rejected (409 CONFLICT)")
+        void testSendJoinRequest_ExpiredTeam_ThrowsConflict() {
+            when(teamRepository.findById(100L)).thenReturn(Optional.of(expiredTeam));
+            when(userRepository.findById(20L)).thenReturn(Optional.of(testStudent));
+            when(teamMemberRepository.existsById(new TeamMemberId(100L, 20L))).thenReturn(false);
+            when(teamInvitationRepository.existsByTeamIdAndInvitedUserIdAndStatus(100L, 20L, TeamInvitation.InvitationStatus.PENDING))
+                    .thenReturn(false);
+            when(teamJoinRequestRepository.findByTeamIdAndStatus(100L, TeamJoinRequest.RequestStatus.PENDING))
+                    .thenReturn(Collections.emptyList());
+            when(teamInvitationRepository.findByTeamId(100L)).thenReturn(Collections.emptyList());
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.sendJoinRequest(100L, 20L, "Researcher", null)
+            );
+            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+            assertTrue(ex.getReason().contains("deadline has expired"));
+        }
+
+        @Test
+        @DisplayName("10. Sending a new invitation for an expired team is rejected (409 CONFLICT)")
+        void testInviteStudent_ExpiredTeam_ThrowsConflict() {
+            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(testLeader));
+            when(teamRepository.findById(100L)).thenReturn(Optional.of(expiredTeam));
+            when(userRepository.findById(20L)).thenReturn(Optional.of(testStudent));
+            when(teamMemberRepository.existsById(new TeamMemberId(100L, 20L))).thenReturn(false);
+            when(teamJoinRequestRepository.findByTeamIdAndStatus(100L, TeamJoinRequest.RequestStatus.PENDING))
+                    .thenReturn(Collections.emptyList());
+            when(teamInvitationRepository.findByTeamId(100L)).thenReturn(Collections.emptyList());
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.inviteStudent(100L, 20L, "leader@college.edu", "Researcher", null)
+            );
+            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+            assertTrue(ex.getReason().contains("deadline has expired"));
+        }
+
+        @Test
+        @DisplayName("11. Existing historical records remain in database and are not deleted on expiry")
+        void testHistoricalRecordsPreserved_NotDeletedOnExpiry() {
+            TeamJoinRequest req = new TeamJoinRequest(expiredTeam, testStudent, TeamJoinRequest.RequestStatus.PENDING);
+            req.setId(911L);
+            TeamInvitation inv = new TeamInvitation(expiredTeam, testStudent, testLeader, TeamInvitation.InvitationStatus.PENDING);
+            inv.setId(912L);
+
+            when(teamJoinRequestRepository.findByTeamIdAndStatus(100L, TeamJoinRequest.RequestStatus.PENDING))
+                    .thenReturn(List.of(req));
+            when(teamInvitationRepository.findByTeamId(100L)).thenReturn(List.of(inv));
+
+            teamService.expirePendingRequestsAndInvitationsIfDeadlinePassed(expiredTeam);
+
+            assertEquals(TeamJoinRequest.RequestStatus.EXPIRED, req.getStatus());
+            assertEquals(TeamInvitation.InvitationStatus.EXPIRED, inv.getStatus());
+            verify(teamJoinRequestRepository, never()).delete(any());
+            verify(teamJoinRequestRepository, never()).deleteByTeamId(any());
+            verify(teamInvitationRepository, never()).delete(any());
+            verify(teamInvitationRepository, never()).deleteByTeamId(any());
+        }
+
+        @Test
+        @DisplayName("12. Team-full behavior uses REVOKED and is distinct from EXPIRED")
+        void testTeamFullBehavior_UsesRevoked_NotExpired() {
+            Team fullTeam = new Team();
+            fullTeam.setId(300L);
+            fullTeam.setName("Full Team");
+            fullTeam.setLeader(testLeader);
+            fullTeam.setMaxMembers((byte) 2);
+            fullTeam.setJoinDeadline(LocalDateTime.now().plusDays(5)); // Active, not expired
+
+            TeamJoinRequest pendingReq = new TeamJoinRequest(fullTeam, testStudent, TeamJoinRequest.RequestStatus.PENDING);
+            pendingReq.setId(921L);
+
+            User otherStudentUser = new User();
+            otherStudentUser.setId(30L);
+            TeamJoinRequest otherPendingReq = new TeamJoinRequest(fullTeam, otherStudentUser, TeamJoinRequest.RequestStatus.PENDING);
+            otherPendingReq.setId(923L);
+
+            TeamInvitation pendingInv = new TeamInvitation(fullTeam, otherStudentUser, testLeader, TeamInvitation.InvitationStatus.PENDING);
+            pendingInv.setId(922L);
+
+            when(teamJoinRequestRepository.findById(921L)).thenReturn(Optional.of(pendingReq));
+            when(teamRepository.findByIdForUpdate(300L)).thenReturn(Optional.of(fullTeam));
+            when(teamMemberRepository.existsById(new TeamMemberId(300L, 20L))).thenReturn(false);
+            when(teamMemberRepository.findByTeamId(300L)).thenReturn(List.of(new TeamMember())); // 1 member currently
+            when(teamMemberRepository.countByTeamId(300L)).thenReturn(2L); // 2 members after accept -> reached max capacity (2)
+            when(teamInvitationRepository.findByTeamId(300L)).thenReturn(List.of(pendingInv));
+            when(teamJoinRequestRepository.findByTeamIdAndStatus(300L, TeamJoinRequest.RequestStatus.PENDING))
+                    .thenReturn(List.of(otherPendingReq));
+
+            teamService.acceptJoinRequest(300L, 921L, 10L);
+
+            assertEquals(TeamJoinRequest.RequestStatus.ACCEPTED, pendingReq.getStatus());
+            assertEquals(TeamJoinRequest.RequestStatus.REVOKED, otherPendingReq.getStatus());
+            assertEquals(TeamInvitation.InvitationStatus.REVOKED, pendingInv.getStatus());
+        }
+
+        @Test
+        @DisplayName("13. Normal non-expired request and invitation flow works successfully")
+        void testNormalNonExpiredFlow_WorksSuccessfully() {
+            // Join request
+            when(teamRepository.findById(200L)).thenReturn(Optional.of(activeTeam));
+            when(userRepository.findById(20L)).thenReturn(Optional.of(testStudent));
+            when(teamMemberRepository.existsById(new TeamMemberId(200L, 20L))).thenReturn(false);
+            when(teamInvitationRepository.existsByTeamIdAndInvitedUserIdAndStatus(200L, 20L, TeamInvitation.InvitationStatus.PENDING))
+                    .thenReturn(false);
+            when(teamMemberRepository.countByTeamId(200L)).thenReturn(1L);
+            when(teamMemberRepository.findByTeamId(200L)).thenReturn(Collections.emptyList());
+            when(teamJoinRequestRepository.findByTeamIdAndUserId(200L, 20L)).thenReturn(Optional.empty());
+            when(teamJoinRequestRepository.save(any(TeamJoinRequest.class))).thenAnswer(i -> {
+                TeamJoinRequest r = i.getArgument(0);
+                r.setId(930L);
+                return r;
+            });
+
+            TeamJoinRequestResponse resp = teamService.sendJoinRequest(200L, 20L, "Researcher", null);
+            assertNotNull(resp);
+            assertEquals("PENDING", resp.getStatus());
+            assertEquals("Researcher", resp.getRequestedRole());
+
+            // Invitation
+            when(userRepository.findByEmail("leader@college.edu")).thenReturn(Optional.of(testLeader));
+            when(teamInvitationRepository.findByTeamIdAndInvitedUserId(200L, 20L)).thenReturn(Optional.empty());
+            when(teamInvitationRepository.save(any(TeamInvitation.class))).thenAnswer(i -> {
+                TeamInvitation inv = i.getArgument(0);
+                inv.setId(931L);
+                return inv;
+            });
+
+            TeamInvitationResponse invResp = teamService.inviteStudent(200L, 20L, "leader@college.edu", "Researcher", null);
+            assertNotNull(invResp);
+            assertEquals("PENDING", invResp.getStatus());
+            assertEquals("Researcher", invResp.getInvitedRole());
+        }
+
+        @Test
+        @DisplayName("14. Scheduled cleanup automatically expires pending requests and invitations on expired teams")
+        void testScheduledCleanup_ExpiresExpiredTeams() {
+            TeamJoinRequest req = new TeamJoinRequest(expiredTeam, testStudent, TeamJoinRequest.RequestStatus.PENDING);
+            TeamInvitation inv = new TeamInvitation(expiredTeam, testStudent, testLeader, TeamInvitation.InvitationStatus.PENDING);
+
+            when(teamRepository.findAll()).thenReturn(List.of(expiredTeam, activeTeam));
+            when(teamJoinRequestRepository.findByTeamIdAndStatus(100L, TeamJoinRequest.RequestStatus.PENDING))
+                    .thenReturn(List.of(req));
+            when(teamInvitationRepository.findByTeamId(100L)).thenReturn(List.of(inv));
+
+            teamService.cleanupExpiredTeamsRequestsAndInvitations();
+
+            assertEquals(TeamJoinRequest.RequestStatus.EXPIRED, req.getStatus());
+            assertEquals(TeamInvitation.InvitationStatus.EXPIRED, inv.getStatus());
+            verify(teamJoinRequestRepository).save(req);
+            verify(teamInvitationRepository).save(inv);
+        }
+
+        @Test
+        @DisplayName("15. Query and cancellation operations on expired team trigger expiry and reject mutations")
+        void testQueryAndCancelOperations_ExpiredTeam() {
+            TeamJoinRequest req = new TeamJoinRequest(expiredTeam, testStudent, TeamJoinRequest.RequestStatus.PENDING);
+            req.setId(940L);
+            TeamInvitation inv = new TeamInvitation(expiredTeam, testStudent, testLeader, TeamInvitation.InvitationStatus.PENDING);
+            inv.setId(941L);
+
+            // getPendingJoinRequests
+            when(teamRepository.findById(100L)).thenReturn(Optional.of(expiredTeam));
+            when(teamJoinRequestRepository.findByTeamIdAndStatus(100L, TeamJoinRequest.RequestStatus.PENDING))
+                    .thenReturn(List.of(req));
+            when(teamInvitationRepository.findByTeamId(100L)).thenReturn(List.of(inv));
+
+            List<TeamJoinRequestResponse> pending = teamService.getPendingJoinRequests(100L, 10L);
+            // Since req is marked EXPIRED, it's not pending anymore
+            assertEquals(TeamJoinRequest.RequestStatus.EXPIRED, req.getStatus());
+
+            // cancelJoinRequest
+            when(userRepository.findByEmail("student@college.edu")).thenReturn(Optional.of(testStudent));
+            when(teamJoinRequestRepository.findById(940L)).thenReturn(Optional.of(req));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                    teamService.cancelJoinRequest(100L, 940L, "student@college.edu")
+            );
+            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+            assertTrue(ex.getReason().contains("deadline has expired"));
+        }
+    }
 }
 
