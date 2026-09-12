@@ -36,6 +36,7 @@ import ErrorState from '../components/common/ErrorState';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import EditTeamModal from '../components/teams/EditTeamModal';
+import { TeamDetailsSkeleton } from '../components/common/Skeleton';
 
 import teamApi from '../services/teamApi';
 import userApi from '../services/userApi';
@@ -915,21 +916,7 @@ export const TeamDetailsPage = () => {
    * Loading skeleton
    */
   if (isLoading) {
-    return (
-      <div className="max-w-4xl mx-auto py-8">
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 animate-pulse space-y-5">
-          <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded" />
-          <div className="h-7 w-56 bg-slate-200 dark:bg-slate-700 rounded" />
-          <div className="h-4 w-80 bg-slate-100 dark:bg-slate-700 rounded" />
-          <div className="h-24 bg-slate-50 dark:bg-slate-700/50 rounded-lg mt-6" />
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
-            <div className="h-16 bg-slate-100 dark:bg-slate-700/50 rounded-lg" />
-            <div className="h-16 bg-slate-100 dark:bg-slate-700/50 rounded-lg" />
-          </div>
-        </div>
-      </div>
-    );
+    return <TeamDetailsSkeleton />;
   }
 
   /**
