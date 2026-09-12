@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.sangam.sangam.dto.ChangePasswordRequest;
 import com.sangam.sangam.dto.LoginRequest;
 import com.sangam.sangam.dto.LoginResponse;
 import com.sangam.sangam.dto.RegisterRequest;
@@ -19,6 +20,7 @@ import com.sangam.sangam.dto.VerifyOtpRequest;
 import com.sangam.sangam.entity.User;
 import com.sangam.sangam.service.AuthService;
 import com.sangam.sangam.service.EmailOtpService;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.validation.Valid;
@@ -126,5 +128,20 @@ public class AuthController {
         authService.forgotPasswordReset(request);
         return ResponseEntity.ok(Map.of(
                 "message", "Password reset successfully. You can now log in with your new password."));
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<Map<String, String>> changePassword(
+            @Valid @RequestBody ChangePasswordRequest request,
+            Authentication authentication) {
+
+        if (authentication == null || authentication.getName() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
+
+        authService.changePassword(request, authentication.getName());
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Password changed successfully"));
     }
 }

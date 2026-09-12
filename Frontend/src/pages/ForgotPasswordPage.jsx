@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, KeyRound, ArrowRight, CheckCircle2, Server, ArrowLeft } from 'lucide-react';
+import { Mail, Lock, KeyRound, ArrowRight, CheckCircle2, Server, ArrowLeft, AlertTriangle } from 'lucide-react';
 import Input from '../components/common/Input';
 import Button from '../components/common/Button';
+import Modal from '../components/common/Modal';
 import ThemeToggle from '../components/common/ThemeToggle';
 import { useToast } from '../context/ToastContext';
 import authApi from '../services/authApi';
@@ -22,6 +23,7 @@ export const ForgotPasswordPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [errors, setErrors] = useState({});
+  const [isNotFoundModalOpen, setIsNotFoundModalOpen] = useState(false);
 
   const { success: toastSuccess } = useToast();
   const navigate = useNavigate();
@@ -38,8 +40,15 @@ export const ForgotPasswordPage = () => {
   // Step 1: Request Password Reset OTP
   const handleSendOtp = async (e) => {
     e.preventDefault();
-    if (!formData.email.trim()) {
+    const trimmedEmail = formData.email.trim();
+    if (!trimmedEmail) {
       setErrors({ email: 'Please enter your registered email address.' });
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setErrors({ email: 'Please enter a valid email address.' });
       return;
     }
 
@@ -47,13 +56,23 @@ export const ForgotPasswordPage = () => {
     setErrorMessage('');
 
     try {
-      const response = await authApi.forgotPasswordSendOtp(formData.email);
+      const response = await authApi.forgotPasswordSendOtp(trimmedEmail);
       setStage('otp');
-      toastSuccess(response?.message || 'If registered, an OTP has been sent to your email.');
+      toastSuccess(response?.message || 'Verification OTP has been sent to your registered email.');
     } catch (err) {
-      setErrorMessage(
-        extractErrorMessage(err, 'Unable to send OTP. Please check your email and try again.')
-      );
+      const status = err.response?.status;
+      const msg = extractErrorMessage(err, 'Unable to send OTP. Please check your email and try again.');
+
+      if (
+        status === 404 ||
+        msg.toLowerCase().includes('no account is registered') ||
+        msg.toLowerCase().includes('not registered') ||
+        msg.toLowerCase().includes('not found')
+      ) {
+        setIsNotFoundModalOpen(true);
+      } else {
+        setErrorMessage(msg);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -356,6 +375,45 @@ export const ForgotPasswordPage = () => {
           )}
         </div>
       </div>
+
+      {/* Account Not Found Modal */}
+      <Modal
+        isOpen={isNotFoundModalOpen}
+        onClose={() => setIsNotFoundModalOpen(false)}
+        title="Account Not Found"
+        description="No account is registered with this email."
+        maxWidth="max-w-md"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsNotFoundModalOpen(false)}
+            >
+              Try Another Email
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() => navigate('/register')}
+              rightIcon={ArrowRight}
+            >
+              Create an Account
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div className="p-3.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <p className="leading-relaxed">
+              No account is registered with <strong className="font-semibold text-slate-900 dark:text-white">{formData.email}</strong>. Please check for typos or sign up to create a new SanGam profile.
+            </p>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
