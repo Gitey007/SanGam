@@ -216,7 +216,7 @@ export const SettingsPage = () => {
           </div>
           <Link to="/profile">
             <Button variant="outline" size="sm" rightIcon={ExternalLink}>
-              Edit Personal Details
+              Edit Profile
             </Button>
           </Link>
         </div>

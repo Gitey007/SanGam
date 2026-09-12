@@ -54,7 +54,7 @@ export const ProfileHeader = ({ profile, isOwnProfile, onEditClick }) => {
             onClick={onEditClick}
             leftIcon={Edit3}
           >
-            Edit Profile
+            Edit Personal Info
           </Button>
         )}
       </div>
