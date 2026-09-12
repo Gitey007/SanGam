@@ -293,7 +293,7 @@ export const DashboardPage = () => {
           <div className="pt-4 mt-5 border-t border-slate-100 dark:border-slate-800">
             <Link to="/profile">
               <Button variant="outline" size="sm" className="w-full">
-                Edit Academic Details
+                Edit Profile
               </Button>
             </Link>
           </div>
