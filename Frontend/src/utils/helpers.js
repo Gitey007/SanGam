@@ -1,5 +1,5 @@
 /**
- * Get initials from full name (e.g. "Sahul Kumar" -> "SK")
+ * Get initials from full name (e.g. "Student Name" -> "SN")
  */
 export function getInitials(name) {
   if (!name) return 'U';

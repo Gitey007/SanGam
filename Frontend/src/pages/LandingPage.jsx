@@ -191,11 +191,11 @@ export const LandingPage = () => {
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
                   <div className="flex items-center gap-2.5">
                     <div className="w-9 h-9 rounded-full bg-slate-900 dark:bg-brand-600 text-white font-semibold text-xs flex items-center justify-center">
-                      SK
+                      SN
                     </div>
                     <div>
-                      <div className="text-xs font-semibold text-slate-900 dark:text-white">Sahul Kumar</div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">CSE · Year 3 · ABES Engineering College</div>
+                      <div className="text-xs font-semibold text-slate-900 dark:text-white">Student Name</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">CSE · Year 3 · Campus Engineering College</div>
                     </div>
                   </div>
                   <span className="text-[10px] font-medium bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800 px-2 py-0.5 rounded">

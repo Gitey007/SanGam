@@ -481,63 +481,172 @@ export const DiscoverPageSkeleton = () => {
  */
 export const ProfileSkeleton = () => {
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fadeIn">
+    <div className="max-w-4xl mx-auto space-y-6 pb-12 animate-fadeIn">
+      {/* Profile Header Card */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-subtle">
-        {/* Cover / Header Banner */}
-        <div className="h-24 bg-slate-100 dark:bg-slate-800/80 shimmer-effect" />
+        {/* Top action bar */}
+        <div className="px-6 pt-5 flex items-center justify-between">
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-8 w-36 rounded-lg" />
+        </div>
 
-        <div className="p-6 md:p-8 -mt-12">
-          {/* Avatar & User Details */}
-          <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-4 pb-6 border-b border-slate-100 dark:border-slate-800">
-            <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
-              <Skeleton className="w-20 h-20 rounded-full border-4 border-white dark:border-slate-900 shrink-0 shadow-md" />
-              <div className="space-y-1.5">
-                <Skeleton className="h-6 w-44" />
-                <Skeleton className="h-3.5 w-32" />
-                <Skeleton className="h-3 w-52" />
+        {/* Main Profile Info */}
+        <div className="p-6 md:p-8">
+          <div className="flex flex-col md:flex-row items-start md:items-center gap-6 pb-6 border-b border-slate-100 dark:border-slate-800">
+            <Skeleton className="w-16 h-16 md:w-20 md:h-20 rounded-full shrink-0" />
+
+            <div className="flex-1 min-w-0 space-y-2.5">
+              <div className="flex items-center gap-2.5">
+                <Skeleton className="h-7 w-48" />
+                <Skeleton className="h-5 w-12 rounded-full" />
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {[1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="w-8 h-8 rounded-lg" />
-              ))}
-            </div>
-          </div>
+              <Skeleton className="h-4 w-36" />
 
-          {/* Bio Block */}
-          <div className="py-6 space-y-2 border-b border-slate-100 dark:border-slate-800">
-            <Skeleton className="h-3.5 w-20 mb-2" />
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-4/5" />
-          </div>
-
-          {/* Skills Block */}
-          <div className="py-6 space-y-3 border-b border-slate-100 dark:border-slate-800">
-            <Skeleton className="h-3.5 w-20" />
-            <div className="flex flex-wrap gap-2">
-              <Skeleton className="h-6 w-16 rounded-md" />
-              <Skeleton className="h-6 w-20 rounded-md" />
-              <Skeleton className="h-6 w-14 rounded-md" />
-              <Skeleton className="h-6 w-24 rounded-md" />
-              <Skeleton className="h-6 w-18 rounded-md" />
-            </div>
-          </div>
-
-          {/* Achievements Block */}
-          <div className="pt-6 space-y-3">
-            <Skeleton className="h-3.5 w-28" />
-            <div className="space-y-2.5">
-              {[1, 2].map((i) => (
-                <div key={i} className="p-3.5 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                  <div className="space-y-1">
-                    <Skeleton className="h-3.5 w-36" />
-                    <Skeleton className="h-2.5 w-48" />
-                  </div>
+              {/* College, Year, Email meta row */}
+              <div className="flex flex-wrap items-center gap-y-1.5 gap-x-4 pt-1">
+                <div className="flex items-center gap-1.5">
+                  <Skeleton className="w-3.5 h-3.5 rounded shrink-0" />
+                  <Skeleton className="h-3 w-44" />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Skeleton className="w-3.5 h-3.5 rounded shrink-0" />
                   <Skeleton className="h-3 w-16" />
                 </div>
-              ))}
+                <div className="flex items-center gap-1.5">
+                  <Skeleton className="w-3.5 h-3.5 rounded shrink-0" />
+                  <Skeleton className="h-3 w-36" />
+                </div>
+              </div>
+
+              {/* Social Links pills */}
+              <div className="flex flex-wrap items-center gap-2 pt-2">
+                <Skeleton className="h-7 w-20 rounded-md" />
+                <Skeleton className="h-7 w-20 rounded-md" />
+                <Skeleton className="h-7 w-20 rounded-md" />
+              </div>
             </div>
           </div>
+
+          {/* Bio Section */}
+          <div className="py-6 border-b border-slate-100 dark:border-slate-800 space-y-2">
+            <Skeleton className="h-3 w-16 mb-2" />
+            <Skeleton className="h-3.5 w-full" />
+            <Skeleton className="h-3.5 w-4/5" />
+          </div>
+
+          {/* Looking For Section */}
+          <div className="pt-6 space-y-3">
+            <div className="flex items-center gap-1.5">
+              <Skeleton className="w-3.5 h-3.5 rounded shrink-0" />
+              <Skeleton className="h-3 w-36" />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Skeleton className="h-6 w-28 rounded-full" />
+              <Skeleton className="h-6 w-32 rounded-full" />
+              <Skeleton className="h-6 w-24 rounded-full" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Skills Section Card */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 shadow-subtle">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <Skeleton className="w-4 h-4 rounded shrink-0" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+          <Skeleton className="h-3.5 w-14" />
+        </div>
+
+        <div className="pt-4 flex flex-wrap gap-2">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Skeleton key={i} className="h-7 w-20 rounded-full" />
+          ))}
+        </div>
+
+        {/* Add Skill row */}
+        <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 space-y-3">
+          <Skeleton className="h-3 w-24" />
+          <div className="flex gap-2 max-w-md">
+            <Skeleton className="h-8 flex-1 rounded-lg" />
+            <Skeleton className="h-8 w-16 rounded-lg" />
+          </div>
+          <div className="flex items-center gap-1.5 pt-1">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-5 w-16 rounded" />
+            <Skeleton className="h-5 w-20 rounded" />
+            <Skeleton className="h-5 w-16 rounded" />
+          </div>
+        </div>
+      </div>
+
+      {/* Featured Projects Card */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 shadow-subtle">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <Skeleton className="w-4 h-4 rounded shrink-0" />
+            <Skeleton className="h-4 w-36" />
+          </div>
+          <Skeleton className="h-8 w-28 rounded-lg" />
+        </div>
+
+        <div className="pt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[1, 2].map((i) => (
+            <div
+              key={i}
+              className="rounded-xl border border-slate-200 dark:border-slate-800 p-5 bg-slate-50/40 dark:bg-slate-800/40 flex flex-col justify-between"
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-4 w-12 rounded" />
+                </div>
+                <div className="space-y-1.5">
+                  <Skeleton className="h-3 w-full" />
+                  <Skeleton className="h-3 w-4/5" />
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <Skeleton className="h-4.5 w-14 rounded" />
+                  <Skeleton className="h-4.5 w-18 rounded" />
+                  <Skeleton className="h-4.5 w-12 rounded" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 pt-3 mt-4 border-t border-slate-200/60 dark:border-slate-700/60">
+                <Skeleton className="h-6 w-16 rounded" />
+                <Skeleton className="h-6 w-20 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Achievements Section Card */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 shadow-subtle">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <Skeleton className="w-4 h-4 rounded shrink-0" />
+            <Skeleton className="h-4 w-44" />
+          </div>
+          <Skeleton className="h-8 w-36 rounded-lg" />
+        </div>
+
+        <div className="pt-5 space-y-3">
+          {[1, 2].map((i) => (
+            <div
+              key={i}
+              className="rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-3.5 bg-white dark:bg-slate-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            >
+              <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                <Skeleton className="h-5 w-20 rounded" />
+                <Skeleton className="h-4 w-48" />
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Skeleton className="h-6 w-20 rounded-md" />
+                <Skeleton className="h-6 w-12 rounded" />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
