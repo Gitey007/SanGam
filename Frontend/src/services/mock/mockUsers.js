@@ -5,8 +5,8 @@
 export const MOCK_USERS = [
   {
     id: 1,
-    name: "Sahul Kumar",
-    email: "sahul.kumar@abes.ac.in",
+    name: "Student Name",
+    email: "student@abes.ac.in",
     college: "ABES Engineering College",
     branch: "Computer Science & Engineering",
     year: 3,

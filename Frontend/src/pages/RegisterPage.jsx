@@ -186,7 +186,7 @@ export const RegisterPage = () => {
                 <Input
                   label="Full Name"
                   name="name"
-                  placeholder="Sahul Kumar"
+                  placeholder="Student Name"
                   value={formData.name}
                   onChange={handleChange}
                   leftIcon={User}

@@ -9,11 +9,11 @@ export const MOCK_TEAMS = [
     description: 'Building a collaborative coding and algorithm visualization tool for competitive programming clubs.',
     leader: {
       id: 1,
-      name: 'Sahul Kumar',
+      name: 'Student Name',
       college: 'ABES Engineering College',
     },
     members: [
-      { id: 1, name: 'Sahul Kumar', role: 'Leader' },
+      { id: 1, name: 'Student Name', role: 'Leader' },
       { id: 2, name: 'Aanya Sharma', role: 'Frontend' },
     ],
     maxMembers: 4,
