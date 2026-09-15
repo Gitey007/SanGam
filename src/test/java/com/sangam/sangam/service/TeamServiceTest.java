@@ -34,6 +34,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.sangam.sangam.dto.CreateTeamRequest;
+import com.sangam.sangam.dto.PageResponse;
 import com.sangam.sangam.dto.TeamInvitationResponse;
 import com.sangam.sangam.dto.TeamJoinRequestResponse;
 import com.sangam.sangam.dto.TeamMemberResponse;
@@ -2822,6 +2823,185 @@ class TeamServiceTest {
             );
             assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
             assertTrue(ex.getReason().contains("deadline has expired"));
+        }
+    }
+
+    @Nested
+    @DisplayName("Team Pagination, Search & Project Types Tests")
+    class TeamPaginationAndSearchTests {
+
+        private User leaderA;
+        private User leaderB;
+        private Team hackathonTeam;
+        private Team researchTeam;
+        private Team collegeProjTeam;
+
+        @BeforeEach
+        void setUp() {
+            leaderA = new User();
+            leaderA.setId(1L);
+            leaderA.setName("Alice");
+            leaderA.setEmail("alice@college.edu");
+            leaderA.setCollege("IIT Delhi");
+
+            leaderB = new User();
+            leaderB.setId(2L);
+            leaderB.setName("Bob");
+            leaderB.setEmail("bob@college.edu");
+            leaderB.setCollege("BITS Pilani");
+
+            hackathonTeam = new Team();
+            hackathonTeam.setId(10L);
+            hackathonTeam.setName("EcoTrack Hackers");
+            hackathonTeam.setLeader(leaderA);
+            hackathonTeam.setProjectType("Hackathon");
+            hackathonTeam.setProjectName("EcoTrack AI");
+            hackathonTeam.setProjectDescription("AI waste classification");
+            hackathonTeam.setHackathonName("Smart India Hackathon 2026");
+            hackathonTeam.setHackathonUrl("https://sih.gov.in");
+            hackathonTeam.setHackathonDeadline("15 Oct 2026");
+            hackathonTeam.setMaxMembers((byte) 4);
+
+            researchTeam = new Team();
+            researchTeam.setId(20L);
+            researchTeam.setName("Quantum Labs");
+            researchTeam.setLeader(leaderA);
+            researchTeam.setProjectType("Research");
+            researchTeam.setProjectName("Quantum Computing Simulator");
+            researchTeam.setProjectDescription("Simulating qubits on GPU");
+            researchTeam.setMaxMembers((byte) 4);
+
+            collegeProjTeam = new Team();
+            collegeProjTeam.setId(30L);
+            collegeProjTeam.setName("Campus Connect");
+            collegeProjTeam.setLeader(leaderB);
+            collegeProjTeam.setProjectType("College Project");
+            collegeProjTeam.setProjectName("Campus Bus Tracker");
+            collegeProjTeam.setProjectDescription("Real-time GPS tracking for campus transit");
+            collegeProjTeam.setMaxMembers((byte) 4);
+        }
+
+        @Test
+        @DisplayName("Existing Hackathon teams preserve all hackathon details and project type")
+        void testExistingHackathonTeamPreserved() {
+            when(teamRepository.findAll()).thenReturn(List.of(hackathonTeam));
+            when(teamMemberRepository.findByTeamIdIn(List.of(10L))).thenReturn(Collections.emptyList());
+
+            PageResponse<TeamResponse> page = teamService.getTeams(null, null, null, null, 0, 9, null);
+
+            assertEquals(1, page.getTotalElements());
+            assertEquals(1, page.getContent().size());
+            TeamResponse resp = page.getContent().get(0);
+            assertEquals("EcoTrack Hackers", resp.getName());
+            assertEquals("Hackathon", resp.getProjectType());
+            assertEquals("Smart India Hackathon 2026", resp.getHackathonName());
+            assertEquals("https://sih.gov.in", resp.getHackathonUrl());
+            assertEquals("15 Oct 2026", resp.getHackathonDeadline());
+            assertEquals("EcoTrack AI", resp.getProjectName());
+        }
+
+        @Test
+        @DisplayName("Pagination returns maximum 9 teams per page and page 2 returns remaining")
+        void testPaginationReturnsMax9TeamsAndPage2() {
+            List<Team> fifteenTeams = new ArrayList<>();
+            for (long i = 1; i <= 15; i++) {
+                Team t = new Team();
+                t.setId(i);
+                t.setName("Team " + i);
+                t.setLeader(leaderA);
+                t.setMaxMembers((byte) 4);
+                t.setProjectType("Hackathon");
+                fifteenTeams.add(t);
+            }
+
+            when(teamRepository.findAll()).thenReturn(fifteenTeams);
+            when(teamMemberRepository.findByTeamIdIn(any())).thenReturn(Collections.emptyList());
+
+            // Page 0 (size 9) -> 9 teams
+            PageResponse<TeamResponse> page0 = teamService.getTeams(null, null, null, null, 0, 9, null);
+            assertEquals(15, page0.getTotalElements());
+            assertEquals(2, page0.getTotalPages());
+            assertEquals(9, page0.getContent().size());
+            assertTrue(page0.isFirst());
+            assertFalse(page0.isLast());
+
+            // Page 1 (size 9) -> 6 teams
+            PageResponse<TeamResponse> page1 = teamService.getTeams(null, null, null, null, 1, 9, null);
+            assertEquals(15, page1.getTotalElements());
+            assertEquals(2, page1.getTotalPages());
+            assertEquals(6, page1.getContent().size());
+            assertFalse(page1.isFirst());
+            assertTrue(page1.isLast());
+        }
+
+        @Test
+        @DisplayName("Search filters by team name and project name case-insensitively")
+        void testSearchByTeamNameAndProjectName() {
+            when(teamRepository.findAll()).thenReturn(List.of(hackathonTeam, researchTeam, collegeProjTeam));
+            when(teamMemberRepository.findByTeamIdIn(any())).thenReturn(Collections.emptyList());
+
+            // Search by team name
+            PageResponse<TeamResponse> searchTeam = teamService.getTeams("ecotrack", null, null, null, 0, 9, null);
+            assertEquals(1, searchTeam.getTotalElements());
+            assertEquals("EcoTrack Hackers", searchTeam.getContent().get(0).getName());
+
+            // Search by project name
+            PageResponse<TeamResponse> searchProject = teamService.getTeams("quantum", null, null, null, 0, 9, null);
+            assertEquals(1, searchProject.getTotalElements());
+            assertEquals("Quantum Labs", searchProject.getContent().get(0).getName());
+
+            // Search by project description
+            PageResponse<TeamResponse> searchDesc = teamService.getTeams("transit", null, null, null, 0, 9, null);
+            assertEquals(1, searchDesc.getTotalElements());
+            assertEquals("Campus Connect", searchDesc.getContent().get(0).getName());
+        }
+
+        @Test
+        @DisplayName("Filter by projectType returns only matching teams")
+        void testFilterByProjectType() {
+            when(teamRepository.findAll()).thenReturn(List.of(hackathonTeam, researchTeam, collegeProjTeam));
+            when(teamMemberRepository.findByTeamIdIn(any())).thenReturn(Collections.emptyList());
+
+            PageResponse<TeamResponse> researchRes = teamService.getTeams(null, "Research", null, null, 0, 9, null);
+            assertEquals(1, researchRes.getTotalElements());
+            assertEquals("Quantum Labs", researchRes.getContent().get(0).getName());
+
+            PageResponse<TeamResponse> collegeRes = teamService.getTeams(null, "College Project", null, null, 0, 9, null);
+            assertEquals(1, collegeRes.getTotalElements());
+            assertEquals("Campus Connect", collegeRes.getContent().get(0).getName());
+        }
+
+        @Test
+        @DisplayName("Filter by college scope returns matching campus teams")
+        void testFilterByScope() {
+            when(teamRepository.findAll()).thenReturn(List.of(hackathonTeam, researchTeam, collegeProjTeam));
+            when(teamMemberRepository.findByTeamIdIn(any())).thenReturn(Collections.emptyList());
+            when(userRepository.findByEmail("alice@college.edu")).thenReturn(Optional.of(leaderA));
+
+            // MY_COLLEGE for Alice (IIT Delhi) -> hackathonTeam and researchTeam
+            PageResponse<TeamResponse> myCollege = teamService.getTeams(null, null, "MY_COLLEGE", null, 0, 9, "alice@college.edu");
+            assertEquals(2, myCollege.getTotalElements());
+
+            // INTER_COLLEGE for Alice -> collegeProjTeam (BITS Pilani)
+            PageResponse<TeamResponse> interCollege = teamService.getTeams(null, null, "INTER_COLLEGE", null, 0, 9, "alice@college.edu");
+            assertEquals(1, interCollege.getTotalElements());
+            assertEquals("Campus Connect", interCollege.getContent().get(0).getName());
+        }
+
+        @Test
+        @DisplayName("Filter by tab='my' returns only teams where user is leader or member")
+        void testFilterByTabMy() {
+            TeamMember member = new TeamMember();
+            member.setTeamId(30L);
+            member.setUserId(1L); // Alice is member of collegeProjTeam
+
+            when(teamRepository.findAll()).thenReturn(List.of(hackathonTeam, researchTeam, collegeProjTeam));
+            when(teamMemberRepository.findByTeamIdIn(any())).thenReturn(List.of(member));
+            when(userRepository.findByEmail("alice@college.edu")).thenReturn(Optional.of(leaderA));
+
+            PageResponse<TeamResponse> myTeams = teamService.getTeams(null, null, null, "my", 0, 9, "alice@college.edu");
+            // Alice is leader of hackathonTeam (10L) & researchTeam (20L), and member of collegeProjTeam (30L) -> all 3
+            assertEquals(3, myTeams.getTotalElements());
         }
     }
 }

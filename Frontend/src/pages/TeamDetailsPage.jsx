@@ -37,6 +37,7 @@ import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
 import EditTeamModal from '../components/teams/EditTeamModal';
 import { TeamDetailsSkeleton } from '../components/common/Skeleton';
+import { getProjectTypeTheme } from '../utils/constants';
 
 import teamApi from '../services/teamApi';
 import userApi from '../services/userApi';
@@ -1303,11 +1304,15 @@ export const TeamDetailsPage = () => {
                     {team.projectName || 'Project Details'}
                   </h2>
                 </div>
-                {team.projectType && (
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-brand-50 dark:bg-brand-950/40 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800">
-                    {team.projectType}
-                  </span>
-                )}
+                {team.projectType && (() => {
+                  const ptTheme = getProjectTypeTheme(team.projectType);
+                  return (
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border inline-flex items-center gap-1.5 ${ptTheme.badgeClass}`}>
+                      <span>{ptTheme.icon}</span>
+                      <span>{ptTheme.label}</span>
+                    </span>
+                  );
+                })()}
               </div>
 
               <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">

@@ -8,9 +8,11 @@ import {
   FileText,
   Clock,
 } from 'lucide-react';
+import { getProjectTypeTheme } from '../../utils/constants';
 
 export const TeamCard = ({ team }) => {
   const leaderName = team.leaderName || team.leader?.name;
+  const projectTheme = getProjectTypeTheme(team.projectType);
   const maxMembers = team.maxMembers || 4;
   const memberCount =
     team.memberCount !== undefined
@@ -152,8 +154,9 @@ export const TeamCard = ({ team }) => {
                 {team.projectName}
               </span>
               {team.projectType && (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-brand-50 dark:bg-brand-950/50 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800 shrink-0">
-                  {team.projectType}
+                <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border shrink-0 inline-flex items-center gap-1 ${projectTheme.badgeClass}`}>
+                  <span>{projectTheme.icon}</span>
+                  <span>{projectTheme.label}</span>
                 </span>
               )}
             </div>
@@ -164,9 +167,19 @@ export const TeamCard = ({ team }) => {
             )}
           </div>
         ) : (
-          <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 mb-3 leading-relaxed">
-            {team.description || 'No description provided.'}
-          </p>
+          <div className="mb-3">
+            {team.projectType && (
+              <div className="mb-1.5">
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${projectTheme.badgeClass}`}>
+                  <span>{projectTheme.icon}</span>
+                  <span>{projectTheme.label}</span>
+                </span>
+              </div>
+            )}
+            <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">
+              {team.description || 'No description provided.'}
+            </p>
+          </div>
         )}
 
         {/* Hackathon Badge if applicable */}

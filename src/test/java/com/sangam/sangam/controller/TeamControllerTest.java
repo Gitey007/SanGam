@@ -31,6 +31,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.sangam.sangam.config.GlobalExceptionHandler;
+import com.sangam.sangam.dto.PageResponse;
 import com.sangam.sangam.dto.TeamInvitationResponse;
 import com.sangam.sangam.dto.TeamJoinRequestResponse;
 import com.sangam.sangam.dto.TeamResponse;
@@ -224,5 +225,35 @@ class TeamControllerTest {
                 .andExpect(jsonPath("$.teamId").value(10))
                 .andExpect(jsonPath("$.requestedRole").value("Researcher"))
                 .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    @Test
+    @DisplayName("GET /api/teams -> 200 OK with PageResponse")
+    void testGetTeamsSuccess() throws Exception {
+        TeamResponse resp = new TeamResponse();
+        resp.setId(10L);
+        resp.setName("EcoTrack Hackers");
+        resp.setProjectType("Hackathon");
+        resp.setHackathonName("Smart India Hackathon 2026");
+
+        PageResponse<TeamResponse> page = new PageResponse<>(List.of(resp), 0, 9, 1);
+
+        when(teamService.getTeams(eq("EcoTrack"), eq("Hackathon"), eq("ALL"), eq("all"), eq(0), eq(9), any()))
+                .thenReturn(page);
+
+        mockMvc.perform(get("/api/teams")
+                        .param("search", "EcoTrack")
+                        .param("projectType", "Hackathon")
+                        .param("scope", "ALL")
+                        .param("tab", "all")
+                        .param("page", "0")
+                        .param("size", "9"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.pageSize").value(9))
+                .andExpect(jsonPath("$.content[0].id").value(10))
+                .andExpect(jsonPath("$.content[0].name").value("EcoTrack Hackers"))
+                .andExpect(jsonPath("$.content[0].projectType").value("Hackathon"));
     }
 }

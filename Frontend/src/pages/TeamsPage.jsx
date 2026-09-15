@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Send,
   AlertCircle,
+  Search,
 } from 'lucide-react';
 import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
@@ -34,6 +35,12 @@ export const TeamsPage = () => {
   const initialTab = searchParams.get('tab') || 'all';
 
   const [tab, setTab] = useState(initialTab); // 'all' | 'my' | 'invitations' | 'requests'
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
+
   const [teams, setTeams] = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [myRequests, setMyRequests] = useState([]);
@@ -69,39 +76,45 @@ export const TeamsPage = () => {
   const { user } = useAuth();
   const { success, error: toastError } = useToast();
 
-  const sortTeams = (teamList) => {
-    return [...teamList].sort((a, b) => {
-      const aExpired = Boolean(
-        a.isExpired ||
-          a.expired ||
-          (a.joinDeadline && new Date(a.joinDeadline) < new Date())
-      );
-      const bExpired = Boolean(
-        b.isExpired ||
-          b.expired ||
-          (b.joinDeadline && new Date(b.joinDeadline) < new Date())
-      );
+  // Debounce search input by 300ms
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 300);
 
-      if (aExpired !== bExpired) {
-        return aExpired ? 1 : -1; // Active teams first, expired at bottom
-      }
-
-      // Among active or expired: availableCapacity descending
-      const aMembersCount = a.currentMemberCount || a.members?.length || 0;
-      const bMembersCount = b.currentMemberCount || b.members?.length || 0;
-      const aCapacity = (a.maxMembers || 0) - aMembersCount;
-      const bCapacity = (b.maxMembers || 0) - bMembersCount;
-      return bCapacity - aCapacity;
-    });
-  };
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchTerm]);
 
   const fetchTeams = useCallback(async () => {
+    if (tab === 'invitations' || tab === 'requests') {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
-      const data = await teamApi.getTeams();
-      const rawList = Array.isArray(data) ? data : [];
-      setTeams(sortTeams(rawList));
+      const params = {
+        page,
+        size: 9,
+        tab: tab === 'my' ? 'my' : undefined,
+        search: debouncedSearch.trim() || undefined,
+      };
+      const data = await teamApi.getTeams(params);
+      if (data && Array.isArray(data.content)) {
+        setTeams(data.content);
+        setTotalPages(data.totalPages || 1);
+        setTotalElements(data.totalElements || 0);
+      } else if (Array.isArray(data)) {
+        setTeams(data);
+        setTotalPages(Math.ceil(data.length / 9) || 1);
+        setTotalElements(data.length);
+      } else {
+        setTeams([]);
+        setTotalPages(1);
+        setTotalElements(0);
+      }
     } catch (err) {
       console.error('Failed to load teams:', err);
       setError(
@@ -110,7 +123,7 @@ export const TeamsPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [tab, page, debouncedSearch]);
 
   const fetchInvitations = useCallback(async () => {
     setIsLoadingInvitations(true);
@@ -138,12 +151,16 @@ export const TeamsPage = () => {
 
   useEffect(() => {
     fetchTeams();
+  }, [fetchTeams]);
+
+  useEffect(() => {
     fetchInvitations();
     fetchMyRequests();
-  }, [fetchTeams, fetchInvitations, fetchMyRequests]);
+  }, [fetchInvitations, fetchMyRequests]);
 
   const handleTabChange = (newTab) => {
     setTab(newTab);
+    setPage(0);
     if (newTab === 'all') {
       setSearchParams({}, { replace: true });
     } else {
@@ -240,13 +257,13 @@ export const TeamsPage = () => {
   };
 
   const handleConfirmRequestAnotherRole = async (e) => {
-    e?.preventDefault();
+    if (e) e.preventDefault();
     const inv = requestAnotherModal.invitation;
     const role = requestAnotherModal.selectedRole;
     if (!inv || !role) return;
 
-    const selectedSlot = requestAnotherModal.allRoles?.find((r) => r.roleName === role);
-    if (!selectedSlot || selectedSlot.availableSlots <= 0) {
+    const chosenSlot = requestAnotherModal.allRoles?.find((r) => r.roleName === role);
+    if (!chosenSlot || chosenSlot.availableSlots <= 0) {
       toastError('Selected role is full. Please choose an available role.');
       return;
     }
@@ -294,28 +311,8 @@ export const TeamsPage = () => {
     }
   };
 
-  const myTeams = teams.filter((t) => {
-    const currentUserId = user?.id || user?.userId;
-    const isLeader =
-      (t.leaderId && currentUserId && String(t.leaderId) === String(currentUserId)) ||
-      (t.leader?.id && currentUserId && String(t.leader.id) === String(currentUserId)) ||
-      (t.leaderName && user?.name && t.leaderName === user.name);
-    const isMember = t.members?.some(
-      (m) =>
-        (m.userId && currentUserId && String(m.userId) === String(currentUserId)) ||
-        (m.id && currentUserId && String(m.id) === String(currentUserId)) ||
-        (m.name && user?.name && m.name === user.name)
-    );
-    return Boolean(isLeader || isMember);
-  });
-
-  const [limit, setLimit] = useState(10); // 10 | 20 | 30 | 'ALL'
   const pendingInvitations = invitations.filter((i) => i.status === 'PENDING');
   const pendingRequests = myRequests.filter((r) => r.status === 'PENDING');
-
-  const displayedTeams = tab === 'my' ? myTeams : teams;
-  const limitedTeams =
-    limit === 'ALL' ? displayedTeams : displayedTeams.slice(0, Number(limit));
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -340,8 +337,9 @@ export const TeamsPage = () => {
         </Link>
       </div>
 
-      {/* Tabs & Controls */}
+      {/* Tabs & Search Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Tabs */}
         <div className="flex flex-wrap items-center gap-1 bg-slate-100/90 dark:bg-slate-800/90 p-1 rounded-lg w-fit border border-slate-200/60 dark:border-slate-700/60">
           <button
             type="button"
@@ -352,7 +350,7 @@ export const TeamsPage = () => {
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            All Teams ({teams.length})
+            All Teams {tab === 'all' && totalElements > 0 ? `(${totalElements})` : ''}
           </button>
           <button
             type="button"
@@ -363,7 +361,7 @@ export const TeamsPage = () => {
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            My Teams ({myTeams.length})
+            My Teams {tab === 'my' && totalElements > 0 ? `(${totalElements})` : ''}
           </button>
           <button
             type="button"
@@ -401,28 +399,39 @@ export const TeamsPage = () => {
           </button>
         </div>
 
+        {/* Search Teams Input */}
         {(tab === 'all' || tab === 'my') && (
-          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 self-start sm:self-auto">
-            <span>Show:</span>
-            <select
-              value={limit}
-              onChange={(e) =>
-                setLimit(
-                  e.target.value === 'ALL' ? 'ALL' : Number(e.target.value)
-                )
-              }
-              className="h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
-            >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={30}>30</option>
-              <option value="ALL">All</option>
-            </select>
-            {displayedTeams.length > 0 && (
-              <span className="text-slate-400 dark:text-slate-500 text-[11px] ml-1">
-                ({limitedTeams.length} of {displayedTeams.length})
-              </span>
-            )}
+          <div className="relative w-full sm:w-72">
+            <label htmlFor="search-teams" className="sr-only">
+              Search Teams
+            </label>
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                id="search-teams"
+                type="text"
+                placeholder="Search by team name or project..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setPage(0);
+                }}
+                className="w-full h-8 pl-8 pr-7 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 transition-all shadow-subtle"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setPage(0);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5"
+                  aria-label="Clear search"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -669,7 +678,7 @@ export const TeamsPage = () => {
         /* Teams Grid */
         isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
               <TeamCardSkeleton key={i} />
             ))}
           </div>
@@ -679,23 +688,73 @@ export const TeamsPage = () => {
             message={error}
             onRetry={fetchTeams}
           />
-        ) : displayedTeams.length === 0 ? (
+        ) : teams.length === 0 ? (
           <EmptyState
             icon={Users}
-            title={tab === 'my' ? 'No teams joined yet' : 'No teams found'}
+            title={
+              searchTerm
+                ? 'No matching teams found'
+                : tab === 'my'
+                ? 'No teams joined yet'
+                : 'No teams found'
+            }
             description={
-              tab === 'my'
+              searchTerm
+                ? `No teams matched "${searchTerm}". Try a different team or project name.`
+                : tab === 'my'
                 ? 'You have not created or joined any teams yet. Create one to recruit collaborators.'
                 : 'There are no active teams currently available.'
             }
-            actionLabel="Create Team"
-            onAction={() => window.location.assign('/teams/create')}
+            actionLabel={
+              searchTerm
+                ? 'Clear Search'
+                : 'Create Team'
+            }
+            onAction={() => {
+              if (searchTerm) {
+                setSearchTerm('');
+                setPage(0);
+              } else {
+                navigate('/teams/create');
+              }
+            }}
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {limitedTeams.map((team) => (
-              <TeamCard key={team.id} team={team} />
-            ))}
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {teams.map((team) => (
+                <TeamCard key={team.id} team={team} />
+              ))}
+            </div>
+
+            {/* Bottom Server-Side Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 pt-6 pb-2 border-t border-slate-100 dark:border-slate-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((prev) => Math.max(0, prev - 1))}
+                  disabled={page === 0 || isLoading}
+                >
+                  Previous
+                </Button>
+
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  Page {page + 1} of {Math.max(1, totalPages)}
+                </span>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((prev) => Math.min(totalPages - 1, prev + 1))}
+                  disabled={page >= totalPages - 1 || isLoading}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </div>
         )
       )}

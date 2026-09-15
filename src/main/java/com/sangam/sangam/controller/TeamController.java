@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.sangam.sangam.dto.CreateTeamRequest;
+import com.sangam.sangam.dto.PageResponse;
 import com.sangam.sangam.dto.RoleActionRequest;
 import com.sangam.sangam.dto.TeamInvitationResponse;
 import com.sangam.sangam.dto.TeamJoinRequestResponse;
@@ -114,9 +115,18 @@ public class TeamController {
     }
 
     @GetMapping
-    public ResponseEntity<List<TeamResponse>> getAllTeams() {
+    public ResponseEntity<PageResponse<TeamResponse>> getTeams(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String projectType,
+            @RequestParam(required = false) String scope,
+            @RequestParam(required = false) String tab,
+            @RequestParam(required = false, defaultValue = "0") int page,
+            @RequestParam(required = false, defaultValue = "9") int size,
+            Authentication authentication) {
+
+        String authenticatedEmail = authentication != null ? authentication.getName() : null;
         return ResponseEntity.ok(
-                teamService.getAllTeams());
+                teamService.getTeams(search, projectType, scope, tab, page, size, authenticatedEmail));
     }
 
     @GetMapping("/{id}")

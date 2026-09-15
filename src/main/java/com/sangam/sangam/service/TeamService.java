@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.sangam.sangam.dto.CreateTeamRequest;
+import com.sangam.sangam.dto.PageResponse;
 import com.sangam.sangam.dto.TeamInvitationResponse;
 import com.sangam.sangam.dto.TeamJoinRequestResponse;
 import com.sangam.sangam.dto.TeamMemberResponse;
@@ -453,6 +454,153 @@ public class TeamService {
                 status);
         response.setMembers(memberResponses);
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<TeamResponse> getTeams(
+            String search,
+            String projectType,
+            String scope,
+            String tab,
+            int page,
+            int size,
+            String authenticatedEmail) {
+
+        if (size <= 0) {
+            size = 9;
+        }
+        if (page < 0) {
+            page = 0;
+        }
+
+        List<Team> allTeams = teamRepository.findAll();
+        if (allTeams == null || allTeams.isEmpty()) {
+            return new PageResponse<>(Collections.emptyList(), page, size, 0);
+        }
+
+        User currentUser = null;
+        if (authenticatedEmail != null && !authenticatedEmail.isBlank()) {
+            currentUser = userRepository.findByEmail(authenticatedEmail.trim().toLowerCase()).orElse(null);
+        }
+
+        // 1. Filter by search term (case-insensitive across name, projectName, projectDescription, description, hackathonName)
+        List<Team> filtered = allTeams;
+        if (search != null && !search.isBlank()) {
+            String query = search.trim().toLowerCase();
+            filtered = filtered.stream()
+                    .filter(t -> {
+                        boolean matchName = t.getName() != null && t.getName().toLowerCase().contains(query);
+                        boolean matchProjectName = t.getProjectName() != null && t.getProjectName().toLowerCase().contains(query);
+                        boolean matchDesc = t.getProjectDescription() != null && t.getProjectDescription().toLowerCase().contains(query);
+                        boolean matchSummary = t.getDescription() != null && t.getDescription().toLowerCase().contains(query);
+                        boolean matchHackathon = t.getHackathonName() != null && t.getHackathonName().toLowerCase().contains(query);
+                        return matchName || matchProjectName || matchDesc || matchSummary || matchHackathon;
+                    })
+                    .toList();
+        }
+
+        // 2. Filter by projectType
+        if (projectType != null && !projectType.isBlank() && !projectType.equalsIgnoreCase("ALL")) {
+            String pt = projectType.trim();
+            filtered = filtered.stream()
+                    .filter(t -> {
+                        if (t.getProjectType() == null) return false;
+                        String teamPt = t.getProjectType().trim();
+                        if (teamPt.equalsIgnoreCase(pt)) return true;
+                        if (pt.equalsIgnoreCase("Startup") || pt.equalsIgnoreCase("Startup / Product")) {
+                            return teamPt.equalsIgnoreCase("Startup") || teamPt.equalsIgnoreCase("Startup / Product");
+                        }
+                        return false;
+                    })
+                    .toList();
+        }
+
+        // 3. Filter by scope (ALL, MY_COLLEGE, INTER_COLLEGE)
+        if (scope != null && !scope.isBlank() && !scope.equalsIgnoreCase("ALL") && currentUser != null && currentUser.getCollege() != null) {
+            String userCollege = currentUser.getCollege().trim();
+            if (scope.equalsIgnoreCase("MY_COLLEGE")) {
+                filtered = filtered.stream()
+                        .filter(t -> t.getLeader() != null && t.getLeader().getCollege() != null
+                                && t.getLeader().getCollege().trim().equalsIgnoreCase(userCollege))
+                        .toList();
+            } else if (scope.equalsIgnoreCase("INTER_COLLEGE")) {
+                filtered = filtered.stream()
+                        .filter(t -> t.getLeader() != null && (t.getLeader().getCollege() == null
+                                || !t.getLeader().getCollege().trim().equalsIgnoreCase(userCollege)))
+                        .toList();
+            }
+        }
+
+        // 4. Preload all team members for the filtered list to accurately calculate available capacity, member count, and tab filter
+        List<Long> filteredTeamIds = filtered.stream()
+                .map(Team::getId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        Map<Long, List<TeamMember>> membersByTeamId = Collections.emptyMap();
+        if (!filteredTeamIds.isEmpty()) {
+            try {
+                List<TeamMember> members = teamMemberRepository.findByTeamIdIn(filteredTeamIds);
+                if (members != null) {
+                    membersByTeamId = members.stream()
+                            .filter(Objects::nonNull)
+                            .filter(m -> m.getTeamId() != null)
+                            .collect(Collectors.groupingBy(TeamMember::getTeamId));
+                }
+            } catch (Exception e) {
+                // fallback
+            }
+        }
+
+        final Map<Long, List<TeamMember>> finalMembersByTeamId = membersByTeamId;
+
+        // 5. Filter by tab = "my"
+        if ("my".equalsIgnoreCase(tab)) {
+            if (currentUser == null) {
+                return new PageResponse<>(Collections.emptyList(), page, size, 0);
+            }
+            final Long currentUserId = currentUser.getId();
+            filtered = filtered.stream()
+                    .filter(t -> {
+                        boolean isLeader = t.getLeader() != null && Objects.equals(t.getLeader().getId(), currentUserId);
+                        List<TeamMember> teamMembers = finalMembersByTeamId.getOrDefault(t.getId(), Collections.emptyList());
+                        boolean isMember = teamMembers.stream().anyMatch(m -> Objects.equals(m.getUserId(), currentUserId));
+                        return isLeader || isMember;
+                    })
+                    .toList();
+        }
+
+        // 6. Map all filtered teams to TeamResponse with accurate sorting
+        List<TeamResponse> sortedResponses = filtered.stream()
+                .map(team -> toTeamResponse(team, finalMembersByTeamId.getOrDefault(team.getId(), Collections.emptyList())))
+                .sorted((a, b) -> {
+                    boolean aExp = Boolean.TRUE.equals(a.getExpired());
+                    boolean bExp = Boolean.TRUE.equals(b.getExpired());
+                    if (aExp != bExp) {
+                        return aExp ? 1 : -1; // Active teams first, Expired teams at bottom
+                    }
+                    // Among active (or expired), sort by available capacity descending
+                    int aAvail = a.getAvailableCapacity() != null ? a.getAvailableCapacity() : 0;
+                    int bAvail = b.getAvailableCapacity() != null ? b.getAvailableCapacity() : 0;
+                    if (aAvail != bAvail) {
+                        return Integer.compare(bAvail, aAvail);
+                    }
+                    // Tie-breaker: ID descending
+                    return Long.compare(b.getId() != null ? b.getId() : 0, a.getId() != null ? a.getId() : 0);
+                })
+                .toList();
+
+        long totalElements = sortedResponses.size();
+        int fromIndex = page * size;
+        List<TeamResponse> pagedContent;
+        if (fromIndex >= totalElements) {
+            pagedContent = Collections.emptyList();
+        } else {
+            int toIndex = (int) Math.min((long) fromIndex + size, totalElements);
+            pagedContent = sortedResponses.subList(fromIndex, toIndex);
+        }
+
+        return new PageResponse<>(pagedContent, page, size, totalElements);
     }
 
     @Transactional(readOnly = true)
