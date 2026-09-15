@@ -9,6 +9,10 @@ import { useToast } from '../context/ToastContext';
 import authApi from '../services/authApi';
 import { extractErrorMessage } from '../utils/helpers';
 
+// Flag to control visibility of the public Demo account entry point.
+// Kept for easy restoration: set to true to show the "Explore Demo" button again.
+const SHOW_DEMO_LOGIN = false;
+
 export const LoginPage = () => {
   const [formData, setFormData] = useState({
     email: '',
@@ -178,35 +182,37 @@ export const LoginPage = () => {
             </Button>
           </form>
 
-          {/* Explore Demo Section */}
-          <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 text-left">
-              <div className="space-y-0.5">
-                <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                  Want to explore SanGam?
-                </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Try the demo account without creating an account.
-                </p>
+          {/* Explore Demo Section (Temporarily disabled - set SHOW_DEMO_LOGIN to true to re-enable) */}
+          {SHOW_DEMO_LOGIN && (
+            <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 text-left">
+                <div className="space-y-0.5">
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                    Want to explore SanGam?
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Try the demo account without creating an account.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLoadDemo}
+                  className="shrink-0 font-medium"
+                >
+                  Explore Demo
+                </Button>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleLoadDemo}
-                className="shrink-0 font-medium"
-              >
-                Explore Demo
-              </Button>
-            </div>
 
-            {isDemoLoaded && (
-              <div className="mt-2.5 px-3 py-1.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2 animate-in fade-in">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                <span className="font-medium">Demo account loaded</span>
-              </div>
-            )}
-          </div>
+              {isDemoLoaded && (
+                <div className="mt-2.5 px-3 py-1.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2 animate-in fade-in">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                  <span className="font-medium">Demo account loaded</span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Footer Registration Link */}
           <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
