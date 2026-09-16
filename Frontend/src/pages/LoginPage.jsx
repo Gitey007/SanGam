@@ -11,7 +11,7 @@ import { extractErrorMessage } from '../utils/helpers';
 
 // Flag to control visibility of the public Demo account entry point.
 // Kept for easy restoration: set to true to show the "Explore Demo" button again.
-const SHOW_DEMO_LOGIN = false;
+const SHOW_DEMO_LOGIN = true;
 
 export const LoginPage = () => {
   const [formData, setFormData] = useState({
