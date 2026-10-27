@@ -24,21 +24,15 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
     private final EmailOtpService emailOtpService;
     private final AuthService authService;
-
-    public AuthController(
-            AuthService authService,
-            EmailOtpService emailOtpService) {
-
-        this.authService = authService;
-        this.emailOtpService = emailOtpService;
-    }
 
     @PostMapping("/register")
     public ResponseEntity<LoginResponse> register(

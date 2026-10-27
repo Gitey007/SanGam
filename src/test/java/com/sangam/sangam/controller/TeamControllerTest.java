@@ -31,6 +31,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.sangam.sangam.config.GlobalExceptionHandler;
+import com.sangam.sangam.dto.PageResponse;
 import com.sangam.sangam.dto.TeamInvitationResponse;
 import com.sangam.sangam.dto.TeamJoinRequestResponse;
 import com.sangam.sangam.dto.TeamResponse;
@@ -224,5 +225,59 @@ class TeamControllerTest {
                 .andExpect(jsonPath("$.teamId").value(10))
                 .andExpect(jsonPath("$.requestedRole").value("Researcher"))
                 .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    @Test
+    @DisplayName("GET /api/teams -> 200 OK with PageResponse structure")
+    void testGetAllTeamsPagedSuccess() throws Exception {
+        TeamResponse tr = new TeamResponse();
+        tr.setId(1L);
+        tr.setName("Alpha Team");
+        PageResponse<TeamResponse> pageResponse = new PageResponse<>(
+                List.of(tr), 0, 10, 1L, 1, true, true
+        );
+
+        when(teamService.getTeams(0, 10)).thenReturn(pageResponse);
+
+        mockMvc.perform(get("/api/teams"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Alpha Team"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.first").value(true))
+                .andExpect(jsonPath("$.last").value(true));
+    }
+
+    @Test
+    @DisplayName("GET /api/teams?page=1&size=5 -> 200 OK passing query params")
+    void testGetAllTeamsWithCustomParams() throws Exception {
+        PageResponse<TeamResponse> pageResponse = new PageResponse<>(
+                List.of(), 1, 5, 0L, 0, false, true
+        );
+
+        when(teamService.getTeams(1, 5)).thenReturn(pageResponse);
+
+        mockMvc.perform(get("/api/teams?page=1&size=5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(5))
+                .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    @Test
+    @DisplayName("GET /api/teams?page=-1 -> 400 Bad Request")
+    void testGetAllTeamsInvalidPageReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/teams?page=-1"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("GET /api/teams?size=0 -> 400 Bad Request")
+    void testGetAllTeamsInvalidSizeReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/teams?size=0"))
+                .andExpect(status().isBadRequest());
     }
 }

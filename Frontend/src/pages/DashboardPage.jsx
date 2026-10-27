@@ -69,7 +69,8 @@ export const DashboardPage = () => {
         teamApi.getTeams().catch(() => []),
         teamApi.getMyTeamInvitations('PENDING').catch(() => []),
       ]);
-      const sorted = sortTeams(Array.isArray(teamsData) ? teamsData : []);
+      const rawTeams = Array.isArray(teamsData) ? teamsData : (teamsData?.content || []);
+      const sorted = sortTeams(rawTeams);
       setTeams(sorted.slice(0, 3));
       setPendingInvitations(Array.isArray(invsData) ? invsData : []);
     } catch (err) {

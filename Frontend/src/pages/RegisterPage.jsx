@@ -186,7 +186,7 @@ export const RegisterPage = () => {
                 <Input
                   label="Full Name"
                   name="name"
-                  placeholder="Student Name"
+                  placeholder="Your full name"
                   value={formData.name}
                   onChange={handleChange}
                   leftIcon={User}
@@ -198,7 +198,7 @@ export const RegisterPage = () => {
                   label="Email Address"
                   name="email"
                   type="email"
-                  placeholder="student@college.edu"
+                  placeholder="Your email address"
                   value={formData.email}
                   onChange={handleChange}
                   leftIcon={Mail}
@@ -211,7 +211,7 @@ export const RegisterPage = () => {
                 label="Password"
                 name="password"
                 type="password"
-                placeholder="Minimum 8 characters"
+                placeholder="Create a strong password"
                 value={formData.password}
                 onChange={handleChange}
                 leftIcon={Lock}
@@ -223,7 +223,7 @@ export const RegisterPage = () => {
                 <Input
                   label="College / Institution"
                   name="college"
-                  placeholder="e.g. ABES Engineering College"
+                  placeholder="College / University name"
                   value={formData.college}
                   onChange={handleChange}
                   leftIcon={Building2}
@@ -234,7 +234,7 @@ export const RegisterPage = () => {
                 <Input
                   label="Branch / Major"
                   name="branch"
-                  placeholder="e.g. Computer Science"
+                  placeholder="Your branch / major"
                   value={formData.branch}
                   onChange={handleChange}
                   leftIcon={BookOpen}
@@ -265,7 +265,7 @@ export const RegisterPage = () => {
                   rows={2}
                   value={formData.bio}
                   onChange={handleChange}
-                  placeholder="Briefly describe what you like building or skills you're focusing on..."
+                  placeholder="Tell us about yourself, your interests, or what you like building…"
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 hover:border-slate-300 dark:hover:border-slate-700 resize-none"
                 />
               </div>

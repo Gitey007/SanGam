@@ -13,16 +13,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.sangam.sangam.dto.NotificationResponse;
 import com.sangam.sangam.service.NotificationService;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/notifications")
+@RequiredArgsConstructor
 public class NotificationController {
 
     private final NotificationService notificationService;
-
-    public NotificationController(NotificationService notificationService) {
-        this.notificationService = notificationService;
-    }
 
     @GetMapping
     public ResponseEntity<List<NotificationResponse>> getNotifications(Authentication authentication) {

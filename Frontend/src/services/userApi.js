@@ -38,9 +38,9 @@ export const userApi = {
    * 
    * @param {string|number} id
    */
-  async getUser(id) {
+  async getUser(id, config = {}) {
     if (!id) throw new Error('User ID is required');
-    const response = await api.get(`/api/users/${id}`);
+    const response = await api.get(`/api/users/${id}`, config);
     return response.data;
   },
 

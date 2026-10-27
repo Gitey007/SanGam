@@ -60,8 +60,8 @@ export const Sidebar = () => {
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 ${
                   isActive
-                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                    ? 'bg-slate-100 dark:bg-[#191919] text-slate-900 dark:text-[#2FBF9F] font-semibold'
+                    : 'text-slate-600 dark:text-[#A3A3A3] hover:text-slate-900 dark:hover:text-[#F5F5F5] hover:bg-slate-50 dark:hover:bg-[#202020]'
                 }`
               }
             >
@@ -79,8 +79,8 @@ export const Sidebar = () => {
           className={({ isActive }) =>
             `flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 ${
               isActive
-                ? 'bg-slate-200/60 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-800/60'
+                ? 'bg-slate-200/60 dark:bg-[#191919] text-slate-900 dark:text-[#2FBF9F] font-semibold'
+                : 'text-slate-600 dark:text-[#A3A3A3] hover:text-slate-900 dark:hover:text-[#F5F5F5] hover:bg-slate-100/60 dark:hover:bg-[#202020]'
             }`
           }
         >

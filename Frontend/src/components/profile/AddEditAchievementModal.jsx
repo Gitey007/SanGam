@@ -160,7 +160,7 @@ export const AddEditAchievementModal = ({
           value={formData.title}
           onChange={handleChange}
           error={errors.title}
-          placeholder="e.g. Winner - SIH 2024 / LeetCode Knight"
+          placeholder="Achievement title / honor"
           required
         />
 
@@ -178,7 +178,7 @@ export const AddEditAchievementModal = ({
             name="date"
             value={formData.date}
             onChange={handleChange}
-            placeholder="e.g. Oct 2024"
+            placeholder="Date / period"
           />
         </div>
 

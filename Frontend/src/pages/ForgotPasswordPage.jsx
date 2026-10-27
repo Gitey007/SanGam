@@ -215,7 +215,7 @@ export const ForgotPasswordPage = () => {
                 label="Registered College Email"
                 name="email"
                 type="email"
-                placeholder="name@college.edu or registered email"
+                placeholder="Your email address"
                 value={formData.email}
                 onChange={handleChange}
                 leftIcon={Mail}
@@ -300,7 +300,7 @@ export const ForgotPasswordPage = () => {
                 label="New Password"
                 name="newPassword"
                 type="password"
-                placeholder="Minimum 8 characters"
+                placeholder="Create a strong password"
                 value={formData.newPassword}
                 onChange={handleChange}
                 leftIcon={Lock}

@@ -24,12 +24,12 @@ export const Button = ({
   };
 
   const variantStyles = {
-    primary: 'bg-slate-900 text-white hover:bg-slate-800 active:bg-slate-950 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 dark:active:bg-slate-200 focus-visible:ring-slate-900 dark:focus-visible:ring-white shadow-subtle',
-    brand: 'bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800 dark:bg-brand-600 dark:hover:bg-brand-500 focus-visible:ring-brand-500 shadow-subtle',
-    secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-300 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 focus-visible:ring-slate-400',
-    outline: 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:border-slate-700 focus-visible:ring-slate-400 shadow-subtle',
-    ghost: 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 active:bg-slate-200/80 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800/80 focus-visible:ring-slate-400',
-    danger: 'bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800 dark:bg-rose-600 dark:hover:bg-rose-500 focus-visible:ring-rose-500 shadow-subtle',
+    primary: 'bg-slate-900 text-white hover:bg-slate-800 active:bg-slate-950 dark:bg-[#2FBF9F] dark:text-[#0D0D0D] dark:hover:bg-[#249B82] dark:active:bg-[#1f8771] focus-visible:ring-slate-900 dark:focus-visible:ring-[#2FBF9F] shadow-subtle',
+    brand: 'bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800 dark:bg-[#2FBF9F] dark:text-[#0D0D0D] dark:hover:bg-[#249B82] focus-visible:ring-[#2FBF9F] shadow-subtle',
+    secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-300 dark:bg-[#191919] dark:text-[#F5F5F5] dark:hover:bg-[#202020] dark:border dark:border-[#292929] focus-visible:ring-slate-400',
+    outline: 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100 dark:border-[#292929] dark:bg-[#191919] dark:text-[#F5F5F5] dark:hover:bg-[#202020] dark:hover:border-[#383838] focus-visible:ring-slate-400 shadow-subtle',
+    ghost: 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 active:bg-slate-200/80 dark:text-[#A3A3A3] dark:hover:text-[#F5F5F5] dark:hover:bg-[#202020] focus-visible:ring-slate-400',
+    danger: 'bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800 dark:bg-[#EF4444] dark:hover:bg-[#dc2626] focus-visible:ring-rose-500 shadow-subtle',
   };
 
   return (

@@ -16,11 +16,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.sangam.sangam.dto.CreateTeamRequest;
+import com.sangam.sangam.dto.PageResponse;
 import com.sangam.sangam.dto.TeamInvitationResponse;
 import com.sangam.sangam.dto.TeamJoinRequestResponse;
 import com.sangam.sangam.dto.TeamMemberResponse;
@@ -453,6 +457,71 @@ public class TeamService {
                 status);
         response.setMembers(memberResponses);
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<TeamResponse> getTeams(int page, int size) {
+        if (page < 0) {
+            page = 0;
+        }
+        if (size <= 0) {
+            size = 10;
+        }
+        if (size > 50) {
+            size = 50;
+        }
+        return getTeams(PageRequest.of(page, size));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<TeamResponse> getTeams(Pageable pageable) {
+        Page<Team> teamsPage = teamRepository.findAllPaged(pageable);
+        List<Team> teams = teamsPage.getContent();
+        if (teams == null || teams.isEmpty()) {
+            return new PageResponse<>(
+                    Collections.emptyList(),
+                    teamsPage.getNumber(),
+                    teamsPage.getSize(),
+                    teamsPage.getTotalElements(),
+                    teamsPage.getTotalPages(),
+                    teamsPage.isFirst(),
+                    teamsPage.isLast());
+        }
+
+        List<Long> teamIds = teams.stream()
+                .map(Team::getId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        Map<Long, List<TeamMember>> membersByTeamId = Collections.emptyMap();
+        if (!teamIds.isEmpty()) {
+            try {
+                List<TeamMember> members = teamMemberRepository.findByTeamIdIn(teamIds);
+                if (members != null) {
+                    membersByTeamId = members.stream()
+                            .filter(Objects::nonNull)
+                            .filter(m -> m.getTeamId() != null)
+                            .collect(Collectors.groupingBy(TeamMember::getTeamId));
+                }
+            } catch (Exception e) {
+                // fallback
+            }
+        }
+
+        final Map<Long, List<TeamMember>> finalMembersByTeamId = membersByTeamId;
+
+        List<TeamResponse> responses = teams.stream()
+                .map(team -> toTeamResponse(team, finalMembersByTeamId.getOrDefault(team.getId(), Collections.emptyList())))
+                .toList();
+
+        return new PageResponse<>(
+                responses,
+                teamsPage.getNumber(),
+                teamsPage.getSize(),
+                teamsPage.getTotalElements(),
+                teamsPage.getTotalPages(),
+                teamsPage.isFirst(),
+                teamsPage.isLast());
     }
 
     @Transactional(readOnly = true)
