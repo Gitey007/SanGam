@@ -1,5 +1,14 @@
 package com.sangam.sangam.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class TeamRoleSlotDto {
 
     private String roleName;
@@ -7,50 +16,8 @@ public class TeamRoleSlotDto {
     private Integer filledSlots;
     private Integer availableSlots;
 
-    public TeamRoleSlotDto() {
-    }
-
     public TeamRoleSlotDto(String roleName, Integer slotCount) {
         this.roleName = roleName;
         this.slotCount = slotCount;
-    }
-
-    public TeamRoleSlotDto(String roleName, Integer slotCount, Integer filledSlots, Integer availableSlots) {
-        this.roleName = roleName;
-        this.slotCount = slotCount;
-        this.filledSlots = filledSlots;
-        this.availableSlots = availableSlots;
-    }
-
-    public String getRoleName() {
-        return roleName;
-    }
-
-    public void setRoleName(String roleName) {
-        this.roleName = roleName;
-    }
-
-    public Integer getSlotCount() {
-        return slotCount;
-    }
-
-    public void setSlotCount(Integer slotCount) {
-        this.slotCount = slotCount;
-    }
-
-    public Integer getFilledSlots() {
-        return filledSlots;
-    }
-
-    public void setFilledSlots(Integer filledSlots) {
-        this.filledSlots = filledSlots;
-    }
-
-    public Integer getAvailableSlots() {
-        return availableSlots;
-    }
-
-    public void setAvailableSlots(Integer availableSlots) {
-        this.availableSlots = availableSlots;
     }
 }

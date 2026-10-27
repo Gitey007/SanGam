@@ -133,7 +133,7 @@ export const AddEditProjectModal = ({
           value={formData.name}
           onChange={handleChange}
           error={errors.name}
-          placeholder="e.g. SanGam Peer Finder / Autonomous Drone"
+          placeholder="Project title / name"
           required
         />
 
@@ -161,7 +161,7 @@ export const AddEditProjectModal = ({
           name="techStack"
           value={formData.techStack}
           onChange={handleChange}
-          placeholder="e.g. React, Spring Boot, MySQL, Docker"
+          placeholder="Skills and technologies used"
         />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

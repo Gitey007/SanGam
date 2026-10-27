@@ -1,8 +1,10 @@
 import api from './api';
 
 export const teamApi = {
-  async getTeams() {
-    const response = await api.get('/api/teams');
+  async getTeams(page = 0, size = 10) {
+    const response = await api.get('/api/teams', {
+      params: { page, size },
+    });
     return response.data;
   },
 

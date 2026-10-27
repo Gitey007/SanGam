@@ -56,7 +56,7 @@ export const ProfilePage = () => {
   const [newSkillInput, setNewSkillInput] = useState('');
   const [isAddingSkill, setIsAddingSkill] = useState(false);
 
-  const fetchProfile = useCallback(async () => {
+  const fetchProfile = useCallback(async (signal) => {
     if (!targetId) {
       if (authUser) {
         setProfile(authUser);
@@ -67,21 +67,33 @@ export const ProfilePage = () => {
 
     setIsLoading(true);
     setError(null);
+    if (!isOwnProfile) {
+      setProfile(null);
+    } else if (authUser) {
+      setProfile(authUser);
+    }
 
     try {
-      const data = await userApi.getUser(targetId);
+      const data = await userApi.getUser(targetId, { signal });
       setProfile(data);
     } catch (err) {
+      if (err.name === 'AbortError' || err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
+        return;
+      }
       console.warn('Real API GET /api/users/:id error:', err);
       const errorMsg = extractErrorMessage(err, 'Unable to load student profile.');
       setError(errorMsg);
     } finally {
       setIsLoading(false);
     }
-  }, [targetId, authUser]);
+  }, [targetId, isOwnProfile, authUser]);
 
   useEffect(() => {
-    fetchProfile();
+    const controller = new AbortController();
+    fetchProfile(controller.signal);
+    return () => {
+      controller.abort();
+    };
   }, [fetchProfile]);
 
   const handleProfileUpdated = (updatedProfile) => {
@@ -292,7 +304,7 @@ export const ProfilePage = () => {
                 type="text"
                 value={newSkillInput}
                 onChange={(e) => setNewSkillInput(e.target.value)}
-                placeholder="e.g. Next.js, Kubernetes, PyTorch..."
+                placeholder="Skill or technology name"
                 className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
               />
               <Button

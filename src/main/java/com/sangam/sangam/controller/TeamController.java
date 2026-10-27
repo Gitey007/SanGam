@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.sangam.sangam.dto.CreateTeamRequest;
+import com.sangam.sangam.dto.PageResponse;
 import com.sangam.sangam.dto.RoleActionRequest;
 import com.sangam.sangam.dto.TeamInvitationResponse;
 import com.sangam.sangam.dto.TeamJoinRequestResponse;
@@ -31,18 +32,15 @@ import com.sangam.sangam.entity.TeamInvitation;
 import com.sangam.sangam.entity.User;
 import com.sangam.sangam.repository.UserRepository;
 import com.sangam.sangam.service.TeamService;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/teams")
+@RequiredArgsConstructor
 public class TeamController {
 
     private final TeamService teamService;
     private final UserRepository userRepository;
-
-    public TeamController(TeamService teamService, UserRepository userRepository) {
-        this.teamService = teamService;
-        this.userRepository = userRepository;
-    }
 
     @PostMapping
     public ResponseEntity<TeamResponse> createTeam(
@@ -114,9 +112,19 @@ public class TeamController {
     }
 
     @GetMapping
-    public ResponseEntity<List<TeamResponse>> getAllTeams() {
-        return ResponseEntity.ok(
-                teamService.getAllTeams());
+    public ResponseEntity<PageResponse<TeamResponse>> getAllTeams(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        if (page < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Page index must not be less than zero");
+        }
+        if (size < 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Page size must not be less than one");
+        }
+        if (size > 50) {
+            size = 50;
+        }
+        return ResponseEntity.ok(teamService.getTeams(page, size));
     }
 
     @GetMapping("/{id}")

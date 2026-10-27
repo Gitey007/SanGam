@@ -134,7 +134,7 @@ export const LoginPage = () => {
               label="College Email"
               name="email"
               type="email"
-              placeholder="name@college.edu or name@example.com"
+              placeholder="Your email address"
               value={formData.email}
               onChange={handleChange}
               leftIcon={Mail}

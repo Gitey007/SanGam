@@ -21,16 +21,14 @@ import com.sangam.sangam.dto.ProjectDto;
 import com.sangam.sangam.dto.UpdateProfileRequest;
 import com.sangam.sangam.dto.UserProfileResponse;
 import com.sangam.sangam.service.UserService;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/users")
+@RequiredArgsConstructor
 public class UserController {
 
     private final UserService userService;
-
-    public UserController(UserService userService) {
-        this.userService = userService;
-    }
 
     @GetMapping
     public List<UserProfileResponse> getUsers(

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -15,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import com.sangam.sangam.dto.CreateTeamRequest;
+import com.sangam.sangam.dto.PageResponse;
 import com.sangam.sangam.dto.TeamResponse;
 import com.sangam.sangam.dto.TeamRoleSlotDto;
 import com.sangam.sangam.dto.UserProfileResponse;
@@ -262,5 +264,92 @@ class TeamLazyLoadingIntegrationTest {
                 .findFirst().orElseThrow();
         assertEquals(4, listed.getRequiredSkills().size(), "Listed team required skills must be exactly 4");
         assertEquals(3, listed.getRoleSlots().size(), "Listed team role slots must be exactly 3");
+    }
+
+    @Test
+    @DisplayName("getTeams paged returns correct metadata and places expired teams at bottom across pages")
+    void testPaginationWithExpiredTeamsOrderedAtBottomAndDeterministicPageBoundary() {
+        cleanDatabase();
+
+        User leader = new User();
+        leader.setName("Lead Developer");
+        leader.setEmail("lead@college.edu");
+        leader.setPasswordHash("hashed_pass");
+        leader.setCollege("Stanford");
+        leader.setBranch("CSE");
+        leader.setYear((byte) 3);
+        userRepository.save(leader);
+
+        // Create 3 active teams with different capacities and 2 expired teams
+        // Active 1: capacity 6
+        Team t1 = new Team();
+        t1.setName("Active High Capacity");
+        t1.setLeader(leader);
+        t1.setMaxMembers((byte) 6);
+        t1.setJoinDeadline(LocalDateTime.now().plusDays(5));
+        teamRepository.save(t1);
+
+        // Active 2: capacity 4
+        Team t2 = new Team();
+        t2.setName("Active Medium Capacity");
+        t2.setLeader(leader);
+        t2.setMaxMembers((byte) 4);
+        t2.setJoinDeadline(LocalDateTime.now().plusDays(3));
+        teamRepository.save(t2);
+
+        // Active 3: capacity 2
+        Team t3 = new Team();
+        t3.setName("Active Low Capacity");
+        t3.setLeader(leader);
+        t3.setMaxMembers((byte) 2);
+        t3.setJoinDeadline(LocalDateTime.now().plusDays(1));
+        teamRepository.save(t3);
+
+        // Expired 1: deadline 3 days ago
+        Team exp1 = new Team();
+        exp1.setName("Expired Team 1");
+        exp1.setLeader(leader);
+        exp1.setMaxMembers((byte) 10);
+        exp1.setJoinDeadline(LocalDateTime.now().minusDays(3));
+        teamRepository.save(exp1);
+
+        // Expired 2: deadline 1 day ago
+        Team exp2 = new Team();
+        exp2.setName("Expired Team 2");
+        exp2.setLeader(leader);
+        exp2.setMaxMembers((byte) 8);
+        exp2.setJoinDeadline(LocalDateTime.now().minusDays(1));
+        teamRepository.save(exp2);
+
+        // Fetch Page 0 (size 2): Should contain active teams with highest capacity
+        PageResponse<TeamResponse> page0 = teamService.getTeams(0, 2);
+        assertNotNull(page0);
+        assertEquals(0, page0.getPage());
+        assertEquals(2, page0.getSize());
+        assertEquals(5L, page0.getTotalElements());
+        assertEquals(3, page0.getTotalPages());
+        assertTrue(page0.isFirst());
+        assertFalse(page0.isLast());
+        assertEquals(2, page0.getContent().size());
+
+        // Verify active teams are on page 0 and non-expired
+        assertFalse(page0.getContent().get(0).getExpired(), "Page 0 first team must be active");
+        assertFalse(page0.getContent().get(1).getExpired(), "Page 0 second team must be active");
+        assertEquals(t1.getId(), page0.getContent().get(0).getId());
+        assertEquals(t2.getId(), page0.getContent().get(1).getId());
+
+        // Fetch Page 1 (size 2): Should contain third active team and first expired team
+        PageResponse<TeamResponse> page1 = teamService.getTeams(1, 2);
+        assertEquals(1, page1.getPage());
+        assertEquals(2, page1.getContent().size());
+        assertEquals(t3.getId(), page1.getContent().get(0).getId());
+        assertFalse(page1.getContent().get(0).getExpired());
+
+        // Fetch Page 2 (size 2): Should contain remaining expired team
+        PageResponse<TeamResponse> page2 = teamService.getTeams(2, 2);
+        assertEquals(2, page2.getPage());
+        assertTrue(page2.isLast());
+        assertEquals(1, page2.getContent().size());
+        assertTrue(page2.getContent().get(0).getExpired(), "Last page must contain expired team");
     }
 }

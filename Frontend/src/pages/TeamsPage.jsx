@@ -10,6 +10,8 @@ import {
   ArrowRight,
   Send,
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
@@ -42,6 +44,14 @@ export const TeamsPage = () => {
   const [isLoadingRequests, setIsLoadingRequests] = useState(true);
   const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState({});
+
+  // Backend pagination state
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const [isFirstPage, setIsFirstPage] = useState(true);
+  const [isLastPage, setIsLastPage] = useState(true);
 
   const [cancelRequestModal, setCancelRequestModal] = useState({
     isOpen: false,
@@ -95,13 +105,32 @@ export const TeamsPage = () => {
     });
   };
 
-  const fetchTeams = useCallback(async () => {
+  const fetchTeams = useCallback(async (targetPage = page, targetSize = pageSize) => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await teamApi.getTeams();
-      const rawList = Array.isArray(data) ? data : [];
-      setTeams(sortTeams(rawList));
+      const data = await teamApi.getTeams(targetPage, targetSize);
+      if (data && Array.isArray(data.content)) {
+        setTeams(data.content);
+        setPage(data.page ?? targetPage);
+        setPageSize(data.size ?? targetSize);
+        setTotalPages(data.totalPages ?? 1);
+        setTotalElements(data.totalElements ?? data.content.length);
+        setIsFirstPage(data.first ?? targetPage === 0);
+        setIsLastPage(data.last ?? (data.totalPages ? targetPage >= data.totalPages - 1 : true));
+      } else if (Array.isArray(data)) {
+        const sorted = sortTeams(data);
+        setTeams(sorted);
+        setPage(0);
+        setTotalPages(1);
+        setTotalElements(sorted.length);
+        setIsFirstPage(true);
+        setIsLastPage(true);
+      } else {
+        setTeams([]);
+        setTotalElements(0);
+        setTotalPages(0);
+      }
     } catch (err) {
       console.error('Failed to load teams:', err);
       setError(
@@ -110,7 +139,7 @@ export const TeamsPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [page, pageSize]);
 
   const fetchInvitations = useCallback(async () => {
     setIsLoadingInvitations(true);
@@ -137,7 +166,7 @@ export const TeamsPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchTeams();
+    fetchTeams(page, pageSize);
     fetchInvitations();
     fetchMyRequests();
   }, [fetchTeams, fetchInvitations, fetchMyRequests]);
@@ -146,9 +175,25 @@ export const TeamsPage = () => {
     setTab(newTab);
     if (newTab === 'all') {
       setSearchParams({}, { replace: true });
+      setPage(0);
+      fetchTeams(0, pageSize);
     } else {
       setSearchParams({ tab: newTab }, { replace: true });
     }
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage < 0 || (totalPages > 0 && newPage >= totalPages) || isLoading) return;
+    setPage(newPage);
+    fetchTeams(newPage, pageSize);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handlePageSizeChange = (newSize) => {
+    const sizeNum = Number(newSize);
+    setPageSize(sizeNum);
+    setPage(0);
+    fetchTeams(0, sizeNum);
   };
 
   const handleAcceptInvitation = async (invitation) => {
@@ -314,8 +359,6 @@ export const TeamsPage = () => {
   const pendingRequests = myRequests.filter((r) => r.status === 'PENDING');
 
   const displayedTeams = tab === 'my' ? myTeams : teams;
-  const limitedTeams =
-    limit === 'ALL' ? displayedTeams : displayedTeams.slice(0, Number(limit));
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -352,7 +395,7 @@ export const TeamsPage = () => {
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            All Teams ({teams.length})
+            All Teams ({totalElements || teams.length})
           </button>
           <button
             type="button"
@@ -401,26 +444,22 @@ export const TeamsPage = () => {
           </button>
         </div>
 
-        {(tab === 'all' || tab === 'my') && (
+        {tab === 'all' && (
           <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 self-start sm:self-auto">
             <span>Show:</span>
             <select
-              value={limit}
-              onChange={(e) =>
-                setLimit(
-                  e.target.value === 'ALL' ? 'ALL' : Number(e.target.value)
-                )
-              }
+              value={pageSize}
+              onChange={(e) => handlePageSizeChange(e.target.value)}
               className="h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600"
             >
               <option value={10}>10</option>
               <option value={20}>20</option>
               <option value={30}>30</option>
-              <option value="ALL">All</option>
+              <option value={50}>50</option>
             </select>
-            {displayedTeams.length > 0 && (
+            {totalElements > 0 && (
               <span className="text-slate-400 dark:text-slate-500 text-[11px] ml-1">
-                ({limitedTeams.length} of {displayedTeams.length})
+                (Page {page + 1} of {totalPages || 1})
               </span>
             )}
           </div>
@@ -689,13 +728,72 @@ export const TeamsPage = () => {
                 : 'There are no active teams currently available.'
             }
             actionLabel="Create Team"
-            onAction={() => window.location.assign('/teams/create')}
+            onAction={() => navigate('/teams/create')}
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {limitedTeams.map((team) => (
-              <TeamCard key={team.id} team={team} />
-            ))}
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {displayedTeams.map((team) => (
+                <TeamCard key={team.id} team={team} />
+              ))}
+            </div>
+
+            {/* Pagination Controls */}
+            {tab === 'all' && totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-slate-200/80 dark:border-slate-800">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Showing <span className="font-semibold text-slate-700 dark:text-slate-200">{page * pageSize + 1}</span> to{' '}
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">{Math.min((page + 1) * pageSize, totalElements)}</span> of{' '}
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">{totalElements}</span> teams
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={ChevronLeft}
+                    onClick={() => handlePageChange(page - 1)}
+                    disabled={isFirstPage || page === 0 || isLoading}
+                  >
+                    Previous
+                  </Button>
+
+                  <div className="flex items-center gap-1 px-1">
+                    {Array.from({ length: totalPages }, (_, i) => i)
+                      .filter((p) => p === 0 || p === totalPages - 1 || Math.abs(p - page) <= 1)
+                      .map((p, idx, arr) => (
+                        <React.Fragment key={p}>
+                          {idx > 0 && arr[idx - 1] !== p - 1 && (
+                            <span className="px-1 text-slate-400 dark:text-slate-600 text-xs">…</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handlePageChange(p)}
+                            disabled={isLoading}
+                            className={`min-w-8 h-8 px-2 rounded-lg text-xs font-medium transition-all ${
+                              p === page
+                                ? 'bg-slate-900 dark:bg-[#2FBF9F] text-white dark:text-[#0D0D0D] font-semibold shadow-subtle'
+                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                          >
+                            {p + 1}
+                          </button>
+                        </React.Fragment>
+                      ))}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    rightIcon={ChevronRight}
+                    onClick={() => handlePageChange(page + 1)}
+                    disabled={isLastPage || page >= totalPages - 1 || isLoading}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )
       )}

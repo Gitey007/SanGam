@@ -3,7 +3,15 @@ package com.sangam.sangam.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class VerifyOtpRequest {
 
     @NotBlank
@@ -13,23 +21,4 @@ public class VerifyOtpRequest {
     @NotBlank
     @Pattern(regexp = "\\d{6}", message = "OTP must be 6 digits")
     private String otp;
-
-    public VerifyOtpRequest() {
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public String getOtp() {
-        return otp;
-    }
-
-    public void setOtp(String otp) {
-        this.otp = otp;
-    }
 }

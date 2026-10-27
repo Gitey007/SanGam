@@ -22,8 +22,8 @@ export const MobileNav = () => {
               className={({ isActive }) =>
                 `flex flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors ${
                   isActive
-                    ? 'text-slate-900 dark:text-white font-semibold'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                    ? 'text-slate-900 dark:text-[#2FBF9F] font-semibold'
+                    : 'text-slate-500 dark:text-[#A3A3A3] hover:text-slate-700 dark:hover:text-[#F5F5F5]'
                 }`
               }
             >
